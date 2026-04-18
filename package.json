@@ -1,0 +1,26 @@
+{
+  "name": "alphadashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "@mdi/font": "^7.4.47",
+    "bootstrap": "^5.3.8",
+    "chart.js": "^4.5.1",
+    "material-design-iconic-font": "^2.2.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.30",
+    "vue-router": "^5.0.4",
+    "vuetify": "^3.12.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.5",
+    "vite": "^8.0.1"
+  }
+}

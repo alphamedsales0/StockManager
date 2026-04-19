@@ -31,9 +31,17 @@
     <OverviewCards />
     <StatisticsCards />
 
-    <!-- Neue Zeile mit den zwei Service-Karten -->
-    <RecentTickets />
-   
+    <!-- Ligne unique pour les deux cartes : RecentTickets + MonthlySales -->
+    <v-row>
+      <!-- RecentTickets occupe 8/12 de la largeur -->
+      <v-col  cols="12" md="8" class="tall-card">
+        <RecentTickets />
+      </v-col>
+      <!-- MonthlySales occupe 4/12 de la largeur -->
+      <v-col cols="12" md="4">
+        <MonthlySales />
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
@@ -45,8 +53,9 @@ import { useCustomerStore } from '../stores/customers'
 import { useQuoteStore } from '../stores/quotes'
 import OverviewCards from '../components/dashboard/OverviewCards.vue'
 import StatisticsCards from '../components/dashboard/StatisticsCards.vue'
-import QuickActions from '../components/dashboard/QuickActions.vue'  // <-- import
+import QuickActions from '../components/dashboard/QuickActions.vue'
 import RecentTickets from '../components/dashboard/RecentTickets.vue'
+import MonthlySales from '../components/dashboard/MonthlySales.vue'
 
 const router = useRouter()
 const productStore = useProductStore()
@@ -86,4 +95,9 @@ onMounted(() => loadData())
 .mb-4 {
   margin-bottom: 1.5rem !important;
 }
+
+.tall-card :deep(.v-card) {
+  min-height: 350px;   /* ou height: 100% pour remplir la colonne */
+}
+
 </style>

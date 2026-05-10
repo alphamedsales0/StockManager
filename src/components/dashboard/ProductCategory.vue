@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { useProductStore } from '../../stores/stock_manager_products'
 
@@ -49,12 +49,9 @@ const productStore = useProductStore()
 const chartCanvas = ref(null)
 let chartInstance = null
 
-// Palette de couleurs (ajustez selon vos besoins)
-const colorPalette = [
-  '#00b5e9', '#fa4251', '#00ad5f', '#ffc107', '#9c27b0', '#ff9800', '#795548', '#607d8b'
-]
+const colorPalette = ['#00b5e9', '#fa4251', '#00ad5f', '#ffc107', '#9c27b0', '#ff9800', '#795548', '#607d8b']
 
-// Calcul des catégories à partir des produits du store
+// Kategorien aus den Produkten berechnen
 const categoryStats = computed(() => {
   const products = productStore.products || []
   const categoryCount = {}
@@ -69,10 +66,10 @@ const categoryStats = computed(() => {
     count,
     percentage: Math.round((count / total) * 100),
     color: colorPalette[idx % colorPalette.length]
-  })).sort((a,b) => b.count - a.count) // tri décroissant
+  })).sort((a, b) => b.count - a.count)
 })
 
-// Données pour Chart.js
+// Chart-Daten
 const chartData = computed(() => ({
   labels: categoryStats.value.map(s => s.category),
   datasets: [{
@@ -83,18 +80,20 @@ const chartData = computed(() => ({
   }]
 }))
 
-// Items pour la légende
-const items = computed(() => categoryStats.value.map(s => ({
-  cat: s.category,
-  pct: s.percentage,
-  color: s.color
-})))
+// Legende – jetzt direkt aus categoryStats
+const leftItems = computed(() => {
+  const stats = categoryStats.value
+  const mid = Math.ceil(stats.length / 2)
+  return stats.slice(0, mid)
+})
 
-// Séparer en deux colonnes (gauche : première moitié, droite : seconde moitié)
-const leftItems = computed(() => items.value.slice(0, Math.ceil(items.value.length / 2)))
-const rightItems = computed(() => items.value.slice(Math.ceil(items.value.length / 2)))
+const rightItems = computed(() => {
+  const stats = categoryStats.value
+  const mid = Math.ceil(stats.length / 2)
+  return stats.slice(mid)
+})
 
-// Rendu du graphique
+// Chart rendern
 const renderChart = () => {
   if (!chartCanvas.value || categoryStats.value.length === 0) return
   if (chartInstance) chartInstance.destroy()
@@ -116,8 +115,6 @@ onMounted(() => {
   renderChart()
 })
 
-// Mettre à jour le graphique si les données du store changent
-import { watch } from 'vue'
 watch(categoryStats, () => renderChart(), { deep: true })
 </script>
 

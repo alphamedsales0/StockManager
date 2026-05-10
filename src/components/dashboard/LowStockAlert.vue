@@ -1,11 +1,8 @@
 <template>
   <v-card rounded="lg" elevation="2" style="height: 100%; display: flex; flex-direction: column;">
-    <!-- Modernisierte Kopfzeile -->
+    <!-- Kopfzeile -->
     <v-card-title class="d-flex justify-space-between align-center bg-grey-lighten-4 px-4 py-3">
-      <span class="text-h6 font-weight-semibold">
-        Niedriger Lagerbestand
-      </span>
-
+      <span class="text-h6 font-weight-semibold">Niedriger Lagerbestand</span>
       <div class="d-flex align-center ga-1">
         <v-btn icon variant="text" size="small" color="grey-darken-1">
           <v-icon size="20">mdi-fullscreen</v-icon>
@@ -17,24 +14,30 @@
     </v-card-title>
 
     <v-card-text class="pa-3" style="flex: 1;">
-      <div v-if="outOfStockProducts.length === 0" class="text-center pa-6 text-grey">
-        ✅ Keine Produkte ausverkauft
+      <!-- Fallback: Keine ausverkauften Produkte -> Icon + Text -->
+      <div v-if="outOfStockProducts.length === 0" class="text-center pa-6">
+        <v-icon size="64" color="success">mdi-check-circle</v-icon>
+        <div class="text-h6 mt-2">Alle Produkte auf Lager</div>
+        <div class="text-caption text-grey">Keine ausverkauften Artikel</div>
       </div>
 
+      <!-- Chart + Liste nur bei ausverkauften Produkten -->
       <div v-else>
-        <!-- Kreisdiagramm: Verteilung der Ausverkäufe nach Kategorie -->
-        <canvas ref="pieChartCanvas" style="max-height: 220px; width: 100%;"></canvas>
+        <!-- kleiner Donut-Chart (zentriert) -->
+        <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+          <canvas ref="pieChartCanvas" width="180" height="180"></canvas>
+        </div>
 
-        <!-- Interaktive Legende -->
+        <!-- Liste der ausverkauften Produkte -->
         <v-list density="compact" class="mt-2">
           <v-list-item
-            v-for="(product, index) in outOfStockProducts"
+            v-for="product in outOfStockProducts"
             :key="product.id"
             @click="viewProduct(product)"
             style="cursor: pointer;"
           >
             <template v-slot:prepend>
-              <div :style="{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: categoryColors[product.category] }"></div>
+              <div :style="{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: categoryColors[product.category] || '#607d8b' }"></div>
             </template>
             <v-list-item-title>
               {{ product.name }}
@@ -48,17 +51,20 @@
       </div>
     </v-card-text>
 
-    <v-divider v-if="outOfStockProducts.length > 0"></v-divider>
-    <v-card-actions v-if="outOfStockProducts.length > 0" class="pa-2">
-      <v-btn color="warning" variant="tonal" block size="small" @click="viewAllOutOfStock">
-        Alle ausverkauften Produkte anzeigen
-      </v-btn>
-    </v-card-actions>
+    <!-- Footer mit Button (nur bei ausverkauften Produkten) -->
+    <template v-if="outOfStockProducts.length > 0">
+      <v-divider></v-divider>
+      <v-card-actions class="pa-2">
+        <v-btn color="warning" variant="tonal" block size="small" @click="viewAllOutOfStock">
+          Alle ausverkauften Produkte anzeigen
+        </v-btn>
+      </v-card-actions>
+    </template>
   </v-card>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Chart, registerables } from 'chart.js'
 import { useProductStore } from '../../stores/stock_manager_products'
@@ -68,12 +74,12 @@ Chart.register(...registerables)
 const router = useRouter()
 const productStore = useProductStore()
 
-// Ausverkaufte Produkte (in_stock = false)
+// Nur Artikel mit in_stock = false oder 0
 const outOfStockProducts = computed(() =>
   (productStore.products || []).filter(p => p.in_stock === false || p.in_stock === 0)
 )
 
-// Farben je Kategorie (konsistent mit PercentChart)
+// Konsistente Farben pro Kategorie
 const categoryColors = {
   'cardio': '#00b5e9',
   'strength': '#fa4251',
@@ -82,7 +88,7 @@ const categoryColors = {
   'Autre': '#9c27b0'
 }
 
-// Daten für das Kreisdiagramm: Gruppierung nach Kategorie
+// Daten für das Kreisdiagramm (Gruppierung nach Kategorie)
 const categoryStats = computed(() => {
   const groups = {}
   outOfStockProducts.value.forEach(p => {
@@ -99,20 +105,35 @@ const categoryStats = computed(() => {
 const pieChartCanvas = ref(null)
 let chartInstance = null
 
-const renderPieChart = () => {
-  if (!pieChartCanvas.value || categoryStats.value.length === 0) return
+// Donut-Chart rendern (nur bei vorhandenen ausverkauften Produkten)
+const renderPieChart = async () => {
+  // Nur rendern, wenn es ausverkaufte Produkte gibt und das Canvas existiert
+  if (outOfStockProducts.value.length === 0) {
+    if (chartInstance) {
+      chartInstance.destroy()
+      chartInstance = null
+    }
+    return
+  }
+
+  await nextTick()
+  if (!pieChartCanvas.value) return
+
   if (chartInstance) chartInstance.destroy()
 
   const ctx = pieChartCanvas.value.getContext('2d')
+  if (!ctx) return
+
   chartInstance = new Chart(ctx, {
-    type: 'pie',
+    type: 'doughnut',
     data: {
       labels: categoryStats.value.map(s => s.category),
       datasets: [{
         data: categoryStats.value.map(s => s.count),
         backgroundColor: categoryStats.value.map(s => s.color),
         borderWidth: 2,
-        borderColor: '#fff'
+        borderColor: '#fff',
+        cutout: '65%'    // moderner Donut-Stil
       }]
     },
     options: {
@@ -125,8 +146,8 @@ const renderPieChart = () => {
               const label = context.label || ''
               const value = context.raw
               const total = context.dataset.data.reduce((a, b) => a + b, 0)
-              const percentage = ((value / total) * 100).toFixed(1)
-              return `${label}: ${value} Produkt(e) (${percentage}%)`
+              const percent = ((value / total) * 100).toFixed(1)
+              return `${label}: ${value} Produkt(e) (${percent}%)`
             }
           }
         },
@@ -136,17 +157,15 @@ const renderPieChart = () => {
   })
 }
 
-const viewProduct = (product) => {
-  // Leitet zur Produktdetailseite weiter (ggf. anpassen)
-  router.push(`/products/${product.id}`)
-}
+// Chart neu zeichnen, wenn sich die ausverkauften Produkte ändern
+watch(() => outOfStockProducts.value, () => {
+  renderPieChart()
+}, { deep: true })
 
-const viewAllOutOfStock = () => {
-  // Z. B. Weiterleitung zur Produktliste mit Filter "ausverkauft"
-  router.push('/products?filter=out_of_stock')
-}
-
-watch(categoryStats, () => renderPieChart(), { deep: true })
+// Zusätzlicher Watch, um sicherzustellen, dass die Produkte geladen sind
+watch(() => productStore.products, () => {
+  renderPieChart()
+}, { immediate: true })
 
 onMounted(() => {
   renderPieChart()
@@ -155,12 +174,22 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (chartInstance) chartInstance.destroy()
 })
+
+// Navigation zur Produktdetailseite
+const viewProduct = (product) => {
+  router.push(`/products/${product.id}`)
+}
+
+// Navigation zur Produktliste mit Filter "ausverkauft"
+const viewAllOutOfStock = () => {
+  router.push('/products?filter=out_of_stock')
+}
 </script>
 
 <style scoped>
 canvas {
-  max-height: 220px;
-  width: 100%;
-  margin-bottom: 8px;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 </style>

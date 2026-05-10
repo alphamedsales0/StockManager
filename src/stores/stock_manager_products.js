@@ -1,4 +1,4 @@
-// src/stores/products.js
+// src/stores/stock_manager_products.js
 import { defineStore } from 'pinia'
 
 export const useProductStore = defineStore('products', {

@@ -50,7 +50,7 @@
           </div>
         </div>
 
-        <!-- Barre de progression ou placeholder pour hauteur égale -->
+        <!-- Fortschrittsbalken -->
         <div class="mt-2" style="min-height: 32px;">
           <div v-if="card.progress !== undefined">
             <v-progress-linear
@@ -88,51 +88,71 @@
         </div>
       </v-card>
     </v-col>
+
+    <!-- Lade-Overlay (optional) -->
+    <v-overlay v-model="loading" class="align-center justify-center" persistent>
+      <v-progress-circular indeterminate size="64" color="primary"></v-progress-circular>
+    </v-overlay>
   </v-row>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useProductStore } from '../../stores/stock_manager_products'
-import { useCustomerStore } from '../../stores/customers'
-import { useQuoteStore } from '../../stores/quotes'
 
 const router = useRouter()
-const productStore = useProductStore()
-const customerStore = useCustomerStore()
-const quoteStore = useQuoteStore()
 
-// --- Produits ---
-const totalProducts = computed(() => productStore.products?.length || 0)
-// in_stock est un booléen (TRUE = en stock)
-const inStockCount = computed(() => 
-  productStore.products?.filter(p => p.in_stock === true || p.in_stock === 1).length || 0
-)
-// Valeur du stock basée sur le prix de vente (ou prix d'achat si vous l'ajoutez)
-const totalStockValue = computed(() =>
-  (productStore.products || [])
-    .filter(p => p.in_stock === true || p.in_stock === 1)
-    .reduce((sum, p) => sum + (p.price || 0), 0)
-)
-const averageProductValue = computed(() =>
-  inStockCount.value > 0 ? totalStockValue.value / inStockCount.value : 0
-)
+// Dashboard-Daten
+const dashboard = ref({
+  totalProducts: 0,
+  inStockCount: 0,
+  totalStockValue: 0,
+  averageProductValue: 0,
+  totalCustomers: 0,
+  activeCustomers: 0,
+  totalQuotes: 0,
+  pendingQuotes: 0,
+  totalOrders: 0,
+  pendingOrders: 0,
+  totalRevenue: 0
+})
 
-// --- Clients ---
-const totalCustomers = computed(() => customerStore.customers?.length || 0)
-// Supposons que chaque client a une propriété `active` (booléen)
-const activeCustomers = computed(() => 
-  customerStore.customers?.filter(c => c.active !== false).length || 0
-)
+const loading = ref(true)
 
-// --- Devis ---
-const totalQuotes = computed(() => quoteStore.quotes?.length || 0)
-const pendingQuotes = computed(() => 
-  quoteStore.quotes?.filter(q => q.status === 'pending').length || 0
-)
+// Daten von der API laden
+const fetchDashboardData = async () => {
+  try {
+    const response = await fetch('/api/overviewcards.php')
+    const json = await response.json()
+    if (json.success) {
+      dashboard.value = json.data
+    } else {
+      console.error('API-Fehler:', json.error)
+    }
+  } catch (err) {
+    console.error('Netzwerkfehler:', err)
+  } finally {
+    loading.value = false
+  }
+}
 
-// Pourcentages
+// --- Computed Properties für die Karten ---
+const totalProducts = computed(() => dashboard.value.totalProducts)
+const inStockCount = computed(() => dashboard.value.inStockCount)
+const totalStockValue = computed(() => dashboard.value.totalStockValue)
+const averageProductValue = computed(() => dashboard.value.averageProductValue)
+
+const totalCustomers = computed(() => dashboard.value.totalCustomers)
+const activeCustomers = computed(() => dashboard.value.activeCustomers)
+
+const totalQuotes = computed(() => dashboard.value.totalQuotes)
+const pendingQuotes = computed(() => dashboard.value.pendingQuotes)
+
+const totalOrders = computed(() => dashboard.value.totalOrders)
+const pendingOrders = computed(() => dashboard.value.pendingOrders)
+const totalRevenue = computed(() => dashboard.value.totalRevenue)
+
+// Prozentwerte
 const inStockPercentage = computed(() =>
   totalProducts.value > 0 ? Math.round((inStockCount.value / totalProducts.value) * 100) : 0
 )
@@ -142,8 +162,11 @@ const activeCustomerPercentage = computed(() =>
 const pendingQuotesPercentage = computed(() =>
   totalQuotes.value > 0 ? Math.round((pendingQuotes.value / totalQuotes.value) * 100) : 0
 )
+const pendingOrdersPercentage = computed(() =>
+  totalOrders.value > 0 ? Math.round((pendingOrders.value / totalOrders.value) * 100) : 0
+)
 
-// Données des cartes (inchangé sauf les valeurs)
+// Karten-Daten
 const cardsData = computed(() => [
   {
     title: 'Produkte',
@@ -188,6 +211,27 @@ const cardsData = computed(() => [
     progressValue: activeCustomerPercentage.value
   },
   {
+    title: 'Bestellungen',
+    value: totalOrders.value,
+    subtitle: `${pendingOrders.value} ausstehend`,
+    description: `Umsatz: ${totalRevenue.value.toLocaleString()} €`,
+    icon: 'mdi-truck-delivery',
+    cardGradient: 'linear-gradient(135deg, #E65100 0%, #FFB74D 100%)',
+    footerColor: '#FFE0B2',
+    textColor: '#FFFFFF',
+    subtitleColor: '#FFF3E0',
+    footerTextColor: '#E65100',
+    iconColor: '#FFD54F',
+    iconBgColor: 'rgba(255, 213, 79, 0.25)',
+    dividerColor: '#FFF3E080',
+    action: () => router.push('/orders'),
+    actionText: 'Bestellungen verwalten',
+    progress: pendingOrdersPercentage.value,
+    progressColor: '#FFD54F',
+    progressLabel: 'Offene Bestellungen',
+    progressValue: pendingOrdersPercentage.value
+  },
+  {
     title: 'Angebote',
     value: pendingQuotes.value,
     subtitle: `${totalQuotes.value} insgesamt`,
@@ -229,6 +273,10 @@ const cardsData = computed(() => [
     progressValue: 0
   },
 ])
+
+onMounted(() => {
+  fetchDashboardData()
+})
 </script>
 
 <style scoped>

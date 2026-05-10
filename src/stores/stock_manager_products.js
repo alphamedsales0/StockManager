@@ -11,22 +11,32 @@ export const useProductStore = defineStore('products', {
   actions: {
     // Récupérer tous les produits
     async fetchProducts() {
-      this.loading = true
-      this.error = null
-      try {
-        const response = await fetch('/api/products.php')
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const data = await response.json()
-        // Supposons que l'API retourne directement le tableau des articles
-        this.products = Array.isArray(data) ? data : (data.data || [])
-      } catch (error) {
-        console.error('Erreur fetchProducts:', error)
-        this.error = error.message
-        this.products = [] // éviter undefined
-      } finally {
-        this.loading = false
-      }
-    },
+    this.loading = true;
+    this.error = null;
+    try {
+        const response = await fetch('https://alpha-med-care.com/api/stock_manager_products.php');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        // Ihr API-Endpunkt sendet: { success: true, data: [...] }
+        if (data && data.success === true && Array.isArray(data.data)) {
+            this.products = data.data;
+        } else if (Array.isArray(data)) {
+            this.products = data;
+        } else {
+            console.warn('Unbekanntes API-Format:', data);
+            this.products = [];
+        }
+
+        console.log(`${this.products.length} Produkte geladen`);
+    } catch (error) {
+        console.error('Erreur fetchProducts:', error);
+        this.error = error.message;
+        this.products = [];
+    } finally {
+        this.loading = false;
+    }
+},
 
     // Créer un nouveau produit (avec toutes ses spécificités)
     async createProduct(productData) {

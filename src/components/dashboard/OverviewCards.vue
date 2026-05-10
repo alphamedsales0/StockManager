@@ -122,7 +122,7 @@ const loading = ref(true)
 // Daten von der API laden
 const fetchDashboardData = async () => {
   try {
-    const response = await fetch('/api/overviewcards.php')
+    const response = await fetch('https://alpha-med-care.com/api/overviewcards.php')
     const json = await response.json()
     if (json.success) {
       dashboard.value = json.data

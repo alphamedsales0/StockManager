@@ -7,13 +7,30 @@ const routes = [
     name: 'DashboardView',
     component: () => import('../views/DashboardView.vue'),
   },
-  { path: '/products', component: () => import('../views/Products.vue') },
-  { path: '/customers', component: () => import('../views/Customers.vue') },
-  { path: '/quotes', component: () => import('../views/Quotes.vue') },
+  
+  { 
+    path: '/products', component: () => import('../views/Products.vue')
+  },
+  
+  {
+    path: '/products/edit/:id',
+    name: 'EditProduct',
+    component: () => import('../components/products/EditProduct.vue')
+  },
+
+  { 
+    path: '/customers', component: () => import('../views/Customers.vue')
+  },
+  
+  { 
+    path: '/quotes', component: () => import('../views/Quotes.vue')
+  },
+  
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
   },
+
   {
     path: '/products/add',
     name: 'AddProduct',

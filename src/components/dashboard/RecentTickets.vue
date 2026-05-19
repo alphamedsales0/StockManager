@@ -5,27 +5,36 @@
     </v-card-title>
     <v-divider></v-divider>
     <v-card-text class="pa-0">
-      <v-table density="compact" class="table-earnings">
+      <v-progress-linear v-if="loading" indeterminate color="primary"></v-progress-linear>
+      <v-table v-else density="compact" class="table-earnings">
         <thead>
           <tr>
             <th>Datum</th>
             <th>Ref.-Nr.</th>
             <th>Betreff</th>
-            <th>Kategorie</th>
+            <th>Kunde</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in earningsItems" :key="item.refNr">
+          <tr
+            v-for="item in tickets"
+            :key="item.refNr"
+            @click="viewDetails(item)"
+            style="cursor: pointer;"
+          >
             <td>{{ item.date }}</td>
             <td>{{ item.refNr }}</td>
             <td>{{ item.name }}</td>
-            <td>{{ item.kategorie }}</td>
+            <td>{{ item.kundenname }}</td>
             <td>
               <v-chip :color="getStatusColor(item.status)" size="x-small" label>
                 {{ item.status }}
               </v-chip>
             </td>
+          </tr>
+          <tr v-if="tickets.length === 0 && !loading">
+            <td colspan="5" class="text-center">Keine Tickets vorhanden</td>
           </tr>
         </tbody>
       </v-table>
@@ -34,6 +43,15 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+const tickets = ref([])
+const loading = ref(true)
+
+
+
 const getStatusColor = (status) => {
   const colors = {
     'In Bearbeitung': 'warning',
@@ -47,13 +65,31 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
-const earningsItems = [
-  { date: '2025-01-15', refNr: '100398', name: 'Sicherheitstechnische Kontrolle (STK)', kategorie: 'Dienstleistungen', status: 'In Bearbeitung' },
-  { date: '2025-01-14', refNr: '100397', name: 'DGÜV-Prüfung', kategorie: 'Dienstleistungen', status: 'In Prüfung' },
-  { date: '2025-01-13', refNr: '100396', name: 'Serviceanforderung', kategorie: 'Services Formular', status: 'Zurückgestellt' },
-  { date: '2025-01-10', refNr: '100392', name: 'Installationsanforderung', kategorie: 'Services Formular', status: 'Abgelehnt' },
-  { date: '2025-01-09', refNr: '100391', name: 'Angebot', kategorie: 'Online-Shop', status: 'In Planung' }
-]
+const loadTickets = async () => {
+  loading.value = true
+  try {
+    const response = await fetch('/api/get_all_ticket.php')
+    const data = await response.json()
+    if (data.success) {
+      tickets.value = data.tickets
+    } else {
+      console.error('API error:', data.error)
+    }
+  } catch (error) {
+    console.error('Failed to load tickets:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const viewDetails = (ticket) => {
+  console.log('Ticket angeklickt:', ticket);
+  router.push(`/ticket/${ticket.id}`)
+}
+
+onMounted(() => {
+  loadTickets()
+})
 </script>
 
 <style scoped>
@@ -71,5 +107,8 @@ const earningsItems = [
 .table-earnings td {
   padding: 8px 10px !important;
   font-size: 0.85rem;
+}
+tbody tr:hover {
+  background-color: #f5f5f5;
 }
 </style>

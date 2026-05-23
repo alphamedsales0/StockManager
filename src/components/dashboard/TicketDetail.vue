@@ -13,8 +13,11 @@
     <!-- Ticket -->
     <template v-else-if="ticket">
       <v-card class="ticket-card glass-effect" :class="{ 'dark-glass': darkMode }">
-        <!-- HEADER mit Eingangsdatum + PDF-Export -->
+        <!-- HEADER mit verbessertem Zurück-Button -->
         <v-toolbar :color="darkMode ? '#0a0f1a' : '#0f172a'" dark flat class="toolbar-header px-4">
+          <!-- Runder Zurück-Button mit weißem Rand -->
+          
+
           <div class="d-flex align-center">
             <v-avatar color="primary" size="42" class="mr-4 floating-avatar">
               <v-icon size="24">mdi-ticket-confirmation</v-icon>
@@ -27,7 +30,20 @@
             </div>
           </div>
           <v-spacer />
-          <v-chip :color="priorityColor" class="priority-chip mr-2" size="small">
+
+          <v-btn 
+            icon 
+            variant="outlined" 
+            color="white" 
+            rounded="circle" 
+            @click="goBack" 
+            class="mr-3" 
+            size="small"
+          >
+            <v-icon>mdi-home</v-icon>
+          </v-btn>
+
+          <v-chip :color="priorityColor" class="priority-chip mr-2" size="small" >
             <v-icon start size="14">mdi-alert</v-icon>
             {{ priorityLabel }}
           </v-chip>
@@ -35,18 +51,20 @@
             <v-icon start size="18">{{ statusIcon }}</v-icon>
             {{ translateStatus(ticket.status) }}
           </v-chip>
+          <!-- PDF-Export Button -->
           <v-btn icon variant="text" @click="exportToPDF" class="mr-2" title="PDF exportieren">
             <v-icon>mdi-file-pdf-box</v-icon>
           </v-btn>
+          <!-- Dark Mode Button -->
           <v-btn icon variant="text" @click="darkMode = !darkMode" class="mr-2">
             <v-icon>{{ darkMode ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
           </v-btn>
-          <v-btn icon variant="text" @click="goBack"><v-icon>mdi-close</v-icon></v-btn>
         </v-toolbar>
 
+        <!-- Rest des Templates (unverändert) -->
         <v-container fluid class="pa-5">
           <v-row>
-            <!-- LINKER BEREICH -->
+            <!-- LINKER BEREICH (mit kombinierter Karte) -->
             <v-col cols="12" lg="5">
               
               <!-- 1. Kundendaten -->
@@ -60,9 +78,9 @@
                   <v-list class="transparent-list">
                     <v-list-item v-for="(item, idx) in customerFields" :key="idx">
                       <template #prepend><v-icon>{{ item.icon }}</v-icon></template>
-                      <div>
-                        <div class="item-label">{{ item.label }}</div>
-                        <div class="item-value">{{ item.value }}</div>
+                      <div class="d-flex align-center">
+                        <span class="item-label mr-2">{{ item.label }}:</span>
+                        <span class="item-value">{{ item.value }}</span>
                       </div>
                     </v-list-item>
                   </v-list>
@@ -106,71 +124,107 @@
                 </v-card-text>
               </v-card>
 
-              <!-- 3. Fälligkeitsdatum -->
+              <!-- 3. KOMBINIERTE KARTE: Ticket Aktionen -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
-                  <v-icon start color="white">mdi-calendar-clock</v-icon>
-                  Fälligkeitsdatum
+                  <v-icon start color="white">mdi-ticket-cog-outline</v-icon>
+                  Ticket Aktionen
                 </v-card-title>
                 <v-divider />
                 <v-card-text>
-                  <v-row align="center">
-                    <v-col cols="12" md="7">
-                      <v-text-field
-                        v-model="dueDate"
-                        type="date"
-                        label="Fällig am"
-                        variant="outlined"
-                        density="comfortable"
-                        hide-details
-                        :class="{ 'overdue-field': isOverdue }"
-                      />
-                    </v-col>
-                    <v-col cols="12" md="5">
-                      <v-btn color="primary" block @click="saveDueDate" :loading="savingDueDate">
-                        Speichern
-                      </v-btn>
-                    </v-col>
-                  </v-row>
-                  <div v-if="isOverdue" class="text-error mt-2">
-                    <v-icon small>mdi-alert-circle</v-icon> Dieses Ticket ist überfällig!
+                  <!-- Fälligkeitsdatum -->
+                  <div class="mb-6">
+                    <div class="d-flex align-center mb-3">
+                      <v-icon color="primary" class="mr-2">mdi-calendar-clock</v-icon>
+                      <span class="text-subtitle-1 font-weight-bold">Fälligkeitsdatum</span>
+                    </div>
+                    <v-row align="center">
+                      <v-col cols="12" md="7">
+                        <v-text-field
+                          v-model="dueDate"
+                          type="date"
+                          label="Fällig am"
+                          variant="outlined"
+                          density="comfortable"
+                          hide-details
+                          :class="{ 'overdue-field': isOverdue }"
+                        />
+                      </v-col>
+                      <v-col cols="12" md="5">
+                        <v-btn color="primary" block @click="saveDueDate" :loading="savingDueDate">
+                          Speichern
+                        </v-btn>
+                      </v-col>
+                    </v-row>
+                    <div v-if="isOverdue" class="text-error mt-2">
+                      <v-icon small>mdi-alert-circle</v-icon> Dieses Ticket ist überfällig!
+                    </div>
+                  </div>
+
+                  <v-divider class="my-4" />
+
+                  <!-- Bearbeiter zuweisen -->
+                  <div class="mb-6">
+                    <div class="d-flex align-center mb-3">
+                      <v-icon color="primary" class="mr-2">mdi-account-multiple</v-icon>
+                      <span class="text-subtitle-1 font-weight-bold">Bearbeiter zuweisen</span>
+                    </div>
+                    <v-row align="center">
+                      <v-col cols="12" md="8">
+                        <v-select
+                          v-model="selectedAssignee"
+                          :items="assigneeOptions"
+                          item-title="name"
+                          item-value="id"
+                          label="Mitarbeiter auswählen"
+                          variant="outlined"
+                          density="comfortable"
+                          :loading="loadingAssignees"
+                          no-data-text="Keine Mitarbeiter gefunden"
+                        />
+                      </v-col>
+                      <v-col cols="12" md="4">
+                        <v-btn color="primary" block @click="updateAssignee" :loading="updatingAssignee">
+                          Zuweisen
+                        </v-btn>
+                      </v-col>
+                    </v-row>
+                    <div class="mt-2 text-caption">Aktuell: {{ ticket.assigned_to || 'Niemand' }}</div>
+                  </div>
+
+                  <v-divider class="my-4" />
+
+                  <!-- Status ändern + Kunden-Benachrichtigung -->
+                  <div>
+                    <div class="d-flex align-center mb-3">
+                      <v-icon color="primary" class="mr-2">mdi-sync</v-icon>
+                      <span class="text-subtitle-1 font-weight-bold">Status ändern</span>
+                    </div>
+                    <v-row align="center">
+                      <v-col cols="12" md="8">
+                        <v-select
+                          v-model="selectedStatus"
+                          :items="statusOptions"
+                          item-title="label"
+                          item-value="value"
+                          label="Neuen Status wählen"
+                          variant="outlined"
+                          density="comfortable"
+                          hide-details
+                        />
+                      </v-col>
+                      <v-col cols="12" md="4">
+                        <v-btn color="primary" block @click="updateStatus" :loading="updatingStatus">
+                          Speichern
+                        </v-btn>
+                      </v-col>
+                    </v-row>
+                    <v-switch v-model="notifyCustomerOnStatus" label="Kunden per E-Mail benachrichtigen" class="mt-3" hide-details />
                   </div>
                 </v-card-text>
               </v-card>
 
-              <!-- 4. Bearbeiter-Zuweisung -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
-                <v-card-title class="section-header gradient-bg">
-                  <v-icon start color="white">mdi-account-multiple</v-icon>
-                  Bearbeiter zuweisen
-                </v-card-title>
-                <v-divider />
-                <v-card-text>
-                  <v-row align="center">
-                    <v-col cols="12" md="8">
-                      <v-select
-                        v-model="selectedAssignee"
-                        :items="assigneeOptions"
-                        item-title="name"
-                        item-value="id"
-                        label="Mitarbeiter auswählen"
-                        variant="outlined"
-                        density="comfortable"
-                        :loading="loadingAssignees"
-                        no-data-text="Keine Mitarbeiter gefunden"
-                      />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                      <v-btn color="primary" block @click="updateAssignee" :loading="updatingAssignee">
-                        Zuweisen
-                      </v-btn>
-                    </v-col>
-                  </v-row>
-                  <div class="mt-2 text-caption">Aktuell: {{ ticket.assigned_to || 'Niemand' }}</div>
-                </v-card-text>
-              </v-card>
-
-              <!-- 5. Zeitaufwand -->
+              <!-- 4. Zeitaufwand -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-clock-outline</v-icon>
@@ -204,40 +258,9 @@
                   </v-row>
                 </v-card-text>
               </v-card>
-
-              <!-- 6. Status ändern + Kunden-Benachrichtigung -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
-                <v-card-title class="section-header gradient-bg">
-                  <v-icon start color="white">mdi-sync</v-icon>
-                  Status ändern
-                </v-card-title>
-                <v-divider />
-                <v-card-text>
-                  <v-row align="center">
-                    <v-col cols="12" md="8">
-                      <v-select
-                        v-model="selectedStatus"
-                        :items="statusOptions"
-                        item-title="label"
-                        item-value="value"
-                        label="Neuen Status wählen"
-                        variant="outlined"
-                        density="comfortable"
-                        hide-details
-                      />
-                    </v-col>
-                    <v-col cols="12" md="4">
-                      <v-btn color="primary" block size="large" @click="updateStatus" :loading="updatingStatus">
-                        Speichern
-                      </v-btn>
-                    </v-col>
-                  </v-row>
-                  <v-switch v-model="notifyCustomerOnStatus" label="Kunden per E-Mail benachrichtigen" class="mt-3" hide-details />
-                </v-card-text>
-              </v-card>
             </v-col>
 
-            <!-- RECHTEN BEREICH (neue Reihenfolge) -->
+            <!-- RECHTEN BEREICH (unverändert) -->
             <v-col cols="12" lg="7">
               <!-- FORMULARDATEN (je nach Ticket-Typ) -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
@@ -468,7 +491,7 @@
                 </v-card-text>
               </v-card>
 
-              <!-- TICKET INFORMATIONEN (neu hier, oberhalb Anhänge) -->
+              <!-- TICKET INFORMATIONEN -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-information-outline</v-icon>
@@ -631,6 +654,7 @@
     <v-alert v-else type="error" variant="tonal">Ticket nicht gefunden.</v-alert>
   </v-container>
 </template>
+
 
 
 <script setup>
@@ -1121,6 +1145,13 @@ onMounted(() => {
   min-height: 100vh;
   transition: background 0.3s ease;
 }
+.priority-chip,
+.status-chip,
+.priority-chip .v-icon,
+.status-chip .v-icon {
+  color: white !important;
+}
+
 .ticket-container.dark-mode {
   background: #0a0f1a;
 }
@@ -1200,18 +1231,19 @@ onMounted(() => {
 .transparent-list {
   background: transparent;
 }
+
 .item-label {
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 500;
   color: #64748b;
-  margin-bottom: 4px;
+}
+.item-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
 }
 .dark-mode .item-label {
   color: #94a3b8;
-}
-.item-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: #0f172a;
 }
 .dark-mode .item-value {
   color: #e2e8f0;

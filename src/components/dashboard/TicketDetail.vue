@@ -13,7 +13,7 @@
     <!-- Ticket -->
     <template v-else-if="ticket">
       <v-card class="ticket-card glass-effect" :class="{ 'dark-glass': darkMode }">
-        <!-- HEADER avec toggle dark mode -->
+        <!-- HEADER mit Eingangsdatum + PDF-Export -->
         <v-toolbar :color="darkMode ? '#0a0f1a' : '#0f172a'" dark flat class="toolbar-header px-4">
           <div class="d-flex align-center">
             <v-avatar color="primary" size="42" class="mr-4 floating-avatar">
@@ -21,7 +21,9 @@
             </v-avatar>
             <div>
               <div class="text-h6 font-weight-bold">Ticket {{ ticket.reference_number }}</div>
-              <div class="text-caption text-grey-lighten-1">Erstellt am {{ formatDateTime(ticket.created_at) }}</div>
+              <div class="text-caption text-grey-lighten-1">
+                {{ entryDateLabel }}: {{ entryDateFormatted }}
+              </div>
             </div>
           </div>
           <v-spacer />
@@ -33,18 +35,41 @@
             <v-icon start size="18">{{ statusIcon }}</v-icon>
             {{ translateStatus(ticket.status) }}
           </v-chip>
+          <v-btn icon variant="text" @click="exportToPDF" class="mr-2" title="PDF exportieren">
+            <v-icon>mdi-file-pdf-box</v-icon>
+          </v-btn>
           <v-btn icon variant="text" @click="darkMode = !darkMode" class="mr-2">
             <v-icon>{{ darkMode ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
           </v-btn>
           <v-btn icon variant="text" @click="goBack"><v-icon>mdi-close</v-icon></v-btn>
         </v-toolbar>
 
-        <!-- CONTENT -->
         <v-container fluid class="pa-5">
           <v-row>
-            <!-- LEFT COLUMN -->
+            <!-- LINKER BEREICH -->
             <v-col cols="12" lg="5">
-              <!-- Statistiques Ticket -->
+              
+              <!-- 1. Kundendaten -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-account-group</v-icon>
+                  Kundendaten
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-list class="transparent-list">
+                    <v-list-item v-for="(item, idx) in customerFields" :key="idx">
+                      <template #prepend><v-icon>{{ item.icon }}</v-icon></template>
+                      <div>
+                        <div class="item-label">{{ item.label }}</div>
+                        <div class="item-value">{{ item.value }}</div>
+                      </div>
+                    </v-list-item>
+                  </v-list>
+                </v-card-text>
+              </v-card>
+
+              <!-- 2. Statistiken & Metriken -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-chart-box</v-icon>
@@ -81,69 +106,107 @@
                 </v-card-text>
               </v-card>
 
-              <!-- Kundendaten (Liste avec lignes transparentes) -->
+              <!-- 3. Fälligkeitsdatum -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
-                  <v-icon start color="white">mdi-account-group</v-icon>
-                  Kundendaten
+                  <v-icon start color="white">mdi-calendar-clock</v-icon>
+                  Fälligkeitsdatum
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-row align="center">
+                    <v-col cols="12" md="7">
+                      <v-text-field
+                        v-model="dueDate"
+                        type="date"
+                        label="Fällig am"
+                        variant="outlined"
+                        density="comfortable"
+                        hide-details
+                        :class="{ 'overdue-field': isOverdue }"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="5">
+                      <v-btn color="primary" block @click="saveDueDate" :loading="savingDueDate">
+                        Speichern
+                      </v-btn>
+                    </v-col>
+                  </v-row>
+                  <div v-if="isOverdue" class="text-error mt-2">
+                    <v-icon small>mdi-alert-circle</v-icon> Dieses Ticket ist überfällig!
+                  </div>
+                </v-card-text>
+              </v-card>
+
+              <!-- 4. Bearbeiter-Zuweisung -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-account-multiple</v-icon>
+                  Bearbeiter zuweisen
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-row align="center">
+                    <v-col cols="12" md="8">
+                      <v-select
+                        v-model="selectedAssignee"
+                        :items="assigneeOptions"
+                        item-title="name"
+                        item-value="id"
+                        label="Mitarbeiter auswählen"
+                        variant="outlined"
+                        density="comfortable"
+                        :loading="loadingAssignees"
+                        no-data-text="Keine Mitarbeiter gefunden"
+                      />
+                    </v-col>
+                    <v-col cols="12" md="4">
+                      <v-btn color="primary" block @click="updateAssignee" :loading="updatingAssignee">
+                        Zuweisen
+                      </v-btn>
+                    </v-col>
+                  </v-row>
+                  <div class="mt-2 text-caption">Aktuell: {{ ticket.assigned_to || 'Niemand' }}</div>
+                </v-card-text>
+              </v-card>
+
+              <!-- 5. Zeitaufwand -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-clock-outline</v-icon>
+                  Zeitaufwand ({{ totalHours }} h)
                 </v-card-title>
                 <v-divider />
                 <v-card-text>
                   <v-list class="transparent-list">
-                    <v-list-item v-for="(item, idx) in customerFields" :key="idx">
-                      <template #prepend><v-icon>{{ item.icon }}</v-icon></template>
+                    <v-list-item v-for="entry in timeEntries" :key="entry.id">
+                      <template #prepend><v-icon>mdi-timer</v-icon></template>
                       <div>
-                        <div class="item-label">{{ item.label }}</div>
-                        <div class="item-value">{{ item.value }}</div>
+                        <div class="item-label">{{ entry.date }} – {{ entry.user }}</div>
+                        <div class="item-value">{{ entry.hours }} h – {{ entry.description }}</div>
                       </div>
                     </v-list-item>
+                    <v-list-item v-if="!timeEntries.length">
+                      <div class="text-grey text-center py-2">Keine Zeit erfasst</div>
+                    </v-list-item>
                   </v-list>
+                  <v-divider class="my-3" />
+                  <v-row>
+                    <v-col cols="5">
+                      <v-text-field v-model="newTimeHours" type="number" label="Stunden" step="0.5" variant="outlined" density="compact" />
+                    </v-col>
+                    <v-col cols="7">
+                      <v-text-field v-model="newTimeDesc" label="Beschreibung" variant="outlined" density="compact" />
+                    </v-col>
+                    <v-col cols="12">
+                      <v-btn color="primary" block @click="addTimeEntry" :disabled="!newTimeHours">Zeit hinzufügen</v-btn>
+                    </v-col>
+                  </v-row>
                 </v-card-text>
               </v-card>
 
-              <!-- Ticket Info (Erstellt, Aktualisiert, Bearbeiter, Letzte Änderung) -->
+              <!-- 6. Status ändern + Kunden-Benachrichtigung -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
-                <v-card-title class="section-header gradient-bg">
-                  <v-icon start color="white">mdi-information-outline</v-icon>
-                  Ticket Informationen
-                </v-card-title>
-                <v-divider />
-                <v-card-text>
-                  <v-list class="transparent-list">
-                    <v-list-item>
-                      <template #prepend><v-icon>mdi-calendar-plus</v-icon></template>
-                      <div>
-                        <div class="item-label">Erstellt</div>
-                        <div class="item-value">{{ formatDateTime(ticket.created_at) }}</div>
-                      </div>
-                    </v-list-item>
-                    <v-list-item>
-                      <template #prepend><v-icon>mdi-calendar-edit</v-icon></template>
-                      <div>
-                        <div class="item-label">Aktualisiert</div>
-                        <div class="item-value">{{ formatDateTime(ticket.updated_at) }}</div>
-                      </div>
-                    </v-list-item>
-                    <v-list-item>
-                      <template #prepend><v-icon>mdi-account-tie</v-icon></template>
-                      <div>
-                        <div class="item-label">Bearbeiter</div>
-                        <div class="item-value">{{ ticket.assigned_to || '-' }}</div>
-                      </div>
-                    </v-list-item>
-                    <v-list-item>
-                      <template #prepend><v-icon>mdi-account-clock</v-icon></template>
-                      <div>
-                        <div class="item-label">Letzte Änderung</div>
-                        <div class="item-value">{{ ticket.last_updated_by || '-' }}</div>
-                      </div>
-                    </v-list-item>
-                  </v-list>
-                </v-card-text>
-              </v-card>
-
-              <!-- Status ändern -->
-              <v-card class="info-card glass-effect" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-sync</v-icon>
                   Status ändern
@@ -169,13 +232,14 @@
                       </v-btn>
                     </v-col>
                   </v-row>
+                  <v-switch v-model="notifyCustomerOnStatus" label="Kunden per E-Mail benachrichtigen" class="mt-3" hide-details />
                 </v-card-text>
               </v-card>
             </v-col>
 
-            <!-- RIGHT COLUMN -->
+            <!-- RECHTEN BEREICH (neue Reihenfolge) -->
             <v-col cols="12" lg="7">
-              <!-- FORMULARDATEN - Style liste avec icônes (comme Kundendaten) -->
+              <!-- FORMULARDATEN (je nach Ticket-Typ) -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-file-document-outline</v-icon>
@@ -404,7 +468,114 @@
                 </v-card-text>
               </v-card>
 
-              <!-- ACTIVITY LOG & COMMENTAIRES (timeline unifiée) -->
+              <!-- TICKET INFORMATIONEN (neu hier, oberhalb Anhänge) -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-information-outline</v-icon>
+                  Ticket Informationen
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-list class="transparent-list">
+                    <v-list-item>
+                      <template #prepend><v-icon>mdi-calendar-plus</v-icon></template>
+                      <div>
+                        <div class="item-label">System-Erstelldatum</div>
+                        <div class="item-value">{{ formatDateTime(ticket.created_at) }}</div>
+                      </div>
+                    </v-list-item>
+                    <v-list-item>
+                      <template #prepend><v-icon>mdi-calendar-edit</v-icon></template>
+                      <div>
+                        <div class="item-label">Aktualisiert</div>
+                        <div class="item-value">{{ formatDateTime(ticket.updated_at) }}</div>
+                      </div>
+                    </v-list-item>
+                    <v-list-item>
+                      <template #prepend><v-icon>mdi-account-tie</v-icon></template>
+                      <div>
+                        <div class="item-label">Bearbeiter</div>
+                        <div class="item-value">{{ ticket.assigned_to || '-' }}</div>
+                      </div>
+                    </v-list-item>
+                    <v-list-item>
+                      <template #prepend><v-icon>mdi-account-clock</v-icon></template>
+                      <div>
+                        <div class="item-label">Letzte Änderung</div>
+                        <div class="item-value">{{ ticket.last_updated_by || '-' }}</div>
+                      </div>
+                    </v-list-item>
+                  </v-list>
+                </v-card-text>
+              </v-card>
+
+              <!-- OPTION 1: Dateianhänge -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-paperclip</v-icon>
+                  Anhänge ({{ attachments.length }})
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-list class="transparent-list">
+                    <v-list-item v-for="file in attachments" :key="file.id">
+                      <template #prepend><v-icon>mdi-file</v-icon></template>
+                      <div>
+                        <div class="item-label">{{ file.name }}</div>
+                        <div class="item-value">{{ formatFileSize(file.size) }}</div>
+                      </div>
+                      <template #append>
+                        <v-btn icon variant="text" @click="downloadAttachment(file)">
+                          <v-icon>mdi-download</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-list-item>
+                    <v-list-item v-if="!attachments.length">
+                      <div class="text-grey text-center py-4">Keine Anhänge vorhanden</div>
+                    </v-list-item>
+                  </v-list>
+                  <v-file-input
+                    v-model="newFiles"
+                    label="Dateien anhängen"
+                    multiple
+                    variant="outlined"
+                    density="comfortable"
+                    class="mt-4"
+                  />
+                  <v-btn color="primary" block @click="uploadFiles" :loading="uploadingFiles" :disabled="!newFiles?.length">
+                    Hochladen
+                  </v-btn>
+                </v-card-text>
+              </v-card>
+
+              <!-- OPTION 2: Interne Notizen -->
+              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+                <v-card-title class="section-header gradient-bg">
+                  <v-icon start color="white">mdi-lock-outline</v-icon>
+                  Interne Notizen (nur für Mitarbeiter)
+                </v-card-title>
+                <v-divider />
+                <v-card-text>
+                  <v-list class="transparent-list">
+                    <v-list-item v-for="note in internalNotes" :key="note.id">
+                      <template #prepend><v-icon>mdi-note-text</v-icon></template>
+                      <div>
+                        <div class="item-label">{{ note.author }} – {{ formatDateTime(note.created_at) }}</div>
+                        <div class="item-value">{{ note.text }}</div>
+                      </div>
+                    </v-list-item>
+                    <v-list-item v-if="!internalNotes.length">
+                      <div class="text-grey text-center py-2">Keine internen Notizen</div>
+                    </v-list-item>
+                  </v-list>
+                  <v-textarea v-model="newInternalNote" label="Neue interne Notiz" rows="3" variant="outlined" class="mt-3" />
+                  <v-btn color="secondary" block @click="addInternalNote" :disabled="!newInternalNote.trim()" class="mt-2">
+                    Notiz speichern
+                  </v-btn>
+                </v-card-text>
+              </v-card>
+
+              <!-- Aktivitäten & Kommentare (Timeline) -->
               <v-card class="comment-card glass-effect" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-history</v-icon>
@@ -461,6 +632,7 @@
   </v-container>
 </template>
 
+
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -468,7 +640,7 @@ import { useRoute, useRouter } from 'vue-router'
 const route = useRoute()
 const router = useRouter()
 
-// --- Réactivité ---
+// --- Basis Refs ---
 const ticket = ref(null)
 const loading = ref(true)
 const selectedStatus = ref('')
@@ -477,7 +649,37 @@ const newCommentText = ref('')
 const darkMode = ref(false)
 const activities = ref([])
 
-// --- Options statut ---
+// --- Option 1: Dateianhänge ---
+const attachments = ref([])
+const newFiles = ref([])
+const uploadingFiles = ref(false)
+
+// --- Option 2: Interne Notizen ---
+const internalNotes = ref([])
+const newInternalNote = ref('')
+
+// --- Option 3: Bearbeiter-Zuweisung ---
+const selectedAssignee = ref(null)
+const assigneeOptions = ref([])
+const loadingAssignees = ref(false)
+const updatingAssignee = ref(false)
+
+// --- Option 4: Fälligkeitsdatum ---
+const dueDate = ref('')
+const savingDueDate = ref(false)
+
+// --- Option 6: Kunden-Benachrichtigung ---
+const notifyCustomerOnStatus = ref(false)
+
+// --- Option 7: Zeitaufwand ---
+const timeEntries = ref([])
+const newTimeHours = ref('')
+const newTimeDesc = ref('')
+const totalHours = computed(() => {
+  return timeEntries.value.reduce((sum, e) => sum + parseFloat(e.hours), 0).toFixed(1)
+})
+
+// --- Status Optionen ---
 const statusOptions = [
   { label: 'In Bearbeitung', value: 'pending' },
   { label: 'In Prüfung', value: 'in_progress' },
@@ -485,7 +687,20 @@ const statusOptions = [
   { label: 'Storniert', value: 'cancelled' }
 ]
 
-// --- Priorité ---
+// ========== Hilfsfunktionen & Computeds ==========
+
+// Eingangsdatum / Erstelldatum Header
+const entryDateFormatted = computed(() => {
+  if (!ticket.value) return ''
+  const submissionDate = ticket.value.form_data?.submissionDate
+  if (submissionDate) return formatDate(submissionDate)
+  return formatDateTime(ticket.value.created_at)
+})
+const entryDateLabel = computed(() => {
+  return ticket.value?.form_data?.submissionDate ? 'Eingangsdatum' : 'Erstellt am'
+})
+
+// Priorität
 const priorityLabel = computed(() => {
   if (!ticket.value) return ''
   const urgency = ticket.value.form_data?.urgency
@@ -493,7 +708,6 @@ const priorityLabel = computed(() => {
   if (urgency === 'mittel') return 'Mittlere Priorität'
   return 'Normale Priorität'
 })
-
 const priorityColor = computed(() => {
   if (!ticket.value) return 'grey'
   const urgency = ticket.value.form_data?.urgency
@@ -501,18 +715,16 @@ const priorityColor = computed(() => {
   if (urgency === 'mittel') return 'warning'
   return 'success'
 })
-
 const statusColor = computed(() => {
   const map = { pending: 'warning', in_progress: 'info', completed: 'success', cancelled: 'error' }
   return map[ticket.value?.status] || 'grey'
 })
-
 const statusIcon = computed(() => {
   const map = { pending: 'mdi-clock-outline', in_progress: 'mdi-progress-clock', completed: 'mdi-check-circle', cancelled: 'mdi-cancel' }
   return map[ticket.value?.status]
 })
 
-// --- Statistiques ---
+// Statistiken
 const ticketAge = computed(() => {
   if (!ticket.value?.created_at) return '-'
   const created = new Date(ticket.value.created_at)
@@ -522,14 +734,12 @@ const ticketAge = computed(() => {
   if (diffDays === 1) return '1 Tag'
   return `${diffDays} Tage`
 })
-
 const lastActionTime = computed(() => {
   if (!activities.value.length) return '-'
-  const last = activities.value[0]
-  return formatDateTime(last.created_at)
+  return formatDateTime(activities.value[0].created_at)
 })
 
-// --- Kundendaten formatiert ---
+// Kundendaten
 const customerFields = computed(() => {
   if (!ticket.value?.customer) return []
   const c = ticket.value.customer
@@ -544,14 +754,13 @@ const customerFields = computed(() => {
   ]
 })
 
-// --- Utilitaires ---
+// Datumsformatierung
 const formatDateTime = (date) => {
   if (!date) return '-'
   return new Date(date).toLocaleString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
 }
-
 const formatDate = (dateString) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
@@ -562,22 +771,19 @@ const translateStatus = (status) => {
   const map = { pending: 'In Bearbeitung', in_progress: 'In Prüfung', completed: 'Abgeschlossen', cancelled: 'Storniert' }
   return map[status] || status
 }
-
 const translateUrgency = (urgency) => {
   const map = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' }
   return map[urgency] || urgency || '-'
 }
-
 const getUrgencyColor = (urgency) => {
   const map = { hoch: 'error', mittel: 'warning', niedrig: 'success' }
   return map[urgency] || 'grey'
 }
-
 const getInitials = (name) => {
   return name?.split(' ').map(word => word.charAt(0)).join('').slice(0, 2).toUpperCase()
 }
 
-// --- Activity Log ---
+// Activity hinzufügen
 function addActivity(type, author, text, extra = {}) {
   const newActivity = {
     id: Date.now() + Math.random(),
@@ -591,33 +797,274 @@ function addActivity(type, author, text, extra = {}) {
   activities.value.unshift(newActivity)
 }
 
-// --- Actions ---
-const updateStatus = () => {
+// Kommentar
+const addComment = async () => {
+  if (!newCommentText.value.trim()) return;
+  try {
+    const response = await fetch('/api/add_comment.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        text: newCommentText.value,
+        author: 'Admin'
+      })
+    });
+    const data = await response.json();
+    if (data.success) {
+      addActivity('comment', 'Admin', newCommentText.value);
+      newCommentText.value = '';
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+// Status aktualisieren
+const updateStatus = async () => {
   if (selectedStatus.value === ticket.value.status) return
   updatingStatus.value = true
-  setTimeout(() => {
-    const oldStatus = ticket.value.status
-    ticket.value.status = selectedStatus.value
-    addActivity('status', 'Admin', `Status geändert von "${translateStatus(oldStatus)}" zu "${translateStatus(selectedStatus.value)}"`)
+  try {
+    const response = await fetch('/api/update_ticket_status.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        status: selectedStatus.value,
+        notify_customer: notifyCustomerOnStatus.value
+      })
+    })
+    const data = await response.json()
+    if (data.success) {
+      const oldStatus = ticket.value.status
+      ticket.value.status = selectedStatus.value
+      addActivity('status', 'Admin', `Status geändert von "${translateStatus(oldStatus)}" zu "${translateStatus(selectedStatus.value)}"`)
+      if (data.notification_sent) {
+        addActivity('status', 'System', 'Benachrichtigung an Kunden gesendet')
+      }
+    } else {
+      console.error('Status update failed:', data.error)
+    }
+  } catch (err) {
+    console.error(err)
+  } finally {
     updatingStatus.value = false
-  }, 800)
+  }
 }
 
-const addComment = () => {
-  if (!newCommentText.value.trim()) return
-  const commentText = newCommentText.value
-  addActivity('comment', 'Admin', commentText)
-  if (!ticket.value.comments) ticket.value.comments = []
-  ticket.value.comments.unshift({
-    id: Date.now(),
-    author: 'Admin',
-    text: commentText,
-    created_at: new Date().toISOString()
-  })
-  newCommentText.value = ''
+// --- Option 1: Dateianhänge ---
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+const downloadAttachment = (file) => {
+  window.open(`/api/download_attachment.php?id=${file.id}`, '_blank')
+}
+const uploadFiles = async () => {
+  if (!newFiles.value.length) return
+  uploadingFiles.value = true
+  try {
+    const formData = new FormData()
+    formData.append('ticket_id', ticket.value.id)
+    formData.append('uploaded_by', 'Admin')
+    for (let file of newFiles.value) {
+      formData.append('files[]', file)
+    }
+    const response = await fetch('/api/upload_attachment.php', {
+      method: 'POST',
+      body: formData
+    })
+    const data = await response.json()
+    if (data.success) {
+      await loadAttachments()
+      addActivity('comment', 'Admin', `${newFiles.value.length} Datei(en) hochgeladen`)
+      newFiles.value = []
+    } else {
+      console.error('Upload failed:', data.error)
+    }
+  } catch (err) {
+    console.error(err)
+  } finally {
+    uploadingFiles.value = false
+  }
 }
 
-// --- Chargement ---
+const loadAttachments = async () => {
+  try {
+    const response = await fetch(`/api/get_attachments.php?ticket_id=${ticket.value.id}`)
+    const data = await response.json()
+    if (data.success) attachments.value = data.attachments
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// --- Option 2: Interne Notizen ---
+const addInternalNote = async () => {
+  if (!newInternalNote.value.trim()) return
+  try {
+    const response = await fetch('/api/add_internal_note.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        note: newInternalNote.value,
+        author: 'Admin'
+      })
+    })
+    const data = await response.json()
+    if (data.success) {
+      await loadInternalNotes()
+      addActivity('status', 'Admin', 'Interne Notiz hinzugefügt')
+      newInternalNote.value = ''
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+const loadInternalNotes = async () => {
+  try {
+    const response = await fetch(`/api/get_internal_notes.php?ticket_id=${ticket.value.id}`)
+    const data = await response.json()
+    if (data.success) internalNotes.value = data.notes
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// --- Option 3: Bearbeiter (Mock, da API funktioniert nun aber wir lassen den Mock) ---
+const loadAssignees = async () => {
+  loadingAssignees.value = true;
+  try {
+    const response = await fetch('https://alpha-med-care.com/api/get_users.php');
+    const text = await response.text();
+    console.log("RAW RESPONSE:", text);
+    const data = JSON.parse(text);
+    if (data.success) {
+      assigneeOptions.value = data.users;
+    } else {
+      console.error("API ERROR:", data.error);
+      assigneeOptions.value = [];
+    }
+  } catch (err) {
+    console.error("LOAD ASSIGNEES ERROR:", err);
+    assigneeOptions.value = [];
+  } finally {
+    loadingAssignees.value = false;
+  }
+};
+
+const updateAssignee = async () => {
+  if (!selectedAssignee.value) {
+    alert("Bitte wählen Sie einen Bearbeiter aus.");
+    return;
+  }
+  updatingAssignee.value = true;
+  try {
+    const user = assigneeOptions.value.find(u => u.id === selectedAssignee.value);
+    if (user) {
+      ticket.value.assigned_to = user.name;
+      addActivity('status', 'Admin', `Bearbeiter geändert zu ${user.name}`);
+    } else {
+      alert("Benutzer nicht gefunden");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Fehler bei der Zuweisung");
+  } finally {
+    updatingAssignee.value = false;
+  }
+};
+
+// --- Option 4: Fälligkeitsdatum ---
+const saveDueDate = async () => {
+  savingDueDate.value = true
+  try {
+    const response = await fetch('/api/update_due_date.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        due_date: dueDate.value
+      })
+    })
+    const data = await response.json()
+    if (data.success) {
+      addActivity('status', 'Admin', `Fälligkeitsdatum gesetzt auf ${formatDate(dueDate.value)}`)
+    }
+  } catch (err) {
+    console.error(err)
+  } finally {
+    savingDueDate.value = false
+  }
+}
+const isOverdue = computed(() => {
+  if (!dueDate.value) return false
+  const today = new Date().toISOString().slice(0,10)
+  return dueDate.value < today && ticket.value?.status !== 'completed'
+})
+
+// --- Option 5: PDF-Export ---
+const exportToPDF = () => {
+  window.print()
+}
+
+// --- Option 7: Zeitaufwand ---
+const addTimeEntry = async () => {
+  if (!newTimeHours.value) return
+  try {
+    const response = await fetch('/api/add_time_entry.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        hours: parseFloat(newTimeHours.value),
+        description: newTimeDesc.value,
+        user_name: 'Admin'
+      })
+    })
+    const data = await response.json()
+    if (data.success) {
+      await loadTimeEntries()
+      addActivity('comment', 'Admin', `${newTimeHours.value} h Arbeitszeit erfasst: ${newTimeDesc.value || 'keine Beschreibung'}`)
+      newTimeHours.value = ''
+      newTimeDesc.value = ''
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const loadTimeEntries = async () => {
+  try {
+    const response = await fetch(`/api/get_time_entries.php?ticket_id=${ticket.value.id}`)
+    const data = await response.json()
+    if (data.success) timeEntries.value = data.time_entries
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// --- Laden aller Zusatzdaten ---
+const loadExtraData = async () => {
+  if (!ticket.value) return;
+  await Promise.all([
+    loadAttachments(),
+    loadInternalNotes(),
+    loadTimeEntries(),
+    loadAssignees()
+  ]);
+  if (ticket.value.due_date) dueDate.value = ticket.value.due_date;
+  if (ticket.value.assigned_to) {
+    const found = assigneeOptions.value.find(a => a.name === ticket.value.assigned_to);
+    if (found) selectedAssignee.value = found.id;
+  }
+};
+
+// --- Hauptladefunktion für Ticket ---
 const loadDetails = async () => {
   try {
     const response = await fetch(`/api/get_ticket_details.php?id=${route.params.id}`)
@@ -632,6 +1079,7 @@ const loadDetails = async () => {
         })
       }
       addActivity('status', 'System', `Ticket erstellt am ${formatDateTime(ticket.value.created_at)}`)
+      await loadExtraData()
     }
   } catch (err) {
     console.error(err)
@@ -640,7 +1088,7 @@ const loadDetails = async () => {
   }
 }
 
-// --- Dark mode ---
+// --- Dark Mode ---
 const initDarkMode = () => {
   const saved = localStorage.getItem('darkMode')
   if (saved !== null) {
@@ -658,13 +1106,14 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  initDarkMode()
-  loadDetails()
-})
+  initDarkMode();
+  loadDetails();
+  loadAssignees();
+});
 </script>
 
 <style scoped>
-/* === Base & Dark Mode === */
+/* === gleiche Styles wie im Original === */
 .ticket-container {
   max-width: 1700px;
   margin: auto;
@@ -739,9 +1188,8 @@ onMounted(() => {
 .dark-mode .stat-value {
   color: white;
 }
-/* === LIGNES TRANSPARENTES pour tous les v-list-item === */
 .v-list-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);  /* ligne très légère, transparente */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 .v-list-item:last-child {
   border-bottom: none;
@@ -749,7 +1197,6 @@ onMounted(() => {
 .dark-mode .v-list-item {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
-/* === Fin lignes transparentes === */
 .transparent-list {
   background: transparent;
 }
@@ -769,7 +1216,6 @@ onMounted(() => {
 .dark-mode .item-value {
   color: #e2e8f0;
 }
-/* Timeline */
 .timeline {
   position: relative;
 }
@@ -810,7 +1256,6 @@ onMounted(() => {
   background: rgba(30, 41, 59, 0.7);
   color: #e2e8f0;
 }
-/* Animations */
 .timeline-item-enter-active,
 .timeline-item-leave-active {
   transition: all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
@@ -823,7 +1268,6 @@ onMounted(() => {
   opacity: 0;
   transform: translateX(-40px);
 }
-/* Skeleton */
 .skeleton-card {
   border-radius: 28px;
   padding: 24px;
@@ -842,7 +1286,9 @@ onMounted(() => {
   overflow: auto;
   font-size: 12px;
 }
-/* Responsive */
+.overdue-field input {
+  border-color: #ff5252 !important;
+}
 @media (max-width: 960px) {
   .ticket-container {
     padding: 0 !important;

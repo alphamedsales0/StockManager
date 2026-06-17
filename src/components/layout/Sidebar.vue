@@ -41,6 +41,15 @@
         class="px-0"
       />
 
+      <!-- NEU: Tickets -->
+      <v-list-item
+        prepend-icon="mdi-ticket"
+        title="Tickets"
+        :active="activeTab === 'tickets'"
+        @click="navigateTo('tickets')"
+        class="px-0"
+      />
+
       <!-- PRODUKTE -->
       <v-list-group value="products" prepend-icon="mdi-package">
         <template v-slot:activator="{ props }">
@@ -89,6 +98,7 @@ const navigateTo = (tab) => {
   activeTab.value = tab
   const routes = {
     dashboard: '/',
+    tickets: '/tickets',   // neu hinzugefügt
     'products-list': '/products',
     'add-product': '/products/add',
     categories: '/products/categories',

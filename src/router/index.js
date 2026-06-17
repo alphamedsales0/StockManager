@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-
+import AllTickets from '../views/AllTickets.vue'   // Pfad anpassen
 
 const routes = [
   {
@@ -32,10 +32,17 @@ const routes = [
   },
 
   {
-  path: '/ticket/:id',
-  name: 'TicketDetail',
-  component: () => import('../components/dashboard/TicketDetail.vue')
-},
+    path: '/ticket/:id',
+    name: 'TicketDetail',
+    component: () => import('../components/dashboard/TicketDetail.vue')
+  },
+
+  {
+    path: '/tickets',
+    name: 'AllTickets',
+    component: AllTickets,
+    meta: { requiresAuth: true }  // falls du Authentifizierung verwendest
+  },
 
   {
     path: '/products/add',

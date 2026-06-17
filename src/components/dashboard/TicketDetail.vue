@@ -335,6 +335,55 @@
                       </v-list-item>
                     </template>
 
+
+                                        <!-- ERSATZTEILE -->
+                    <template v-else-if="ticket.form_type === 'ersatzteile'">
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-cog</v-icon></template>
+                        <div>
+                          <div class="item-label">Gerät / Produkt</div>
+                          <div class="item-value">{{ ticket.form_data.device || '-' }}</div>
+                        </div>
+                      </v-list-item>
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-package-variant</v-icon></template>
+                        <div>
+                          <div class="item-label">Ersatzteile</div>
+                          <div class="item-value" style="white-space: pre-wrap;">{{ ticket.form_data.parts || '-' }}</div>
+                        </div>
+                      </v-list-item>
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-wrench</v-icon></template>
+                        <div>
+                          <div class="item-label">Service-Typ</div>
+                          <div class="item-value">{{ translateServiceType(ticket.form_data.service) }}</div>
+                        </div>
+                      </v-list-item>
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-speedometer</v-icon></template>
+                        <div>
+                          <div class="item-label">Dringlichkeit</div>
+                          <div class="item-value">
+                            <v-chip :color="getUrgencyColor(ticket.form_data.urgency)" size="small">{{ translateUrgency(ticket.form_data.urgency) }}</v-chip>
+                          </div>
+                        </div>
+                      </v-list-item>
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-message-text</v-icon></template>
+                        <div>
+                          <div class="item-label">Nachricht / Anmerkung</div>
+                          <div class="item-value">{{ ticket.form_data.message || '-' }}</div>
+                        </div>
+                      </v-list-item>
+                      <v-list-item>
+                        <template #prepend><v-icon>mdi-calendar</v-icon></template>
+                        <div>
+                          <div class="item-label">Eingangsdatum</div>
+                          <div class="item-value">{{ formatDate(ticket.form_data.submissionDate) }}</div>
+                        </div>
+                      </v-list-item>
+                    </template>
+
                     <!-- INSTALLATION -->
                     <template v-else-if="ticket.form_type === 'installation'">
                       <v-list-item>
@@ -702,6 +751,12 @@ const newTimeDesc = ref('')
 const totalHours = computed(() => {
   return timeEntries.value.reduce((sum, e) => sum + parseFloat(e.hours), 0).toFixed(1)
 })
+
+
+const translateServiceType = (service) => {
+  const map = { single: 'Einzelbestellung', contract: 'Vertragsbestellung' };
+  return map[service] || service || '-';
+}
 
 // --- Status Optionen ---
 const statusOptions = [

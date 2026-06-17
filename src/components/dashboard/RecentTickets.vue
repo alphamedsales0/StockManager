@@ -1,7 +1,17 @@
 <template>
   <v-card elevation="3" rounded="lg" class="recent-tickets-card h-100">
-    <v-card-title class="text-h6 py-3 bg-grey-lighten-3">
-      Aktuelle Tickets
+    <v-card-title class="text-h6 py-3 bg-grey-lighten-3 d-flex align-center">
+      <span>Aktuelle Tickets</span>
+      <v-spacer></v-spacer>
+      <v-btn
+        variant="text"
+        color="primary"
+        size="small"
+        @click="goToAllTickets"
+      >
+        Alle Tickets
+        <v-icon end>mdi-arrow-right</v-icon>
+      </v-btn>
     </v-card-title>
     <v-divider></v-divider>
     <v-card-text class="pa-0">
@@ -50,8 +60,7 @@ const router = useRouter()
 const tickets = ref([])
 const loading = ref(true)
 
-
-
+// Farbzuordnung für Status (unverändert)
 const getStatusColor = (status) => {
   const colors = {
     'In Bearbeitung': 'warning',
@@ -65,10 +74,12 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
+// Lädt nur die 7 neuesten Tickets
 const loadTickets = async () => {
   loading.value = true
   try {
-    const response = await fetch('/api/get_all_ticket.php')
+    // Limit auf 7 setzen
+    const response = await fetch('/api/get_all_ticket.php?limit=7')
     const data = await response.json()
     if (data.success) {
       tickets.value = data.tickets
@@ -82,9 +93,14 @@ const loadTickets = async () => {
   }
 }
 
+// Navigiert zur Detailseite
 const viewDetails = (ticket) => {
-  console.log('Ticket angeklickt:', ticket);
   router.push(`/ticket/${ticket.id}`)
+}
+
+// Navigiert zur vollständigen Ticketübersicht
+const goToAllTickets = () => {
+  router.push('/tickets')
 }
 
 onMounted(() => {

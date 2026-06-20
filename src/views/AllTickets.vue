@@ -11,10 +11,11 @@
 
       <v-divider></v-divider>
 
-      <!-- Filterleiste (optional) -->
+      <!-- Filter- und Suchleiste -->
       <v-card-text class="pt-4">
         <v-row align="center">
-          <v-col cols="12" sm="4">
+          <!-- Statusfilter -->
+          <v-col cols="12" sm="3">
             <v-select
               v-model="filterStatus"
               :items="statusFilterOptions"
@@ -22,10 +23,12 @@
               clearable
               variant="outlined"
               density="compact"
-              @update:modelValue="loadTickets"
+              @update:modelValue="applyFilters"
             ></v-select>
           </v-col>
-          <v-col cols="12" sm="4">
+
+          <!-- Ticket-Typ-Filter -->
+          <v-col cols="12" sm="3">
             <v-select
               v-model="filterFormType"
               :items="formTypeFilterOptions"
@@ -33,10 +36,28 @@
               clearable
               variant="outlined"
               density="compact"
-              @update:modelValue="loadTickets"
+              @update:modelValue="applyFilters"
             ></v-select>
           </v-col>
-          <v-col cols="12" sm="4" class="text-right">
+
+          <!-- Suchleiste (neu) -->
+          <v-col cols="12" sm="4">
+            <v-text-field
+              v-model="searchQuery"
+              variant="outlined"
+              density="compact"
+              placeholder="Suchen (Ref., Betreff, Kunde…)"
+              append-inner-icon="mdi-magnify"
+              clearable
+              @click:append-inner="applyFilters"
+              @input="onSearchInput"
+              @keyup.enter="applyFilters"
+              @click:clear="clearSearch"
+            ></v-text-field>
+          </v-col>
+
+          <!-- Aktualisierungs-Button -->
+          <v-col cols="12" sm="2" class="text-right">
             <v-btn color="primary" @click="loadTickets" :loading="loading">
               <v-icon left>mdi-refresh</v-icon> Aktualisieren
             </v-btn>
@@ -89,7 +110,7 @@
         </v-table>
       </v-card-text>
 
-      <!-- Ggf. Paginierung (optional) -->
+      <!-- Paginierung -->
       <v-divider></v-divider>
       <v-card-actions class="justify-center">
         <v-pagination
@@ -104,7 +125,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -114,6 +135,7 @@ const tickets = ref([])
 const loading = ref(true)
 const filterStatus = ref(null)
 const filterFormType = ref(null)
+const searchQuery = ref('')            // Neue Suchabfrage
 const page = ref(1)
 const totalPages = ref(1)
 
@@ -124,14 +146,16 @@ const statusFilterOptions = [
   { title: 'Abgeschlossen', value: 'completed' },
   { title: 'Storniert', value: 'cancelled' }
 ]
+
 const formTypeFilterOptions = [
   { title: 'Serviceanfrage', value: 'service_request' },
   { title: 'Wartung', value: 'maintenance' },
   { title: 'Installation', value: 'installation' },
-  { title: 'Ersatzteile', value: 'ersatzteile' }
+  { title: 'Ersatzteile', value: 'ersatzteile' },
+  { title: 'Angebotsanfrage', value: 'angebot' }   // neu
 ]
 
-// Farbzuordnung (identisch mit RecentTickets)
+// Farbzuordnung
 const getStatusColor = (status) => {
   const colors = {
     'In Bearbeitung': 'warning',
@@ -145,16 +169,16 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
-// Tickets laden (mit Filtern und Paginierung)
+// Tickets laden (mit Filtern, Suche und Paginierung)
 const loadTickets = async () => {
   loading.value = true
   try {
-    // API-Aufruf mit optionalen Filtern und Paginierung
     const params = new URLSearchParams()
     if (filterStatus.value) params.append('status', filterStatus.value)
     if (filterFormType.value) params.append('form_type', filterFormType.value)
+    if (searchQuery.value) params.append('search', searchQuery.value)   // Suchparameter
     params.append('page', page.value)
-    params.append('limit', 20) // 20 pro Seite
+    params.append('limit', 20)
 
     const response = await fetch(`/api/get_all_ticket.php?${params.toString()}`)
     const data = await response.json()
@@ -171,12 +195,32 @@ const loadTickets = async () => {
   }
 }
 
-// Navigieren zur Detailseite
-const viewDetails = (ticket) => {
-  router.push(`/ticket/${ticket.id}`)
+// Bei Filter‑ oder Suchänderung: Seite zurücksetzen und neu laden
+const applyFilters = () => {
+  page.value = 1
+  loadTickets()
 }
 
-// Zurück zur vorherigen Seite
+// Debounce für die Sucheingabe (500 ms)
+let searchTimeout = null
+const onSearchInput = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    applyFilters()
+  }, 500)
+}
+
+// Löschen der Suche
+const clearSearch = () => {
+  searchQuery.value = ''
+  applyFilters()
+}
+
+// Navigation zur Detailseite
+const viewDetails = (ticket) => {
+  router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+}
+
 const goBack = () => {
   router.go(-1)
 }

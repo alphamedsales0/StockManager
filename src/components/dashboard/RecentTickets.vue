@@ -44,7 +44,10 @@
             </td>
           </tr>
           <tr v-if="tickets.length === 0 && !loading">
-            <td colspan="5" class="text-center">Keine Tickets vorhanden</td>
+            <td colspan="5" class="text-center">
+              <span v-if="error">Fehler beim Laden der Tickets: {{ error }}</span>
+              <span v-else>Keine Tickets vorhanden</span>
+            </td>
           </tr>
         </tbody>
       </v-table>
@@ -59,8 +62,9 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const tickets = ref([])
 const loading = ref(true)
+const error = ref(null)
 
-// Farbzuordnung für Status (unverändert)
+// Farbzuordnung für Status
 const getStatusColor = (status) => {
   const colors = {
     'In Bearbeitung': 'warning',
@@ -74,28 +78,34 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
-// Lädt nur die 7 neuesten Tickets
+// Lädt die 7 neuesten Tickets
 const loadTickets = async () => {
   loading.value = true
+  error.value = null
   try {
-    // Limit auf 7 setzen
     const response = await fetch('/api/get_all_ticket.php?limit=7')
-    const data = await response.json()
-    if (data.success) {
-      tickets.value = data.tickets
-    } else {
-      console.error('API error:', data.error)
+    if (!response.ok) {
+      throw new Error(`HTTP Fehler: ${response.status}`)
     }
-  } catch (error) {
-    console.error('Failed to load tickets:', error)
+    const data = await response.json()
+    console.log('API response:', data) // Debug-Ausgabe
+    if (data.success) {
+      tickets.value = data.tickets || []
+    } else {
+      throw new Error(data.error || 'Unbekannter API-Fehler')
+    }
+  } catch (err) {
+    console.error('Fehler beim Laden der Tickets:', err)
+    error.value = err.message
+    tickets.value = []
   } finally {
     loading.value = false
   }
 }
 
-// Navigiert zur Detailseite
+// Navigiert zur Detailseite (mit source-Parameter)
 const viewDetails = (ticket) => {
-  router.push(`/ticket/${ticket.id}`)
+  router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
 }
 
 // Navigiert zur vollständigen Ticketübersicht

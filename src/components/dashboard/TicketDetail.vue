@@ -13,11 +13,8 @@
     <!-- Ticket -->
     <template v-else-if="ticket">
       <v-card class="ticket-card glass-effect" :class="{ 'dark-glass': darkMode }">
-        <!-- HEADER mit verbessertem Zurück-Button -->
+        <!-- HEADER -->
         <v-toolbar :color="darkMode ? '#0a0f1a' : '#0f172a'" dark flat class="toolbar-header px-4">
-          <!-- Runder Zurück-Button mit weißem Rand -->
-          
-
           <div class="d-flex align-center">
             <v-avatar color="primary" size="42" class="mr-4 floating-avatar">
               <v-icon size="24">mdi-ticket-confirmation</v-icon>
@@ -61,12 +58,10 @@
           </v-btn>
         </v-toolbar>
 
-        <!-- Rest des Templates (unverändert) -->
         <v-container fluid class="pa-5">
           <v-row>
-            <!-- LINKER BEREICH (mit kombinierter Karte) -->
+            <!-- LINKER BEREICH -->
             <v-col cols="12" lg="5">
-              
               <!-- 1. Kundendaten -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
@@ -87,8 +82,8 @@
                 </v-card-text>
               </v-card>
 
-              <!-- 2. Statistiken & Metriken -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+              <!-- 2. Statistiken & Metriken – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-chart-box</v-icon>
                   Statistiken & Metriken
@@ -124,8 +119,8 @@
                 </v-card-text>
               </v-card>
 
-              <!-- 3. KOMBINIERTE KARTE: Ticket Aktionen -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+              <!-- 3. Ticket Aktionen – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-ticket-cog-outline</v-icon>
                   Ticket Aktionen
@@ -219,13 +214,19 @@
                         </v-btn>
                       </v-col>
                     </v-row>
-                    <v-switch v-model="notifyCustomerOnStatus" label="Kunden per E-Mail benachrichtigen" class="mt-3" hide-details />
+                    <v-switch 
+                      v-model="notifyCustomerOnStatus" 
+                      label="Kunden per E-Mail benachrichtigen" 
+                      class="mt-3" 
+                      hide-details
+                      color="success"
+                    />
                   </div>
                 </v-card-text>
               </v-card>
 
-              <!-- 4. Zeitaufwand -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+              <!-- 4. Zeitaufwand – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-clock-outline</v-icon>
                   Zeitaufwand ({{ totalHours }} h)
@@ -260,7 +261,7 @@
               </v-card>
             </v-col>
 
-            <!-- RECHTEN BEREICH (unverändert) -->
+            <!-- RECHTEN BEREICH -->
             <v-col cols="12" lg="7">
               <!-- FORMULARDATEN (je nach Ticket-Typ) -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
@@ -335,8 +336,7 @@
                       </v-list-item>
                     </template>
 
-
-                                        <!-- ERSATZTEILE -->
+                    <!-- ERSATZTEILE -->
                     <template v-else-if="ticket.form_type === 'ersatzteile'">
                       <v-list-item>
                         <template #prepend><v-icon>mdi-cog</v-icon></template>
@@ -524,6 +524,113 @@
                       </v-list-item>
                     </template>
 
+                                    <!-- ANGEBOTSANFRAGE – horizontale Anordnung -->
+                   <!-- ANGEBOTSANFRAGE – horizontale Anordnung (ohne Telefon) -->
+<template v-else-if="ticket.form_type === 'angebot'">
+  <!-- Erste Zeile: Datum und Menge (2 Spalten) -->
+  <v-row>
+    <v-col cols="12" sm="6">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-calendar</v-icon> Gewünschtes Datum</div>
+        <div class="item-value">{{ ticket.form_data.desired_date ? formatDate(ticket.form_data.desired_date) : '-' }}</div>
+      </div>
+    </v-col>
+    <v-col cols="12" sm="6">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-cart</v-icon> Anzahl Positionen</div>
+        <div class="item-value">{{ ticket.form_data.total_quantity || 0 }}</div>
+      </div>
+    </v-col>
+  </v-row>
+
+  <!-- Zweite Zeile: Nachricht (volle Breite) -->
+  <v-row>
+    <v-col cols="12">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-message-text</v-icon> Nachricht</div>
+        <div class="item-value">{{ ticket.form_data.message || '-' }}</div>
+      </div>
+    </v-col>
+  </v-row>
+
+  <!-- Dritte Zeile: Optionen (Versand, MwSt., Newsletter) in 3 Spalten -->
+  <v-row>
+    <v-col cols="12" sm="4">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-truck</v-icon> Versandkosten im Angebot</div>
+        <div class="item-value">{{ ticket.form_data.include_shipping ? 'Ja' : 'Nein' }}</div>
+      </div>
+    </v-col>
+    <v-col cols="12" sm="4">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-percent</v-icon> MwSt. ausweisen</div>
+        <div class="item-value">{{ ticket.form_data.include_vat ? 'Ja' : 'Nein' }}</div>
+      </div>
+    </v-col>
+    <v-col cols="12" sm="4">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-email-newsletter</v-icon> Newsletter abonniert</div>
+        <div class="item-value">{{ ticket.form_data.newsletter ? 'Ja' : 'Nein' }}</div>
+      </div>
+    </v-col>
+  </v-row>
+
+  <!-- Vierte Zeile: Produkte-Tabelle (volle Breite) -->
+  <v-row v-if="ticket.form_data.cart_items && ticket.form_data.cart_items.length">
+    <v-col cols="12">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-format-list-bulleted</v-icon> Produkte</div>
+        <div class="item-value">
+          <v-table density="compact" class="mt-2">
+            <thead>
+              <tr>
+                <th>Produkt</th>
+                <th>Menge</th>
+                <th>Preis</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in ticket.form_data.cart_items" :key="idx">
+                <td>{{ item.name }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.price }} €</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </div>
+      </div>
+    </v-col>
+  </v-row>
+
+  <!-- Fünfte Zeile: Summen (Zwischensumme, Rabatt, Versand, Gesamt) in 4 Spalten -->
+  <v-row>
+    <v-col cols="6" sm="3">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-currency-eur</v-icon> Zwischensumme</div>
+        <div class="item-value">{{ ticket.form_data.cart_subtotal }} €</div>
+      </div>
+    </v-col>
+    <v-col cols="6" sm="3">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-sale</v-icon> Rabatt</div>
+        <div class="item-value">{{ ticket.form_data.cart_discount || 0 }} €</div>
+      </div>
+    </v-col>
+    <v-col cols="6" sm="3">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-truck-fast</v-icon> Versandkosten</div>
+        <div class="item-value">{{ ticket.form_data.cart_shipping || 0 }} €</div>
+      </div>
+    </v-col>
+    <v-col cols="6" sm="3">
+      <div class="info-item">
+        <div class="item-label"><v-icon size="16">mdi-cash</v-icon> Gesamtsumme</div>
+        <div class="item-value font-weight-bold">{{ ticket.form_data.cart_total }} €</div>
+      </div>
+    </v-col>
+  </v-row>
+</template>
+
                     <!-- FALLBACK JSON -->
                     <template v-else>
                       <v-list-item>
@@ -540,6 +647,7 @@
                 </v-card-text>
               </v-card>
 
+             
               <!-- TICKET INFORMATIONEN -->
               <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
@@ -549,6 +657,7 @@
                 <v-divider />
                 <v-card-text>
                   <v-list class="transparent-list">
+                    <!-- System-Erstelldatum -->
                     <v-list-item>
                       <template #prepend><v-icon>mdi-calendar-plus</v-icon></template>
                       <div>
@@ -556,6 +665,7 @@
                         <div class="item-value">{{ formatDateTime(ticket.created_at) }}</div>
                       </div>
                     </v-list-item>
+                    <!-- Aktualisiert -->
                     <v-list-item>
                       <template #prepend><v-icon>mdi-calendar-edit</v-icon></template>
                       <div>
@@ -563,6 +673,19 @@
                         <div class="item-value">{{ formatDateTime(ticket.updated_at) }}</div>
                       </div>
                     </v-list-item>
+                    <!-- NEU: Ticket-Status (aktuell) -->
+                    <v-list-item>
+                      <template #prepend><v-icon>mdi-information</v-icon></template>
+                      <div>
+                        <div class="item-label">Ticket-Status</div>
+                        <div class="item-value">
+                          <v-chip :color="statusColor" size="small" label>
+                            {{ translateStatus(ticket.status) }}
+                          </v-chip>
+                        </div>
+                      </div>
+                    </v-list-item>
+                    <!-- Bearbeiter -->
                     <v-list-item>
                       <template #prepend><v-icon>mdi-account-tie</v-icon></template>
                       <div>
@@ -570,19 +693,22 @@
                         <div class="item-value">{{ ticket.assigned_to || '-' }}</div>
                       </div>
                     </v-list-item>
+                    <!-- Letzte Statusänderung (optional, bleibt erhalten) -->
+                    
+                    <!-- Letzte Änderung (Benutzer) -->
                     <v-list-item>
                       <template #prepend><v-icon>mdi-account-clock</v-icon></template>
                       <div>
                         <div class="item-label">Letzte Änderung</div>
-                        <div class="item-value">{{ ticket.last_updated_by || '-' }}</div>
+                        <div class="item-value">{{ ticket.last_updated_by || '-' }} – {{ formatDateTime(ticket.updated_at) }}</div>
                       </div>
                     </v-list-item>
                   </v-list>
                 </v-card-text>
               </v-card>
 
-              <!-- OPTION 1: Dateianhänge -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+              <!-- Anhänge – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-paperclip</v-icon>
                   Anhänge ({{ attachments.length }})
@@ -620,8 +746,8 @@
                 </v-card-text>
               </v-card>
 
-              <!-- OPTION 2: Interne Notizen -->
-              <v-card class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
+              <!-- Interne Notizen – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-lock-outline</v-icon>
                   Interne Notizen (nur für Mitarbeiter)
@@ -647,8 +773,8 @@
                 </v-card-text>
               </v-card>
 
-              <!-- Aktivitäten & Kommentare (Timeline) -->
-              <v-card class="comment-card glass-effect" :class="{ 'dark-glass': darkMode }">
+              <!-- Aktivitäten & Kommentare – jetzt für alle Ticket-Typen sichtbar -->
+              <v-card v-if="ticket" class="comment-card glass-effect" :class="{ 'dark-glass': darkMode }">
                 <v-card-title class="section-header gradient-bg">
                   <v-icon start color="white">mdi-history</v-icon>
                   Aktivitäten & Kommentare
@@ -704,14 +830,13 @@
   </v-container>
 </template>
 
-
-
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+const currentSource = ref('form');
 
 // --- Basis Refs ---
 const ticket = ref(null)
@@ -752,11 +877,23 @@ const totalHours = computed(() => {
   return timeEntries.value.reduce((sum, e) => sum + parseFloat(e.hours), 0).toFixed(1)
 })
 
-
 const translateServiceType = (service) => {
   const map = { single: 'Einzelbestellung', contract: 'Vertragsbestellung' };
   return map[service] || service || '-';
 }
+
+const lastStatusChange = computed(() => {
+  if (!activities.value.length) return null;
+  // Filtere nach Status-Änderungen und nimm den neuesten
+  const statusActivities = activities.value.filter(a => a.type === 'status' && a.text.includes('Status geändert'));
+  if (statusActivities.length === 0) return null;
+  const latest = statusActivities[0]; // weil activities absteigend sortiert sind (neueste zuerst)
+  return {
+    text: latest.text,
+    author: latest.author,
+    date: latest.created_at
+  };
+});
 
 // --- Status Optionen ---
 const statusOptions = [
@@ -767,6 +904,29 @@ const statusOptions = [
 ]
 
 // ========== Hilfsfunktionen & Computeds ==========
+
+// Kommentare laden und Timeline füllen
+const loadComments = async (source) => {
+  if (!ticket.value) return;
+  try {
+    const response = await fetch(`/api/get_comments.php?ticket_id=${ticket.value.id}&source=${source}`);
+    const data = await response.json();
+    if (data.success) {
+      ticket.value.comments = data.comments;
+      activities.value = data.comments.map(c => ({
+        id: c.id,
+        type: c.type === 'status' ? 'status' : 'comment',
+        author: c.author,
+        text: c.text,
+        created_at: c.created_at,
+        color: c.type === 'status' ? '#1976d2' : '#2e7d32',
+        avatarColor: c.type === 'status' ? '#1565c0' : '#2c3e50'
+      }));
+    }
+  } catch (err) {
+    console.error('Fehler beim Laden der Kommentare:', err);
+  }
+};
 
 // Eingangsdatum / Erstelldatum Header
 const entryDateFormatted = computed(() => {
@@ -803,7 +963,7 @@ const statusIcon = computed(() => {
   return map[ticket.value?.status]
 })
 
-// Statistiken
+// Statistiken (für alle Ticket-Typen)
 const ticketAge = computed(() => {
   if (!ticket.value?.created_at) return '-'
   const created = new Date(ticket.value.created_at)
@@ -818,19 +978,31 @@ const lastActionTime = computed(() => {
   return formatDateTime(activities.value[0].created_at)
 })
 
-// Kundendaten
+// Kundendaten – angepasst für beide Quellen
 const customerFields = computed(() => {
-  if (!ticket.value?.customer) return []
-  const c = ticket.value.customer
-  return [
-    { label: 'Anrede', value: c.anrede, icon: 'mdi-account' },
-    { label: 'Name', value: `${c.firstname} ${c.lastname}`, icon: 'mdi-card-account-details' },
-    { label: 'Firma', value: c.company || '-', icon: 'mdi-domain' },
-    { label: 'E-Mail', value: c.email, icon: 'mdi-email' },
-    { label: 'Telefon', value: c.phone, icon: 'mdi-phone' },
-    { label: 'Adresse', value: `${c.address} ${c.hausnummer}`, icon: 'mdi-home' },
-    { label: 'Ort', value: `${c.plz} ${c.ort}`, icon: 'mdi-map-marker' }
-  ]
+  if (!ticket.value) return []
+  const c = ticket.value.customer || {}
+  if (ticket.value.source === 'angebot') {
+    // Angebotsanfrage: Felder aus angebot_requests
+    return [
+      { label: 'Vorname', value: c.firstname || '-', icon: 'mdi-account' },
+      { label: 'Nachname', value: c.lastname || '-', icon: 'mdi-card-account-details' },
+      { label: 'Firma', value: c.company || '-', icon: 'mdi-domain' },
+      { label: 'E-Mail', value: c.email || '-', icon: 'mdi-email' },
+      { label: 'Telefon', value: c.phone || '-', icon: 'mdi-phone' }
+    ]
+  } else {
+    // Normales Ticket (form_submissions)
+    return [
+      { label: 'Anrede', value: c.anrede || '-', icon: 'mdi-account' },
+      { label: 'Name', value: `${c.firstname || ''} ${c.lastname || ''}`.trim() || '-', icon: 'mdi-card-account-details' },
+      { label: 'Firma', value: c.company || '-', icon: 'mdi-domain' },
+      { label: 'E-Mail', value: c.email || '-', icon: 'mdi-email' },
+      { label: 'Telefon', value: c.phone || '-', icon: 'mdi-phone' },
+      { label: 'Adresse', value: `${c.address || ''} ${c.hausnummer || ''}`.trim() || '-', icon: 'mdi-home' },
+      { label: 'Ort', value: `${c.plz || ''} ${c.ort || ''}`.trim() || '-', icon: 'mdi-map-marker' }
+    ]
+  }
 })
 
 // Datumsformatierung
@@ -875,8 +1047,7 @@ function addActivity(type, author, text, extra = {}) {
   }
   activities.value.unshift(newActivity)
 }
-
-// Kommentar
+// Kommentar hinzufügen (mit source)
 const addComment = async () => {
   if (!newCommentText.value.trim()) return;
   try {
@@ -886,12 +1057,14 @@ const addComment = async () => {
       body: JSON.stringify({
         ticket_id: ticket.value.id,
         text: newCommentText.value,
-        author: 'Admin'
+        author: 'Admin',
+        source: ticket.value.source || 'form',
+        type: 'comment'
       })
     });
     const data = await response.json();
     if (data.success) {
-      addActivity('comment', 'Admin', newCommentText.value);
+      await loadComments(ticket.value.source);
       newCommentText.value = '';
     }
   } catch (err) {
@@ -901,8 +1074,8 @@ const addComment = async () => {
 
 // Status aktualisieren
 const updateStatus = async () => {
-  if (selectedStatus.value === ticket.value.status) return
-  updatingStatus.value = true
+  if (selectedStatus.value === ticket.value.status) return;
+  updatingStatus.value = true;
   try {
     const response = await fetch('/api/update_ticket_status.php', {
       method: 'POST',
@@ -910,26 +1083,27 @@ const updateStatus = async () => {
       body: JSON.stringify({
         ticket_id: ticket.value.id,
         status: selectedStatus.value,
-        notify_customer: notifyCustomerOnStatus.value
+        notify_customer: notifyCustomerOnStatus.value,
+        source: currentSource.value,   // <-- hier verwenden
+        changed_by: 'Admin'
       })
-    })
-    const data = await response.json()
+    });
+    const data = await response.json();
     if (data.success) {
-      const oldStatus = ticket.value.status
-      ticket.value.status = selectedStatus.value
-      addActivity('status', 'Admin', `Status geändert von "${translateStatus(oldStatus)}" zu "${translateStatus(selectedStatus.value)}"`)
-      if (data.notification_sent) {
-        addActivity('status', 'System', 'Benachrichtigung an Kunden gesendet')
-      }
+      ticket.value.status = selectedStatus.value;
+      ticket.value.last_updated_by = 'Admin';
+      ticket.value.updated_at = new Date().toISOString();
+      await loadComments(currentSource.value);
     } else {
-      console.error('Status update failed:', data.error)
+      console.error('Status update failed:', data.error);
     }
   } catch (err) {
-    console.error(err)
+    console.error(err);
   } finally {
-    updatingStatus.value = false
+    updatingStatus.value = false;
   }
-}
+};
+
 
 // --- Option 1: Dateianhänge ---
 const formatFileSize = (bytes) => {
@@ -1014,7 +1188,7 @@ const loadInternalNotes = async () => {
   }
 }
 
-// --- Option 3: Bearbeiter (Mock, da API funktioniert nun aber wir lassen den Mock) ---
+// --- Option 3: Bearbeiter ---
 const loadAssignees = async () => {
   loadingAssignees.value = true;
   try {
@@ -1036,6 +1210,7 @@ const loadAssignees = async () => {
   }
 };
 
+// Bearbeiter zuweisen (mit source und changed_by)
 const updateAssignee = async () => {
   if (!selectedAssignee.value) {
     alert("Bitte wählen Sie einen Bearbeiter aus.");
@@ -1043,20 +1218,40 @@ const updateAssignee = async () => {
   }
   updatingAssignee.value = true;
   try {
-    const user = assigneeOptions.value.find(u => u.id === selectedAssignee.value);
-    if (user) {
-      ticket.value.assigned_to = user.name;
-      addActivity('status', 'Admin', `Bearbeiter geändert zu ${user.name}`);
+    // Den Namen des ausgewählten Users ermitteln
+    const selectedUser = assigneeOptions.value.find(u => u.id === selectedAssignee.value);
+    if (!selectedUser) throw new Error('Benutzer nicht gefunden');
+
+    const response = await fetch('/api/update_assignee.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: ticket.value.id,
+        assignee_name: selectedUser.name,   // Name direkt übergeben
+        source: ticket.value.source || 'form',
+        changed_by: 'Admin'
+      })
+    });
+    const data = await response.json();
+    if (data.success) {
+      ticket.value = {
+        ...ticket.value,
+        assigned_to: data.assignee_name,
+        last_updated_by: 'Admin',
+        updated_at: new Date().toISOString()
+      };
+      await loadComments(ticket.value.source);
     } else {
-      alert("Benutzer nicht gefunden");
+      alert('Fehler bei der Zuweisung: ' + (data.error || 'Unbekannter Fehler'));
     }
   } catch (err) {
     console.error(err);
-    alert("Fehler bei der Zuweisung");
+    alert('Fehler bei der Zuweisung');
   } finally {
     updatingAssignee.value = false;
   }
 };
+
 
 // --- Option 4: Fälligkeitsdatum ---
 const saveDueDate = async () => {
@@ -1127,9 +1322,10 @@ const loadTimeEntries = async () => {
   }
 }
 
-// --- Laden aller Zusatzdaten ---
+// --- Laden aller Zusatzdaten (jetzt für alle Ticket-Typen) ---
 const loadExtraData = async () => {
   if (!ticket.value) return;
+  // Immer laden – unabhängig von der Quelle
   await Promise.all([
     loadAttachments(),
     loadInternalNotes(),
@@ -1145,27 +1341,26 @@ const loadExtraData = async () => {
 
 // --- Hauptladefunktion für Ticket ---
 const loadDetails = async () => {
+  loading.value = true;
   try {
-    const response = await fetch(`/api/get_ticket_details.php?id=${route.params.id}`)
-    const data = await response.json()
+    const source = route.query.source || 'form';
+    currentSource.value = source;   // <-- speichern
+
+    const response = await fetch(`/api/get_ticket_details.php?id=${route.params.id}&source=${source}`);
+    const data = await response.json();
     if (data.success) {
-      ticket.value = data.ticket
-      selectedStatus.value = ticket.value.status
-      activities.value = []
-      if (ticket.value.comments) {
-        ticket.value.comments.forEach(comment => {
-          addActivity('comment', comment.author, comment.text, { created_at: comment.created_at })
-        })
-      }
-      addActivity('status', 'System', `Ticket erstellt am ${formatDateTime(ticket.value.created_at)}`)
-      await loadExtraData()
+      ticket.value = data.ticket;
+      selectedStatus.value = ticket.value.status;
+      
+      await loadComments(source);
+      await loadExtraData();
     }
   } catch (err) {
-    console.error(err)
+    console.error(err);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // --- Dark Mode ---
 const initDarkMode = () => {
@@ -1187,12 +1382,11 @@ const goBack = () => {
 onMounted(() => {
   initDarkMode();
   loadDetails();
-  loadAssignees();
 });
 </script>
 
 <style scoped>
-/* === gleiche Styles wie im Original === */
+/* === Grundlegende Container- und Karten-Styles === */
 .ticket-container {
   max-width: 1700px;
   margin: auto;
@@ -1200,54 +1394,58 @@ onMounted(() => {
   min-height: 100vh;
   transition: background 0.3s ease;
 }
-.priority-chip,
-.status-chip,
-.priority-chip .v-icon,
-.status-chip .v-icon {
-  color: white !important;
-}
 
 .ticket-container.dark-mode {
   background: #0a0f1a;
 }
+
 .glass-effect {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.2s;
 }
+
 .dark-glass {
   background: rgba(18, 25, 45, 0.85) !important;
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
+
 .ticket-card {
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
 }
+
 .toolbar-header {
   min-height: 90px;
 }
+
 .gradient-bg {
   background: linear-gradient(135deg, #1e3c72, #0f172a) !important;
   color: white !important;
 }
+
 .dark-mode .gradient-bg {
   background: linear-gradient(135deg, #0a1a2f, #03070f) !important;
 }
+
 .section-header {
   min-height: 70px;
   font-weight: 700;
 }
+
 .info-card, .comment-card {
   border-radius: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s;
 }
+
 .info-card:hover, .comment-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.2);
 }
+
 .stat-card {
   background: rgba(248, 250, 252, 0.7);
   border-radius: 20px;
@@ -1255,34 +1453,44 @@ onMounted(() => {
   text-align: center;
   backdrop-filter: blur(4px);
 }
+
 .dark-stat {
   background: rgba(30, 40, 60, 0.6) !important;
   color: #e2e8f0;
 }
+
 .stat-title {
   font-size: 12px;
   color: #64748b;
 }
+
 .dark-mode .stat-title {
   color: #94a3b8;
 }
+
 .stat-value {
   font-size: 24px;
   font-weight: 800;
   color: #0f172a;
 }
+
 .dark-mode .stat-value {
   color: white;
 }
+
+/* === Listen und Einträge (für die vertikalen Bereiche) === */
 .v-list-item {
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
+
 .v-list-item:last-child {
   border-bottom: none;
 }
+
 .dark-mode .v-list-item {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
+
 .transparent-list {
   background: transparent;
 }
@@ -1292,26 +1500,67 @@ onMounted(() => {
   font-weight: 500;
   color: #64748b;
 }
+
 .item-value {
   font-size: 14px;
   font-weight: 600;
   color: #0f172a;
 }
+
 .dark-mode .item-label {
   color: #94a3b8;
 }
+
 .dark-mode .item-value {
   color: #e2e8f0;
 }
+
+/* === NEUE STYLES für horizontale Angebotsdaten === */
+.info-item {
+  background: rgba(248, 250, 252, 0.6);
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.dark-mode .info-item {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.info-item .item-label {
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dark-mode .info-item .item-label {
+  color: #94a3b8;
+}
+
+.info-item .item-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dark-mode .info-item .item-value {
+  color: #e2e8f0;
+}
+
+/* === Timeline (Aktivitäten) === */
 .timeline {
   position: relative;
 }
+
 .timeline-item {
   position: relative;
   padding-left: 40px;
   margin-bottom: 32px;
   transition: all 0.3s;
 }
+
 .timeline-item::before {
   content: '';
   position: absolute;
@@ -1321,9 +1570,11 @@ onMounted(() => {
   width: 2px;
   background: linear-gradient(to bottom, #1976d2, #b0bec5);
 }
+
 .timeline-item:last-child::before {
   display: none;
 }
+
 .timeline-dot {
   width: 14px;
   height: 14px;
@@ -1333,38 +1584,48 @@ onMounted(() => {
   top: 18px;
   box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
 }
+
 .activity-text {
   background: rgba(248, 250, 252, 0.8);
   border-radius: 18px;
   padding: 14px 18px;
   border-left: 4px solid #1976d2;
 }
+
 .dark-mode .activity-text {
   background: rgba(30, 41, 59, 0.7);
   color: #e2e8f0;
 }
+
 .timeline-item-enter-active,
 .timeline-item-leave-active {
   transition: all 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
 }
+
 .timeline-item-enter-from {
   opacity: 0;
   transform: translateX(40px);
 }
+
 .timeline-item-leave-to {
   opacity: 0;
   transform: translateX(-40px);
 }
+
+/* === Sonstige Hilfsklassen === */
 .skeleton-card {
   border-radius: 28px;
   padding: 24px;
 }
+
 .floating-avatar {
   transition: transform 0.2s;
 }
+
 .floating-avatar:hover {
   transform: scale(1.05);
 }
+
 .json-preview {
   background: #0f172a;
   color: #f8fafc;
@@ -1373,9 +1634,19 @@ onMounted(() => {
   overflow: auto;
   font-size: 12px;
 }
+
 .overdue-field input {
   border-color: #ff5252 !important;
 }
+
+.priority-chip,
+.status-chip,
+.priority-chip .v-icon,
+.status-chip .v-icon {
+  color: white !important;
+}
+
+/* === Responsive Anpassungen === */
 @media (max-width: 960px) {
   .ticket-container {
     padding: 0 !important;

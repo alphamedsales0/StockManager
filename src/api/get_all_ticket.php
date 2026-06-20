@@ -19,113 +19,192 @@ if (!isset($pdo) || $pdo === null) {
 
 try {
     // Parameter auslesen
-    $statusFilter = isset($_GET['status']) ? $_GET['status'] : null;
+    $statusFilter   = isset($_GET['status']) ? $_GET['status'] : null;
     $formTypeFilter = isset($_GET['form_type']) ? $_GET['form_type'] : null;
     $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
     $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 20;
     $offset = ($page - 1) * $limit;
 
-    // Basis-SQL für Count und Hauptabfrage
-    $baseSql = "SELECT 
-                    id,
-                    reference_number,
-                    form_type,
-                    submission_date,
-                    customer_data,
-                    status,
-                    kundennummer
-                FROM form_submissions
-                WHERE 1=1";
-    $params = [];
+    // ----- Hilfsfunktion für die Übersetzung -----
+    function translateStatus($status) {
+        $map = [
+            'pending'     => 'In Bearbeitung',
+            'in_progress' => 'In Prüfung',
+            'processing'  => 'In Prüfung',   // falls noch vorhanden
+            'completed'   => 'Abgeschlossen',
+            'cancelled'   => 'Storniert'
+        ];
+        return $map[$status] ?? $status;
+    }
 
-    // Filter hinzufügen
+    // ----- ZÄHLEN der Gesamtzahl (für Paginierung) -----
+    $total = 0;
+
+    // 1) Count für form_submissions
+    $countSqlForm = "SELECT COUNT(*) FROM form_submissions WHERE 1=1";
+    $countParamsForm = [];
     if ($statusFilter) {
-        $baseSql .= " AND status = :status";
-        $params[':status'] = $statusFilter;
+        $countSqlForm .= " AND status = :status";
+        $countParamsForm[':status'] = $statusFilter;
     }
-    if ($formTypeFilter) {
-        $baseSql .= " AND form_type = :form_type";
-        $params[':form_type'] = $formTypeFilter;
+    if ($formTypeFilter && $formTypeFilter !== 'angebot') {
+        $countSqlForm .= " AND form_type = :form_type";
+        $countParamsForm[':form_type'] = $formTypeFilter;
+    } elseif ($formTypeFilter === 'angebot') {
+        // dann werden keine form_submissions gezählt
+        $countForm = 0;
+    }
+    if (!isset($countForm)) {
+        $stmt = $pdo->prepare($countSqlForm);
+        $stmt->execute($countParamsForm);
+        $countForm = (int)$stmt->fetchColumn();
     }
 
-    // Count-Abfrage (Gesamtanzahl für Paginierung)
-    $countSql = "SELECT COUNT(*) as total FROM form_submissions WHERE 1=1";
+    // 2) Count für angebot_requests
+    $countSqlAngebot = "SELECT COUNT(*) FROM angebot_requests WHERE 1=1";
+    $countParamsAngebot = [];
     if ($statusFilter) {
-        $countSql .= " AND status = :status";
+        $countSqlAngebot .= " AND status = :status";
+        $countParamsAngebot[':status'] = $statusFilter;
     }
-    if ($formTypeFilter) {
-        $countSql .= " AND form_type = :form_type";
+    if ($formTypeFilter && $formTypeFilter !== 'angebot') {
+        // Wenn FormType nicht 'angebot', dann keine Angebotsanfragen
+        $countAngebot = 0;
+    } else {
+        // formTypeFilter ist NULL oder 'angebot' → alle zählen (mit Status-Filter)
     }
-    $countStmt = $pdo->prepare($countSql);
-    $countStmt->execute($params);
-    $total = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
-    $totalPages = ceil($total / $limit);
+    if (!isset($countAngebot)) {
+        $stmt = $pdo->prepare($countSqlAngebot);
+        $stmt->execute($countParamsAngebot);
+        $countAngebot = (int)$stmt->fetchColumn();
+    }
 
-    // Hauptabfrage mit Sortierung und Limit/Offset
-    $sql = $baseSql . " ORDER BY submission_date DESC LIMIT :limit OFFSET :offset";
+    $total = $countForm + $countAngebot;
+    $totalPages = ($total > 0) ? ceil($total / $limit) : 1;
+
+    // ----- HAUPTABFRAGE mit UNION -----
+    $sql = "
+        SELECT * FROM (
+            SELECT
+                id,
+                'form' AS source,
+                reference_number AS ref_nr,
+                submission_date AS ticket_date,
+                form_type AS type,
+                customer_data AS customer_json,
+                NULL AS firstname,
+                NULL AS lastname,
+                NULL AS company,
+                status,
+                kundennummer
+            FROM form_submissions
+            WHERE 1=1
+    ";
+
+    if ($statusFilter) {
+        $sql .= " AND status = :status";
+    }
+    if ($formTypeFilter && $formTypeFilter !== 'angebot') {
+        $sql .= " AND form_type = :form_type";
+    } elseif ($formTypeFilter === 'angebot') {
+        $sql .= " AND 1=0";   // keine form_submissions
+    }
+
+    $sql .= "
+            UNION ALL
+            SELECT
+                id,
+                'angebot' AS source,
+                reference AS ref_nr,
+                created_at AS ticket_date,
+                'angebot' AS type,
+                NULL AS customer_json,
+                firstname,
+                lastname,
+                company,
+                status,
+                NULL AS kundennummer
+            FROM angebot_requests
+            WHERE 1=1
+    ";
+
+    if ($statusFilter) {
+        $sql .= " AND status = :status";
+    }
+    if ($formTypeFilter && $formTypeFilter !== 'angebot') {
+        $sql .= " AND 1=0";   // keine angebot_requests
+    }
+
+    $sql .= "
+        ) AS combined
+        ORDER BY ticket_date DESC
+        LIMIT :limit OFFSET :offset
+    ";
+
     $stmt = $pdo->prepare($sql);
 
-    // Bindungen für Limit und Offset (Integer)
+    // Parameter binden
+    if ($statusFilter) {
+        $stmt->bindParam(':status', $statusFilter, PDO::PARAM_STR);
+    }
+    if ($formTypeFilter && $formTypeFilter !== 'angebot') {
+        $stmt->bindParam(':form_type', $formTypeFilter, PDO::PARAM_STR);
+    }
     $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindParam(':offset', $offset, PDO::PARAM_INT);
-
-    // Bindungen für Filter (Strings)
-    foreach ($params as $key => &$val) {
-        if ($key !== ':limit' && $key !== ':offset') {
-            $stmt->bindParam($key, $val, PDO::PARAM_STR);
-        }
-    }
 
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Tickets aufbereiten
+    // ----- Ergebnis aufbereiten -----
     $tickets = [];
     foreach ($rows as $row) {
-        $customer = json_decode($row['customer_data'], true);
-        $company = $customer['company'] ?? $row['kundennummer'] ?? 'Privatkunde';
-
-        $subjectMap = [
-            'service_request' => 'Serviceanforderung',
-            'maintenance' => 'Wartungsvertrag',
-            'installation' => 'Installation',
-            'ersatzteile' => 'Ersatzteile'  // neu hinzugefügt
-        ];
-        $subject = $subjectMap[$row['form_type']] ?? ucfirst($row['form_type']);
+        if ($row['source'] === 'form') {
+            $customer = json_decode($row['customer_json'], true);
+            $company = $customer['company'] ?? $row['kundennummer'] ?? 'Privatkunde';
+            $subjectMap = [
+                'service_request' => 'Serviceanforderung',
+                'maintenance'     => 'Wartungsvertrag',
+                'installation'    => 'Installation',
+                'ersatzteile'     => 'Ersatzteile'
+            ];
+            $subject = $subjectMap[$row['type']] ?? ucfirst($row['type']);
+            $kundenname = $company;
+        } else { // angebot
+            $firstname = $row['firstname'];
+            $lastname  = $row['lastname'];
+            $company   = $row['company'];
+            if (!empty($company)) {
+                $kundenname = $company;
+            } else {
+                $kundenname = trim($firstname . ' ' . $lastname);
+                if (empty($kundenname)) $kundenname = 'Unbekannt';
+            }
+            $subject = 'Angebotsanfrage';
+        }
 
         $tickets[] = [
-            'id' => $row['id'],
-            'date' => date('d.m.Y', strtotime($row['submission_date'])),
-            'refNr' => $row['reference_number'],
-            'name' => $subject,
-            'kundenname' => $company,
-            'status' => translateStatus($row['status']),
-            'raw_status' => $row['status'],
-            'form_type' => $row['form_type']
+            'id'          => $row['id'],
+            'date'        => date('d.m.Y', strtotime($row['ticket_date'])),
+            'refNr'       => $row['ref_nr'],
+            'name'        => $subject,
+            'kundenname'  => $kundenname,
+            'status'      => translateStatus($row['status']),
+            'raw_status'  => $row['status'],
+            'form_type'   => $row['type'],
+            'source'      => $row['source']   // wichtig für die Detailnavigation
         ];
     }
 
-    // JSON-Ausgabe
     echo json_encode([
-        'success' => true,
-        'tickets' => $tickets,
-        'totalPages' => $totalPages,
+        'success'     => true,
+        'tickets'     => $tickets,
+        'totalPages'  => $totalPages,
         'currentPage' => $page,
-        'total' => $total
+        'total'       => $total
     ]);
 
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-}
-
-function translateStatus($status) {
-    $map = [
-        'pending' => 'In Bearbeitung',
-        'in_progress' => 'In Prüfung',
-        'completed' => 'Abgeschlossen',
-        'cancelled' => 'Storniert'
-    ];
-    return $map[$status] ?? $status;
-}
-?>
+} 

@@ -1,4 +1,3 @@
-<!-- views/TicketDetail.vue -->
 <template>
   <v-container fluid :class="['ticket-container', { 'dark-mode': darkMode }]" class="pa-4">
     <!-- Skeleton -->
@@ -86,12 +85,21 @@
     </template>
 
     <v-alert v-else type="error" variant="tonal">Ticket nicht gefunden.</v-alert>
+
+    <!-- GLOBALE SNACKBAR -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="4000" location="top end">
+      {{ snackbar.text }}
+      <template v-slot:actions>
+        <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false" />
+      </template>
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+
 // Composables
 import { useDarkMode } from '../composables/useDarkMode'
 import { useTicket } from '../composables/useTicket'
@@ -100,6 +108,7 @@ import { useAttachments } from '../composables/useAttachments'
 import { useInternalNotes } from '../composables/useInternalNotes'
 import { useTimeEntries } from '../composables/useTimeEntries'
 import { useAssignees } from '../composables/useAssignees'
+
 // Komponenten
 import TicketHeader from '../components/ticket/TicketHeader.vue'
 import CustomerInfo from '../components/ticket/CustomerInfo.vue'
@@ -124,10 +133,20 @@ const { internalNotes, loadInternalNotes, addInternalNote } = useInternalNotes()
 const { timeEntries, loadTimeEntries, addTimeEntry } = useTimeEntries()
 const { assigneeOptions, loadingAssignees, loadAssignees } = useAssignees()
 
-// Lokale UI‑Ladeindikatoren
+// Lokale UI‑Ladeindikatoren (für Snackbar und Button‑Loading)
 const savingDueDate = ref(false)
 const updatingAssignee = ref(false)
 const updatingStatus = ref(false)
+const uploading = ref(false)
+const addingNote = ref(false)
+const addingComment = ref(false)
+
+// Zentrale Snackbar
+const snackbar = ref({
+  show: false,
+  text: '',
+  color: 'success'
+})
 
 // Status‑Optionen
 const statusOptions = [
@@ -172,69 +191,166 @@ const entryDateLabel = computed(() => {
   return ticket.value?.form_data?.submissionDate ? 'Eingangsdatum' : 'Erstellt am'
 })
 
-// ----- Event‑Handler -----
+// ----- Polling (Kommentare automatisch aktualisieren) -----
+const POLLING_INTERVAL_MS = 30000  // 30 Sekunden
+const refreshInterval = ref(null)
+
+const startPolling = () => {
+  if (refreshInterval.value) clearInterval(refreshInterval.value)
+  refreshInterval.value = setInterval(() => {
+    if (ticket.value) {
+      loadComments(ticket.value.id)
+      // Optional: Weitere Daten nur bei Bedarf aktivieren
+      // loadAttachments(ticket.value.id)
+      // loadInternalNotes(ticket.value.id)
+      // loadTimeEntries(ticket.value.id)
+    }
+  }, POLLING_INTERVAL_MS)
+}
+
+const stopPolling = () => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+    refreshInterval.value = null
+  }
+}
+
+// Visibility‑API – Polling pausieren bei Tab‑Inaktivität
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    // Tab nicht sichtbar → Polling stoppen
+    stopPolling()
+  } else {
+    // Tab wieder sichtbar → Polling neu starten und sofort aktualisieren
+    if (ticket.value) {
+      startPolling()
+      loadComments(ticket.value.id) // Sofort neueste Daten holen
+    }
+  }
+}
+
+// ----- Event‑Handler (mit Snackbar und Loading‑States) -----
 const goBack = () => router.push('/dashboard')
 
 const handleSaveDueDate = async (dueDate) => {
   savingDueDate.value = true
-  await saveDueDate(dueDate)
-  savingDueDate.value = false
+  try {
+    await saveDueDate(dueDate)
+    snackbar.value = { show: true, text: '✅ Fälligkeitsdatum aktualisiert', color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  } finally {
+    savingDueDate.value = false
+  }
 }
 
 const handleUpdateAssignee = async (assigneeId) => {
   updatingAssignee.value = true
-  const selectedUser = assigneeOptions.value.find(u => u.id === assigneeId)
-  if (selectedUser) {
+  try {
+    const selectedUser = assigneeOptions.value.find(u => u.id === assigneeId)
+    if (!selectedUser) throw new Error('Mitarbeiter nicht gefunden')
     await updateAssignee(selectedUser.name, currentSource.value, 'Admin')
+    snackbar.value = { show: true, text: `✅ Bearbeiter zugewiesen: ${selectedUser.name}`, color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  } finally {
+    updatingAssignee.value = false
   }
-  updatingAssignee.value = false
 }
 
 const handleUpdateStatus = async ({ status, notify }) => {
   updatingStatus.value = true
-  await updateStatus(status, currentSource.value, 'Admin', notify)
-  updatingStatus.value = false
+  try {
+    await updateStatus(status, currentSource.value, 'Admin', notify)
+    const statusLabel = statusOptions.find(s => s.value === status)?.label || status
+    snackbar.value = { show: true, text: `✅ Status geändert zu: ${statusLabel}`, color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  } finally {
+    updatingStatus.value = false
+  }
 }
 
 const handleAddTime = async ({ hours, description }) => {
-  await addTimeEntry(ticket.value.id, hours, description, 'Admin')
-  await loadTimeEntries(ticket.value.id)
+  try {
+    await addTimeEntry(ticket.value.id, hours, description, 'Admin')
+    await loadTimeEntries(ticket.value.id)
+    snackbar.value = { show: true, text: '✅ Zeiteintrag hinzugefügt', color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  }
 }
 
 const handleUploadFiles = async (files) => {
-  await uploadFiles(ticket.value.id, files, 'Admin')
-  await loadAttachments(ticket.value.id)
+  uploading.value = true
+  try {
+    await uploadFiles(ticket.value.id, files, 'Admin')
+    await loadAttachments(ticket.value.id)
+    snackbar.value = { show: true, text: `✅ ${files.length} Datei(en) hochgeladen`, color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Upload fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  } finally {
+    uploading.value = false
+  }
 }
 
 const handleAddInternalNote = async (note) => {
-  await addInternalNote(ticket.value.id, note, 'Admin')
-  await loadInternalNotes(ticket.value.id)
+  addingNote.value = true
+  try {
+    await addInternalNote(ticket.value.id, note, 'Admin')
+    await loadInternalNotes(ticket.value.id)
+    snackbar.value = { show: true, text: '✅ Interne Notiz gespeichert', color: 'success' }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`, color: 'error' }
+  } finally {
+    addingNote.value = false
+  }
 }
 
 const handleAddComment = async (text) => {
-  await addComment(ticket.value.id, text, 'Admin', currentSource.value)
-  await loadComments(ticket.value.id)  // nur noch ID, kein source
+  addingComment.value = true
+  try {
+    const success = await addComment(ticket.value.id, text, 'Admin', currentSource.value)
+    if (success) {
+      snackbar.value = { show: true, text: '✅ Kommentar hinzugefügt', color: 'success' }
+      // Kein explizites loadComments nötig, da addComment bereits optimistisch einfügt
+    } else {
+      throw new Error('Kommentar konnte nicht gespeichert werden')
+    }
+  } catch (error) {
+    snackbar.value = { show: true, text: `❌ Fehler: ${error.message}`, color: 'error' }
+    // Bei Fehler können wir zur Sicherheit neu laden, um konsistent zu bleiben
+    loadComments(ticket.value.id)
+  } finally {
+    addingComment.value = false
+  }
 }
 
 // ----- Initialisierung -----
 onMounted(async () => {
-  // 1. Ticket laden
   await loadTicket()
-  
-  // 2. Wenn Ticket vorhanden, alle Zusatzdaten laden
   if (ticket.value) {
     await Promise.all([
-      loadComments(ticket.value.id),           // ohne source
+      loadComments(ticket.value.id),
       loadAttachments(ticket.value.id),
       loadInternalNotes(ticket.value.id),
       loadTimeEntries(ticket.value.id),
       loadAssignees()
     ])
+
+    // Polling starten (nur für Kommentare)
+    startPolling()
+    // Visibility‑Listener für Tab‑Inaktivität
+    document.addEventListener('visibilitychange', handleVisibilityChange)
   }
 })
+
+// ----- Aufräumen beim Verlassen -----
+onBeforeUnmount(() => {
+  stopPolling()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
 </script>
-
-
 
 <style scoped>
 /* Alle Stile aus dem Original – unverändert übernehmen */
@@ -284,7 +400,7 @@ onMounted(async () => {
   padding: 12px 16px;
   border-radius: 10px;
   margin-bottom: 8px;
-  height: 100%; /* Damit alle Kästchen gleich hoch sind */
+  height: 100%;
 }
 .dark-mode .info-item {
   background: rgba(30, 41, 59, 0.5);

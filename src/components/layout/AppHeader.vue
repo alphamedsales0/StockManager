@@ -1,16 +1,12 @@
 <template>
   <v-app-bar color="white" elevation="1" density="comfortable">
-    <v-app-bar-nav-icon 
-      @click.stop="uiStore.toggleRail" 
-      variant="text"
-      size="default"
-    />
+    <v-app-bar-nav-icon @click.stop="uiStore.toggleRail" variant="text" />
 
     <v-text-field
       density="compact"
       variant="outlined"
       rounded="pill"
-      placeholder="Search for datas & reports..."
+      placeholder="Search..."
       prepend-inner-icon="mdi-magnify"
       hide-details
       class="search-field"
@@ -19,113 +15,55 @@
     <v-spacer />
 
     <div class="d-flex align-center ga-3">
-      <!-- Messages -->
-      <v-menu v-model="menuMsg" :close-on-content-click="false" location="bottom end">
+      <!-- Messages / Notifications (simplifié) -->
+      <v-menu v-model="menuMsg" location="bottom end">
         <template v-slot:activator="{ props }">
-          <v-badge color="error" content="1" overlap offset-x="3" offset-y="3">
-            <v-btn icon="mdi-message-text" v-bind="props" variant="text" density="comfortable"></v-btn>
+          <v-badge color="error" content="1" overlap>
+            <v-btn icon="mdi-message-text" v-bind="props" variant="text" density="comfortable" />
           </v-badge>
         </template>
-        <v-card width="300">
-          <v-card-title class="text-subtitle-1">You have 2 new messages</v-card-title>
-          <v-divider></v-divider>
-          <v-list density="compact">
-            <v-list-item>
-              <template v-slot:prepend>
-                <v-avatar size="32"><img src="https://randomuser.me/api/portraits/women/68.jpg"></v-avatar>
-              </template>
-              <v-list-item-title class="text-body-2">Michelle Moreno</v-list-item-title>
-              <v-list-item-subtitle class="text-caption">Have sent a photo · 3 min ago</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <template v-slot:prepend>
-                <v-avatar size="32"><img src="https://randomuser.me/api/portraits/men/32.jpg"></v-avatar>
-              </template>
-              <v-list-item-title class="text-body-2">Diane Myers</v-list-item-title>
-              <v-list-item-subtitle class="text-caption">You are now connected · Yesterday</v-list-item-subtitle>
-            </v-list-item>
-          </v-list>
-          <v-card-actions><v-btn text size="small">View all messages</v-btn></v-card-actions>
-        </v-card>
+        <v-card width="300"><v-card-title>Nachrichten</v-card-title></v-card>
       </v-menu>
 
-      <!-- Email -->
-      <v-menu v-model="menuEmail" location="bottom end">
-        <template v-slot:activator="{ props }">
-          <v-badge color="error" content="1" overlap offset-x="3" offset-y="3">
-            <v-btn icon="mdi-email" v-bind="props" variant="text" density="comfortable"></v-btn>
-          </v-badge>
-        </template>
-        <v-card width="300">
-          <v-card-title class="text-subtitle-1">You have 3 New Emails</v-card-title>
-          <v-divider></v-divider>
-          <v-list density="compact">
-            <v-list-item>
-              <v-list-item-title class="text-body-2">Meeting about dashboard</v-list-item-title>
-              <v-list-item-subtitle class="text-caption">Cynthia Harvey · 3 min ago</v-list-item-subtitle>
-            </v-list-item>
-          </v-list>
-          <v-card-actions><v-btn text size="small">See all emails</v-btn></v-card-actions>
-        </v-card>
-      </v-menu>
-
-      <!-- Notifications -->
       <v-menu v-model="menuNotif" location="bottom end">
         <template v-slot:activator="{ props }">
-          <v-badge color="error" content="3" overlap offset-x="3" offset-y="3">
-            <v-btn icon="mdi-bell" v-bind="props" variant="text" density="comfortable"></v-btn>
+          <v-badge color="error" content="3" overlap>
+            <v-btn icon="mdi-bell" v-bind="props" variant="text" density="comfortable" />
           </v-badge>
         </template>
-        <v-card width="250">
-          <v-card-title class="text-subtitle-1 font-weight-medium">You have 3 Notifications</v-card-title>
-          <v-divider></v-divider>
-          <v-list density="compact">
-            <v-list-item>
-              <v-list-item-title class="text-body-2">Email notification</v-list-item-title>
-              <v-list-item-subtitle class="text-caption">January 15, 2025</v-list-item-subtitle>
-            </v-list-item>
-          </v-list>
-          <v-card-actions>
-            <v-btn text size="small">All notifications</v-btn>
-          </v-card-actions>
-        </v-card>
+        <v-card width="250"><v-card-title>Benachrichtigungen</v-card-title></v-card>
       </v-menu>
 
-      <!-- Account Dropdown avec avatar, email et actions -->
+      <!-- Profil -->
       <v-menu v-model="menuAccount" location="bottom end" :close-on-content-click="false">
         <template v-slot:activator="{ props }">
           <v-btn v-bind="props" variant="text" class="text-none" density="comfortable">
-            <v-avatar size="36" :image="user.avatar"></v-avatar>
-            <span class="ml-2">{{ user.name }} <v-icon icon="mdi-chevron-down" size="small"></v-icon></span>
+            <v-avatar size="36" color="grey-darken-3">
+              <span class="text-white">{{ userInitials }}</span>
+            </v-avatar>
+            <span class="ml-2">{{ displayName }} <v-icon icon="mdi-chevron-down" size="small" /></span>
           </v-btn>
         </template>
 
         <v-card width="280" class="account-dropdown">
-          <!-- En-tête avec info utilisateur -->
           <div class="d-flex pa-4 align-center">
-            <v-avatar size="48" :image="user.avatar" class="mr-3"></v-avatar>
-            <div>
-              <div class="text-subtitle-1 font-weight-medium">{{ user.name }}</div>
-              <div class="text-caption text-medium-emphasis">{{ user.email }}</div>
+            <v-avatar size="48" color="grey-darken-3">
+              <span class="text-white text-h6">{{ userInitials }}</span>
+            </v-avatar>
+            <div class="ml-3">
+              <div class="text-subtitle-1 font-weight-medium">{{ displayName }}</div>
+              <div class="text-caption text-medium-emphasis">{{ authStore.user?.email || 'Keine E-Mail' }}</div>
             </div>
           </div>
-          <v-divider></v-divider>
-
-          <!-- Actions du compte -->
+          <v-divider />
           <v-list density="compact" nav>
-            <v-list-item prepend-icon="mdi-account" title="Account" value="account" @click="menuAccount = false">
-            </v-list-item>
-            <v-list-item prepend-icon="mdi-cog" title="Setting" value="settings" @click="menuAccount = false">
-            </v-list-item>
-            <v-list-item prepend-icon="mdi-currency-usd" title="Billing" value="billing" @click="menuAccount = false">
-            </v-list-item>
+            <v-list-item prepend-icon="mdi-account" title="Profil" @click="$router.push('/profile'); menuAccount = false" />
+            <v-list-item prepend-icon="mdi-cog" title="Einstellungen" @click="$router.push('/settings'); menuAccount = false" />
           </v-list>
-          <v-divider></v-divider>
-
-          <!-- Déconnexion -->
+          <v-divider />
           <div class="pa-2">
-            <v-btn block variant="text" color="error" prepend-icon="mdi-logout" @click="logout">
-              Logout
+            <v-btn block variant="text" color="error" prepend-icon="mdi-logout" @click="handleLogout">
+              Abmelden
             </v-btn>
           </div>
         </v-card>
@@ -135,48 +73,53 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUiStore } from '../../stores/uiStore'
+import { useAuthStore } from '../../stores/auth'
+import { useNotificationStore } from '../../stores/notifications'
+import { logout } from '../../api/auth_stock'
 
 const uiStore = useUiStore()
+const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
+const router = useRouter()
 
-// État des menus
 const menuMsg = ref(false)
-const menuEmail = ref(false)
 const menuNotif = ref(false)
 const menuAccount = ref(false)
 
-// Données utilisateur (mock, à remplacer par les vraies données du store ou API)
-const user = ref({
-  name: 'john doe',
-  email: 'johndoe@example.com',
-  avatar: 'https://randomuser.me/api/portraits/men/1.jpg'  // image d'exemple
+const displayName = computed(() => {
+  const u = authStore.user
+  return u?.name || u?.email || 'Gast'
 })
 
-// Action de déconnexion (à adapter selon votre logique)
-const logout = () => {
-  console.log('Déconnexion...')
-  menuAccount.value = false
-  // Exemple : redirection ou appel au store d'auth
-  // router.push('/login')
+const userInitials = computed(() => {
+  const u = authStore.user
+  if (!u) return '?'
+  const name = u.name || ''
+  const parts = name.trim().split(/\s+/)
+  if (parts.length > 1) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return name.substring(0, 2).toUpperCase() || u.email?.charAt(0).toUpperCase() || '?'
+})
+
+const handleLogout = async () => {
+  try {
+    const res = await logout()
+    if (res.success) {
+      authStore.clearUser()
+      notificationStore.showSuccess('Abgemeldet', 'Auf Wiedersehen!')
+      router.push('/login')
+    } else {
+      throw new Error(res.message || 'Fehler')
+    }
+  } catch (error) {
+    notificationStore.showError('Fehler beim Abmelden', error.message)
+  }
 }
 </script>
 
 <style scoped>
-.search-field {
-  max-width: 260px;
-}
-
-:deep(.v-badge__badge) {
-  font-size: 11px;
-  min-width: 18px;
-  height: 18px;
-  line-height: 18px;
-  padding: 0 4px;
-}
-
-/* Ajustement optionnel du dropdown */
-.account-dropdown :deep(.v-list-item__prepend) {
-  margin-right: 12px;
-}
+.search-field { max-width: 260px; }
+.account-dropdown :deep(.v-list-item__prepend) { margin-right: 12px; }
 </style>

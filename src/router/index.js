@@ -34,7 +34,7 @@ const routes = [
   {
     path: '/ticket/:id',
     name: 'TicketDetail',
-    component: () => import('../components/dashboard/TicketDetail.vue')
+    component: () => import('../views/TicketDetail.vue')
   },
 
   {

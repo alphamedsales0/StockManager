@@ -16,7 +16,7 @@ ini_set('log_errors', 1);
 
 require_once __DIR__ . '/database_connect.php';
 
-// PHPMailer einbinden
+// PHPMailer einbinden (falls vorhanden)
 $usePHPMailer = false;
 if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     require __DIR__ . '/phpmailer/src/Exception.php';
@@ -25,6 +25,7 @@ if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     $usePHPMailer = true;
 }
 
+// Config laden (für SMTP)
 $config = [];
 if (file_exists(__DIR__ . '/config.php')) {
     $config = require __DIR__ . '/config.php';
@@ -64,22 +65,25 @@ if (!$ticketId || !$newStatus) {
 $response = ['success' => false];
 
 try {
-    // ----- 1. Quelle automatisch erkennen -----
-    $source = null;
-    $stmt = $pdo->prepare("SELECT id FROM angebot_requests WHERE id = ?");
+    // ----- 1) QUELLE ANHAND DER ID SICHER ERMITTELN -----
+    // Zuerst in form_submissions prüfen
+    $stmt = $pdo->prepare("SELECT 1 FROM form_submissions WHERE id = ?");
     $stmt->execute([$ticketId]);
-    if ($stmt->fetch()) {
-        $source = 'angebot';
+    $found = $stmt->fetchColumn();
+    if ($found) {
+        $source = 'form';
     } else {
-        $stmt = $pdo->prepare("SELECT id FROM form_submissions WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT 1 FROM angebot_requests WHERE id = ?");
         $stmt->execute([$ticketId]);
-        if ($stmt->fetch()) {
-            $source = 'form';
+        $found = $stmt->fetchColumn();
+        if ($found) {
+            $source = 'angebot';
         } else {
-            throw new Exception('Ticket nicht gefunden');
+            throw new Exception('Ticket mit ID ' . $ticketId . ' nicht gefunden.');
         }
     }
 
+    // Tabelle und Referenzfeld basierend auf Quelle wählen
     $table = ($source === 'angebot') ? 'angebot_requests' : 'form_submissions';
     $idField = 'id';
     $refField = ($source === 'angebot') ? 'reference' : 'reference_number';
@@ -89,7 +93,7 @@ try {
     $stmt->execute([$ticketId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        throw new Exception('Ticket nicht gefunden');
+        throw new Exception('Ticket nicht gefunden (widersprüchlich)');
     }
     $oldStatus = $row['status'];
     $referenceNumber = $row['ref'];
@@ -120,7 +124,7 @@ try {
         $customerEmail = null;
         $customerName = 'Kunde';
 
-        // E-Mail-Adresse und Name aus der Datenbank holen
+        // E-Mail-Adresse und Name aus der Datenbank holen (basierend auf $source)
         if ($source === 'angebot') {
             $stmt = $pdo->prepare("SELECT email, firstname, lastname FROM angebot_requests WHERE id = ?");
             $stmt->execute([$ticketId]);
@@ -147,7 +151,7 @@ try {
             $ticketRef = ($source === 'angebot') ? 'Angebot' : 'Ticket';
             $subject = "Ihr $ticketRef (Ref-Nr.: $referenceNumber) wurde auf '$statusText' gesetzt";
 
-            // ----- HTML E-Mail Inhalt (modernes Design) -----
+            // HTML- und Text-E-Mail erstellen
             $htmlBody = buildHtmlEmail($customerName, $referenceNumber, $statusText, $source, $ticketRef);
             $textBody = "Guten Tag $customerName,\n\n";
             $textBody .= "der Status Ihres $ticketRef (Ref-Nr.: $referenceNumber) wurde geändert zu: $statusText.\n\n";
@@ -158,7 +162,7 @@ try {
             $mailSent = false;
             $mailError = null;
 
-            // Versand mit PHPMailer
+            // Versand mit PHPMailer (falls verfügbar)
             if ($usePHPMailer && !empty($config)) {
                 try {
                     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
@@ -218,25 +222,27 @@ try {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
 
+/**
+ * Übersetzt den Status-Code in einen lesbaren Text
+ */
 function translateStatus($status) {
-    $map = ['pending' => 'In Bearbeitung', 'in_progress' => 'In Prüfung', 'completed' => 'Abgeschlossen', 'cancelled' => 'Storniert'];
+    $map = [
+        'pending'     => 'In Bearbeitung',
+        'in_progress' => 'In Prüfung',
+        'completed'   => 'Abgeschlossen',
+        'cancelled'   => 'Storniert'
+    ];
     return $map[$status] ?? $status;
 }
 
 /**
  * Erstellt eine moderne HTML-E-Mail mit Inline-CSS
- * @param string $customerName
- * @param string $referenceNumber
- * @param string $statusText
- * @param string $source
- * @param string $ticketRef
- * @return string
  */
 function buildHtmlEmail($customerName, $referenceNumber, $statusText, $source, $ticketRef) {
     $statusColor = '#ff9800'; // orange für pending
-    if ($statusText === 'In Prüfung') $statusColor = '#2196f3';
+    if ($statusText === 'In Prüfung')   $statusColor = '#2196f3';
     if ($statusText === 'Abgeschlossen') $statusColor = '#4caf50';
-    if ($statusText === 'Storniert') $statusColor = '#f44336';
+    if ($statusText === 'Storniert')     $statusColor = '#f44336';
 
     $link = "https://alpha-med-care.com/ticket?ref=$referenceNumber&source=$source";
     $changeDate = date('d.m.Y H:i');

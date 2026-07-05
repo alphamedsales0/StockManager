@@ -198,7 +198,7 @@
               </v-row>
             </template>
 
-            <!-- NEU: Kraftgeräte -->
+            <!-- Kraftgerät -->
             <template v-if="product.article_type === 'strength'">
               <v-row>
                 <v-col cols="12" md="6">
@@ -229,23 +229,83 @@
                 </v-col>
               </v-row>
             </template>
+
+            <!-- ===== Reha-Zubehör ===== -->
+            <template v-if="product.article_type === 'rehabilitation_accessory'">
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.material" label="Material" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.weight_kg" label="Gewicht (kg)" type="number" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.dimensions" label="Abmessungen (L x B x H)" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.usage_area" label="Einsatzbereich" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <v-textarea v-model="specifics.compatibility" label="Kompatibilität (z.B. mit welchen Geräten)" rows="2" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.color_options" label="Farboptionen" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.warranty_years" label="Garantie (Jahre)" type="number" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <v-checkbox v-model="specifics.has_adjustable" label="Verstellbar" hide-details></v-checkbox>
+                  <v-checkbox v-model="specifics.has_certification" label="Zertifiziert (z.B. CE)" hide-details></v-checkbox>
+                </v-col>
+              </v-row>
+            </template>
           </v-card-text>
         </v-card>
 
-        <!-- Bildergalerie -->
+        <!-- ========== BILDERGALERIE MODIFIÉE ========== -->
         <v-card variant="outlined" class="mb-6">
           <v-card-title class="text-subtitle-1 bg-grey-lighten-3 py-2">
             Bildergalerie
           </v-card-title>
           <v-card-text>
             <div v-for="(img, idx) in additionalImages" :key="idx" class="d-flex align-center mb-2">
+              <!-- Sélecteur méthode -->
+              <v-select
+                v-model="img.method"
+                :items="imageUploadMethods"
+                label="Quelle"
+                variant="outlined"
+                density="compact"
+                class="mr-2"
+                style="width: 140px"
+                @update:model-value="onImageMethodChange(img)"
+              />
+
+              <!-- Champ URL (si méthode 'url') -->
               <v-text-field
+                v-if="img.method === 'url'"
                 v-model="img.url"
                 label="Bild-URL"
                 variant="outlined"
                 density="compact"
                 class="mr-2"
-              ></v-text-field>
+                :rules="img.method === 'url' ? [requiredImage] : []"
+              />
+
+              <!-- File input (si méthode 'upload') -->
+              <div v-else class="file-input-wrapper mr-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  @change="onFileSelected($event, idx)"
+                  class="file-input"
+                />
+                <span v-if="img.fileName" class="file-name">{{ img.fileName }}</span>
+                <span v-else class="file-placeholder">Keine Datei ausgewählt</span>
+              </div>
+
+              <!-- Type d'image -->
               <v-select
                 v-model="img.type"
                 :items="['gallery', 'main']"
@@ -253,8 +313,9 @@
                 variant="outlined"
                 density="compact"
                 class="mr-2"
-                style="width: 120px"
-              ></v-select>
+                style="width: 100px"
+              />
+
               <v-btn icon variant="text" color="error" @click="removeImage(idx)">
                 <v-icon>mdi-delete</v-icon>
               </v-btn>
@@ -317,7 +378,7 @@
       </v-form>
     </v-card>
 
-    <!-- GANZSEITIGER LOADER BEI WEITERLEITUNG -->
+    <!-- GANZSEITIGER LOADER -->
     <v-overlay
       v-model="redirecting"
       class="align-center justify-center"
@@ -326,12 +387,7 @@
       :z-index="9999"
     >
       <div class="text-center">
-        <v-progress-circular
-          indeterminate
-          size="80"
-          color="primary"
-          width="6"
-        ></v-progress-circular>
+        <v-progress-circular indeterminate size="80" color="primary" width="6"></v-progress-circular>
         <div class="text-h6 mt-4 text-white">Weiterleitung zum Dashboard...</div>
       </div>
     </v-overlay>
@@ -403,7 +459,7 @@ const product = reactive({
   description: ''
 })
 
-// Artikelspezifische Details (dynamisch)
+// Artikelspezifische Details
 const specifics = reactive({})
 
 // Versand
@@ -414,13 +470,13 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// Zusätzliche Bilder
+// Zusätzliche Bilder – avec nouvelles propriétés
 const additionalImages = ref([])
 
 // Auswahllisten
 const categories = [
   { title: 'Kardio', value: 'cardio' },
-  { title: 'Kraft', value: 'strength' },        // <- neu
+  { title: 'Kraft', value: 'strength' },
   { title: 'Rehabilitation', value: 'rehabilitation' },
   { title: 'Zubehör', value: 'accessories' }
 ]
@@ -428,47 +484,122 @@ const categories = [
 const articleTypes = [
   { title: 'Laufband', value: 'treadmill' },
   { title: 'Fahrrad', value: 'bike' },
-  { title: 'Kraftgerät', value: 'strength' }    // <- neu
+  { title: 'Kraftgerät', value: 'strength' },
+  { title: 'Reha-Zubehör', value: 'rehabilitation_accessory' }
 ]
 
+// Méthodes d'upload d'images
+const imageUploadMethods = [
+  { title: 'Bild-URL', value: 'url' },
+  { title: 'Bild hochladen', value: 'upload' }
+]
+
+// Règles de validation
 const required = v => !!v || 'Dieses Feld ist erforderlich'
+const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
-const onArticleTypeChange = () => {
-  // Leert die spezifischen Felder beim Wechsel
-  Object.keys(specifics).forEach(key => delete specifics[key])
-}
-
-// Bildergalerie
+// --- Gestion des images ---
 const addImage = () => {
-  additionalImages.value.push({ url: '', type: 'gallery', order: additionalImages.value.length + 1 })
+  additionalImages.value.push({
+    url: '',
+    type: 'gallery',
+    method: 'url',
+    file: null,
+    fileName: ''
+  })
 }
+
 const removeImage = (idx) => {
   additionalImages.value.splice(idx, 1)
 }
 
-// Abbrechen
+const onFileSelected = (event, idx) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // Validation du type
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
+    event.target.value = '' // reset
+    return
+  }
+
+  const img = additionalImages.value[idx]
+  img.file = file
+  img.fileName = file.name
+}
+
+const onImageMethodChange = (img) => {
+  if (img.method === 'upload') {
+    img.url = ''
+    img.file = null
+    img.fileName = ''
+  } else {
+    img.file = null
+    img.fileName = ''
+  }
+}
+
+// --- Changement de type d'article ---
+const onArticleTypeChange = () => {
+  Object.keys(specifics).forEach(key => delete specifics[key])
+}
+
+// --- Navigation ---
 const cancel = () => {
   router.push('/dashboard')
 }
 
-// Submit
+// --- SUBMIT principal ---
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
   submitting.value = true
   try {
+    // 1. Upload des images sélectionnées en mode 'upload'
+    const uploadPromises = additionalImages.value
+      .filter(img => img.method === 'upload' && img.file)
+      .map(async (img) => {
+        const formData = new FormData()
+        formData.append('image', img.file)
+
+        const response = await axios.post(
+          'https://alpha-med-care.com/api/upload_image.php',
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        )
+
+        if (response.data.success) {
+          img.url = response.data.url
+        } else {
+          throw new Error('Upload failed: ' + (response.data.error || 'Unknown error'))
+        }
+      })
+
+    await Promise.all(uploadPromises)
+
+    // 2. Vérifier que toutes les images ont une URL (si méthode 'url', on valide déjà)
+    const missingUrls = additionalImages.value.some(img => !img.url)
+    if (missingUrls) {
+      throw new Error('Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.')
+    }
+
+    // 3. Construire le payload
     const payload = {
       article: { ...product },
       specifics: { ...specifics },
       shipping: { ...shipping },
       images: additionalImages.value.map((img, idx) => ({
-        ...img,
+        url: img.url,
         image_order: idx + 1,
+        type: img.type || 'gallery',
         article_name: product.name
       }))
     }
 
+    // 4. Envoyer au backend
     const response = await axios.post(
       'https://alpha-med-care.com/api/stock_manager_products.php',
       payload,
@@ -482,9 +613,7 @@ const submit = async () => {
         color: 'success'
       }
       redirecting.value = true
-      setTimeout(() => {
-        router.push('/dashboard')
-      }, 2000)
+      setTimeout(() => router.push('/dashboard'), 2000)
     } else {
       throw new Error(response.data.error || 'Unbekannter Fehler')
     }
@@ -506,15 +635,18 @@ const submit = async () => {
 .gap-2 {
   gap: 8px;
 }
+
 .action-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
   color: rgb(17, 90, 10);
 }
+
 .back-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
 }
+
 .floating-help-btn {
   position: fixed;
   top: 50%;
@@ -532,10 +664,58 @@ const submit = async () => {
   box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
   transition: right 0.3s ease;
 }
+
 .floating-help-btn.open {
   right: 400px;
 }
+
 .floating-help-btn:hover {
   background: #1565c0;
+}
+
+/* ---- Styles pour le file input personnalisé ---- */
+.file-input-wrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: #f9f9f9;
+  min-height: 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+.file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.file-name {
+  font-size: 0.9rem;
+  color: #333;
+  margin-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-placeholder {
+  color: #999;
+  font-size: 0.9rem;
+  margin-left: 4px;
+}
+
+/* Ajustement pour mobile */
+@media (max-width: 768px) {
+  .file-input-wrapper {
+    flex: 1 1 100%;
+  }
 }
 </style>

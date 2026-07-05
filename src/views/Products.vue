@@ -38,6 +38,8 @@
                 <v-select
                   v-model="selectedCategory"
                   :items="categoryOptions"
+                  item-title="title"
+                  item-value="value"
                   label="Kategorie"
                   variant="solo-filled"
                   density="compact"
@@ -279,10 +281,21 @@ function formatPrice(price) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(price)
 }
 
-// Filtres
+// ------------------------------------------------------------
+// Filtres – avec mapping pour "Zubehör" -> "rehabilitation_accessory"
+// ------------------------------------------------------------
 const categoryOptions = computed(() => {
+  // Récupérer toutes les catégories distinctes existantes (valeurs)
   const cats = new Set(products.value.map(p => p.category).filter(Boolean))
-  return Array.from(cats).sort()
+  // Ajouter la valeur "rehabilitation_accessory" si elle n'existe pas encore
+  cats.add('rehabilitation_accessory')
+  // Construire les options avec title et value
+  return Array.from(cats).sort().map(cat => {
+    if (cat === 'rehabilitation_accessory') {
+      return { title: 'Zubehör', value: 'accessories' }
+    }
+    return { title: cat, value: cat }
+  })
 })
 
 const stockOptions = [
@@ -342,15 +355,9 @@ loadProducts()
 </script>
 
 <style scoped>
-/* Tous les styles identiques à votre version (inchangés) */
-.products-container { max-width: 1800px;
-   margin: 0 auto;
-}
-.gradient-text { background: linear-gradient(135deg, #1976D2, #42A5F5);
-   -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
+/* Tous les styles inchangés */
+.products-container { max-width: 1800px; margin: 0 auto; }
+.gradient-text { background: linear-gradient(135deg, #1976D2, #42A5F5); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .filter-card { background: rgba(255,255,255,0.95); border: 1px solid rgba(0,0,0,0.05); }
 .compact-grid { margin: -4px -4px 0 -4px; }
 .compact-grid > [class*="col-"] { padding: 4px !important; }
@@ -494,7 +501,7 @@ loadProducts()
   .card-image { min-height: 180px; }
   .product-image { max-height: 180px; }
   .image-container { padding: 12px; }
-  .product-actions .v-btn span { display: inline; } /* On garde le texte sur mobile maintenant */
+  .product-actions .v-btn span { display: inline; }
 }
 @media (min-width: 960px) {
   .card-image { min-height: 220px; }

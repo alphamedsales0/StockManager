@@ -151,9 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':has_pedal_straps' => $specifics['has_pedal_straps'] ?? 0,
                 ':console_features' => $specifics['console_features'] ?? null
             ]);
-        }
-        // ----- NOUVEAU : Ajout du type "strength" (Kraftgeräte) -----
-        elseif ($article['article_type'] === 'strength') {
+        } elseif ($article['article_type'] === 'strength') {
             $sql = "INSERT INTO strength_machines (
                         article_id, weight_stack_kg, max_user_weight_kg, dimensions,
                         adjustment_range, has_adjustable_seat, has_adjustable_backrest,
@@ -179,6 +177,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':color_options' => $specifics['color_options'] ?? null,
                 ':frame_material' => $specifics['frame_material'] ?? null,
                 ':warranty_years' => $specifics['warranty_years'] ?? null
+            ]);
+        // --- NOUVEAU : Reha-Zubehör ---
+        } elseif ($article['article_type'] === 'rehabilitation_accessory') {
+            $sql = "INSERT INTO rehabilitation_accessories (
+                        article_id, material, compatibility, usage_area,
+                        weight_kg, dimensions, has_adjustable, has_certification,
+                        color_options, warranty_years
+                    ) VALUES (
+                        :article_id, :material, :compatibility, :usage_area,
+                        :weight_kg, :dimensions, :has_adjustable, :has_certification,
+                        :color_options, :warranty_years
+                    )";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':article_id' => $articleId,
+                ':material' => $specifics['material'] ?? null,
+                ':compatibility' => $specifics['compatibility'] ?? null,
+                ':usage_area' => $specifics['usage_area'] ?? null,
+                ':weight_kg' => isset($specifics['weight_kg']) && $specifics['weight_kg'] !== '' ? (float)$specifics['weight_kg'] : null,
+                ':dimensions' => $specifics['dimensions'] ?? null,
+                ':has_adjustable' => $specifics['has_adjustable'] ?? 0,
+                ':has_certification' => $specifics['has_certification'] ?? 0,
+                ':color_options' => $specifics['color_options'] ?? null,
+                ':warranty_years' => isset($specifics['warranty_years']) && $specifics['warranty_years'] !== '' ? (int)$specifics['warranty_years'] : null
             ]);
         }
 

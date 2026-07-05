@@ -86,7 +86,7 @@
                 lg="3"
               >
                 <v-card variant="outlined" class="pa-2 h-100 d-flex flex-column">
-                  <!-- Bildvorschau – jetzt mit contain und Höhe 200 -->
+                  <!-- Bildvorschau -->
                   <v-img
                     :src="img.url || 'https://placehold.co/300x200?text=Kein+Bild'"
                     height="200"
@@ -94,15 +94,43 @@
                     class="mb-2 rounded"
                     @error="handleImageError($event, idx)"
                   />
-                  <!-- URL -->
+
+                  <!-- Méthode d'ajout -->
+                  <v-select
+                    v-model="img.method"
+                    :items="imageUploadMethods"
+                    label="Quelle"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    class="mb-1"
+                    @update:model-value="onImageMethodChange(img)"
+                  />
+
+                  <!-- Champ URL (si méthode 'url') -->
                   <v-text-field
+                    v-if="img.method === 'url'"
                     v-model="img.url"
                     label="Bild-URL"
                     variant="outlined"
                     density="compact"
                     hide-details
                     class="mb-1"
+                    :rules="img.method === 'url' ? [requiredImage] : []"
                   />
+
+                  <!-- Upload (si méthode 'upload') -->
+                  <div v-else class="file-input-wrapper mb-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      @change="onFileSelected($event, idx)"
+                      class="file-input"
+                    />
+                    <span v-if="img.fileName" class="file-name">{{ img.fileName }}</span>
+                    <span v-else class="file-placeholder">Keine Datei ausgewählt</span>
+                  </div>
+
                   <!-- Typ + Löschen -->
                   <div class="d-flex align-center mt-1">
                     <v-select
@@ -118,7 +146,8 @@
                       <v-icon>mdi-delete</v-icon>
                     </v-btn>
                   </div>
-                  <!-- Hinweis, wenn es das Hauptbild ist -->
+
+                  <!-- Hinweis Hauptbild -->
                   <div v-if="img.type === 'main'" class="text-caption text-primary font-weight-bold mt-1">
                     ⭐ Hauptbild
                   </div>
@@ -301,7 +330,7 @@ const snackbar = ref({
   color: 'success'
 })
 
-// Produktdaten (ohne main_image, die wird aus allImages extrahiert)
+// Produktdaten
 const product = reactive({
   name: '',
   brand: '',
@@ -328,7 +357,7 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// Alle Bilder in einem Array (Hauptbild + Galerie)
+// Alle Bilder
 const allImages = ref([])
 
 // Auswahllisten
@@ -350,11 +379,18 @@ const imageTypeOptions = [
   { title: 'Detail', value: 'detail' }
 ]
 
+// Méthodes d'upload
+const imageUploadMethods = [
+  { title: 'Bild-URL', value: 'url' },
+  { title: 'Bild hochladen', value: 'upload' }
+]
+
 // Validierung
 const required = v => !!v || 'Dieses Feld ist erforderlich'
+const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
 // --------------------------------------------------------------
-// Daten laden (mit Duplikatvermeidung)
+// Daten laden
 // --------------------------------------------------------------
 const loadProduct = async () => {
   loading.value = true
@@ -363,32 +399,35 @@ const loadProduct = async () => {
     if (response.data.success) {
       const data = response.data.product
 
-      // Allgemeine Daten
       Object.assign(product, data.article)
       Object.assign(specifics, data.specifics)
       Object.assign(shipping, data.shipping)
 
-      // Bilder zusammenführen – Hauptbild nur einmal
+      // Bilder zusammenführen
       const images = []
       const mainImageUrl = data.article.main_image || ''
 
-      // Hauptbild (falls vorhanden)
       if (mainImageUrl) {
         images.push({
           id: null,
           url: mainImageUrl,
-          type: 'main'
+          type: 'main',
+          method: 'url',
+          file: null,
+          fileName: ''
         })
       }
 
-      // Galeriebilder – nur hinzufügen, wenn sie nicht der Hauptbild-URL entsprechen
       if (data.images && data.images.length) {
         data.images.forEach(img => {
           if (img.url !== mainImageUrl) {
             images.push({
               id: img.id || null,
               url: img.url,
-              type: img.type || 'gallery'
+              type: img.type || 'gallery',
+              method: 'url',
+              file: null,
+              fileName: ''
             })
           }
         })
@@ -425,38 +464,78 @@ const addImage = () => {
   allImages.value.push({
     id: null,
     url: '',
-    type: 'gallery'
+    type: 'gallery',
+    method: 'url',
+    file: null,
+    fileName: ''
   })
 }
 
 const removeImage = (idx) => {
   const img = allImages.value[idx]
   if (img.type === 'main') {
-    const nextMain = allImages.value.find((_, i) => i !== idx)
+    // Falls das Hauptbild gelöscht wird, setze ein anderes Bild als Hauptbild
+    const nextMain = allImages.value.find((_, i) => i !== idx && allImages.value[i].url)
     if (nextMain) {
       nextMain.type = 'main'
     } else {
+      // Fallback: leeres Hauptbild hinzufügen
       allImages.value.push({
         id: null,
         url: '',
-        type: 'main'
+        type: 'main',
+        method: 'url',
+        file: null,
+        fileName: ''
       })
     }
   }
   allImages.value.splice(idx, 1)
 }
 
+const onImageMethodChange = (img) => {
+  if (img.method === 'upload') {
+    img.url = ''
+    img.file = null
+    img.fileName = ''
+  } else {
+    img.file = null
+    img.fileName = ''
+  }
+}
+
+const onFileSelected = (event, idx) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  // Validierung
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
+    event.target.value = '' // reset
+    return
+  }
+
+  const img = allImages.value[idx]
+  img.file = file
+  img.fileName = file.name
+  // Die Vorschau wird mit einer lokalen URL versehen
+  img.url = URL.createObjectURL(file)
+}
+
 const handleImageError = (event, idx) => {
+  // Falls das Bild nicht geladen werden kann, eventuell auf Placeholder setzen
   event.target.src = 'https://placehold.co/300x200?text=Fehler'
 }
 
 // --------------------------------------------------------------
-// Speichern
+// Speichern (mit Upload)
 // --------------------------------------------------------------
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
+  // Prüfen, ob ein Hauptbild vorhanden ist (Typ 'main')
   const mainImageObj = allImages.value.find(img => img.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
     snackbar.value = {
@@ -467,6 +546,57 @@ const submit = async () => {
     return
   }
 
+  // 1. Upload aller Bilder, die im Modus 'upload' sind und eine Datei haben
+  const uploadPromises = allImages.value
+    .filter(img => img.method === 'upload' && img.file)
+    .map(async (img) => {
+      const formData = new FormData()
+      formData.append('image', img.file)
+
+      try {
+        const response = await axios.post(
+          'https://alpha-med-care.com/api/upload_image.php',
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        )
+        if (response.data.success) {
+          img.url = response.data.url
+          img.file = null // libérer la mémoire
+          img.fileName = ''
+          // Switch back to URL method
+          img.method = 'url'
+        } else {
+          throw new Error(response.data.error || 'Upload fehlgeschlagen')
+        }
+      } catch (error) {
+        console.error('Upload error:', error)
+        throw new Error(`Upload fehlgeschlagen: ${error.message}`)
+      }
+    })
+
+  try {
+    await Promise.all(uploadPromises)
+  } catch (error) {
+    snackbar.value = {
+      show: true,
+      text: `❌ Fehler beim Upload: ${error.message}`,
+      color: 'error'
+    }
+    return
+  }
+
+  // 2. Sicherstellen, dass alle Bilder eine URL haben
+  const missingUrl = allImages.value.some(img => !img.url)
+  if (missingUrl) {
+    snackbar.value = {
+      show: true,
+      text: '❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.',
+      color: 'error'
+    }
+    return
+  }
+
+  // 3. Payload erstellen
   product.main_image = mainImageObj.url
 
   const galleryImages = allImages.value
@@ -576,5 +706,39 @@ onMounted(() => {
 }
 .h-100 {
   height: 100%;
+}
+
+.file-input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: #f9f9f9;
+  min-height: 36px;
+  position: relative;
+  overflow: hidden;
+}
+.file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.file-name {
+  font-size: 0.9rem;
+  color: #333;
+  margin-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-placeholder {
+  color: #999;
+  font-size: 0.9rem;
+  margin-left: 4px;
 }
 </style>

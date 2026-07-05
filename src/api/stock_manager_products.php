@@ -1,6 +1,6 @@
 <?php
 // api/stock_manager_products.php
-// Gestion CORS dynamique (identique à votre exemple qui fonctionne)
+// Gestion CORS dynamique
 if (isset($_SERVER['HTTP_ORIGIN'])) {
     header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
     header('Access-Control-Allow-Credentials: true');
@@ -152,7 +152,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':console_features' => $specifics['console_features'] ?? null
             ]);
         }
-        // Vous pouvez ajouter d'autres types (elliptical_trainer, recumbent_bike, etc.) ici
+        // ----- NOUVEAU : Ajout du type "strength" (Kraftgeräte) -----
+        elseif ($article['article_type'] === 'strength') {
+            $sql = "INSERT INTO strength_machines (
+                        article_id, weight_stack_kg, max_user_weight_kg, dimensions,
+                        adjustment_range, has_adjustable_seat, has_adjustable_backrest,
+                        has_digital_display, muscle_groups_targeted, color_options,
+                        frame_material, warranty_years
+                    ) VALUES (
+                        :article_id, :weight_stack_kg, :max_user_weight_kg, :dimensions,
+                        :adjustment_range, :has_adjustable_seat, :has_adjustable_backrest,
+                        :has_digital_display, :muscle_groups_targeted, :color_options,
+                        :frame_material, :warranty_years
+                    )";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':article_id' => $articleId,
+                ':weight_stack_kg' => $specifics['weight_stack_kg'] ?? null,
+                ':max_user_weight_kg' => $specifics['max_user_weight_kg'] ?? null,
+                ':dimensions' => $specifics['dimensions'] ?? null,
+                ':adjustment_range' => $specifics['adjustment_range'] ?? null,
+                ':has_adjustable_seat' => $specifics['has_adjustable_seat'] ?? 0,
+                ':has_adjustable_backrest' => $specifics['has_adjustable_backrest'] ?? 0,
+                ':has_digital_display' => $specifics['has_digital_display'] ?? 0,
+                ':muscle_groups_targeted' => $specifics['muscle_groups_targeted'] ?? null,
+                ':color_options' => $specifics['color_options'] ?? null,
+                ':frame_material' => $specifics['frame_material'] ?? null,
+                ':warranty_years' => $specifics['warranty_years'] ?? null
+            ]);
+        }
 
         // ----- Insertion des images supplémentaires -----
         if (!empty($images)) {

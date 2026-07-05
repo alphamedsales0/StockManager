@@ -128,7 +128,7 @@
             Technische Spezifikationen
           </v-card-title>
           <v-card-text>
-            <!-- Felder für Laufband -->
+            <!-- Laufband -->
             <template v-if="product.article_type === 'treadmill'">
               <v-row>
                 <v-col cols="12" md="6">
@@ -170,7 +170,7 @@
               </v-row>
             </template>
 
-            <!-- Felder für Fahrrad -->
+            <!-- Fahrrad -->
             <template v-if="product.article_type === 'bike'">
               <v-row>
                 <v-col cols="12" md="6">
@@ -194,6 +194,38 @@
                 <v-col cols="12">
                   <v-checkbox v-model="specifics.has_backrest" label="Rückenlehne" hide-details></v-checkbox>
                   <v-checkbox v-model="specifics.has_pedal_straps" label="Pedalriemen" hide-details></v-checkbox>
+                </v-col>
+              </v-row>
+            </template>
+
+            <!-- NEU: Kraftgeräte -->
+            <template v-if="product.article_type === 'strength'">
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.weight_stack_kg" label="Gewichtsstapel (kg)" type="number" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.max_user_weight_kg" label="Max. Benutzergewicht (kg)" type="number" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.dimensions" label="Abmessungen (L x B x H)" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.adjustment_range" label="Verstellbereich" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.color_options" label="Farboptionen" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.frame_material" label="Rahmenmaterial" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <v-textarea v-model="specifics.muscle_groups_targeted" label="Trainierte Muskelgruppen" rows="2" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <v-checkbox v-model="specifics.has_adjustable_seat" label="Verstellbarer Sitz" hide-details></v-checkbox>
+                  <v-checkbox v-model="specifics.has_adjustable_backrest" label="Verstellbare Rückenlehne" hide-details></v-checkbox>
+                  <v-checkbox v-model="specifics.has_digital_display" label="Digitales Display" hide-details></v-checkbox>
                 </v-col>
               </v-row>
             </template>
@@ -285,7 +317,7 @@
       </v-form>
     </v-card>
 
-    <!-- GANZSEITIGER LOADER BEI WEITERLEITUNG (MODERNER KREIS) -->
+    <!-- GANZSEITIGER LOADER BEI WEITERLEITUNG -->
     <v-overlay
       v-model="redirecting"
       class="align-center justify-center"
@@ -304,7 +336,7 @@
       </div>
     </v-overlay>
 
-    <!-- Snackbar für Erfolg / Fehler -->
+    <!-- Snackbar -->
     <v-snackbar
       v-model="snackbar.show"
       :color="snackbar.color"
@@ -341,7 +373,7 @@ const router = useRouter()
 
 const valid = ref(false)
 const submitting = ref(false)
-const redirecting = ref(false)     // ✅ NEU: Steuert den modernen Loader während der Weiterleitung
+const redirecting = ref(false)
 const formRef = ref(null)
 const guideDrawer = ref(false)
 
@@ -351,7 +383,7 @@ const snackbar = ref({
   color: 'success'
 })
 
-// Produktstammdaten (erweitert)
+// Produktstammdaten
 const product = reactive({
   name: '',
   brand: '',
@@ -374,7 +406,7 @@ const product = reactive({
 // Artikelspezifische Details (dynamisch)
 const specifics = reactive({})
 
-// Versandinformationen
+// Versand
 const shipping = reactive({
   shipping_cost: null,
   free_shipping_threshold: null,
@@ -382,45 +414,44 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// Zusätzliche Bilder (Galerie)
+// Zusätzliche Bilder
 const additionalImages = ref([])
 
 // Auswahllisten
 const categories = [
   { title: 'Kardio', value: 'cardio' },
-  { title: 'Kraft', value: 'strength' },
+  { title: 'Kraft', value: 'strength' },        // <- neu
   { title: 'Rehabilitation', value: 'rehabilitation' },
   { title: 'Zubehör', value: 'accessories' }
 ]
 
 const articleTypes = [
   { title: 'Laufband', value: 'treadmill' },
-  { title: 'Fahrrad', value: 'bike' }
+  { title: 'Fahrrad', value: 'bike' },
+  { title: 'Kraftgerät', value: 'strength' }    // <- neu
 ]
 
-// Validierungsregel
 const required = v => !!v || 'Dieses Feld ist erforderlich'
 
-// Wird aufgerufen, wenn sich der Artikeltyp ändert – löscht die spezifischen Felder
 const onArticleTypeChange = () => {
+  // Leert die spezifischen Felder beim Wechsel
   Object.keys(specifics).forEach(key => delete specifics[key])
 }
 
-// Bildergalerie verwalten
+// Bildergalerie
 const addImage = () => {
   additionalImages.value.push({ url: '', type: 'gallery', order: additionalImages.value.length + 1 })
 }
-
 const removeImage = (idx) => {
   additionalImages.value.splice(idx, 1)
 }
 
-// Abbrechen – zurück zum Dashboard
+// Abbrechen
 const cancel = () => {
   router.push('/dashboard')
 }
 
-// Submit – sendet alle Daten per axios an den Server
+// Submit
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
@@ -445,20 +476,14 @@ const submit = async () => {
     )
 
     if (response.data.success) {
-      // Erfolgsmeldung anzeigen
       snackbar.value = {
         show: true,
         text: '✅ Das Produkt wurde erfolgreich erstellt!',
         color: 'success'
       }
-
-      // ✅ Modernen Loader aktivieren (während der Wartezeit bis zur Weiterleitung)
       redirecting.value = true
-
-      // Nach 2 Sekunden zum Dashboard navigieren
       setTimeout(() => {
         router.push('/dashboard')
-        // redirecting wird automatisch zurückgesetzt, wenn die Komponente zerstört wird
       }, 2000)
     } else {
       throw new Error(response.data.error || 'Unbekannter Fehler')
@@ -470,7 +495,7 @@ const submit = async () => {
       text: `❌ Fehler: ${error.message}`,
       color: 'error'
     }
-    redirecting.value = false   // Loader ggf. wieder ausblenden
+    redirecting.value = false
   } finally {
     submitting.value = false
   }
@@ -481,19 +506,15 @@ const submit = async () => {
 .gap-2 {
   gap: 8px;
 }
-
 .action-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
   color: rgb(17, 90, 10);
 }
-
 .back-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
 }
-
-/* FLOATING BUTTON */
 .floating-help-btn {
   position: fixed;
   top: 50%;
@@ -511,11 +532,9 @@ const submit = async () => {
   box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
   transition: right 0.3s ease;
 }
-
 .floating-help-btn.open {
   right: 400px;
 }
-
 .floating-help-btn:hover {
   background: #1565c0;
 }

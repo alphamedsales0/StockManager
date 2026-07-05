@@ -1,0 +1,14 @@
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /stockmanager/
+
+  RewriteRule ^index\.html$ - [L]
+
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  RewriteRule . /stockmanager/index.html [L]
+</IfModule>
+
+

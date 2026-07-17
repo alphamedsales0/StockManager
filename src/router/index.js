@@ -9,7 +9,8 @@ const routes = [
   },
   
   { 
-    path: '/products', component: () => import('../views/Products.vue')
+    path: '/products', 
+    component: () => import('../views/Products.vue')
   },
   
   {
@@ -19,11 +20,13 @@ const routes = [
   },
 
   { 
-    path: '/customers', component: () => import('../views/Customers.vue')
+    path: '/customers', 
+    component: () => import('../views/Customers.vue')
   },
   
   { 
-    path: '/quotes', component: () => import('../views/Quotes.vue')
+    path: '/quotes', 
+    component: () => import('../views/Quotes.vue')
   },
   
   {
@@ -41,7 +44,7 @@ const routes = [
     path: '/tickets',
     name: 'AllTickets',
     component: AllTickets,
-    meta: { requiresAuth: true }  // falls du Authentifizierung verwendest
+    meta: { requiresAuth: true }
   },
 
   {
@@ -49,7 +52,28 @@ const routes = [
     name: 'AddProduct',
     component: () => import('../views/AddProduct.vue'),
     meta: { requiresAuth: true }
+  },
+
+  // ---------- NEUE ROUTES FÜR MITARBEITER ----------
+  {
+    path: '/employees',
+    name: 'Employees',
+    component: () => import('../views/Employees.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/employees/add',
+    name: 'AddEmployee',
+    component: () => import('../views/AddEmployee.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/employees/edit/:id',
+    name: 'EditEmployee',
+    component: () => import('../components/employees/EditEmployee.vue'), // oder views/EditEmployee.vue
+    meta: { requiresAuth: true }
   }
+  // ------------------------------------------------
 ]
 
 const router = createRouter({

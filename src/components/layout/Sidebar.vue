@@ -69,6 +69,15 @@
         <v-list-item prepend-icon="mdi-account-plus" title="Neuer Kunde" @click="navigateTo('add-customer')" />
       </v-list-group>
 
+      <!-- MITARBEITER (neu) -->
+      <v-list-group value="employees" prepend-icon="mdi-account-tie">
+        <template v-slot:activator="{ props }">
+          <v-list-item v-bind="props" title="Mitarbeiter" prepend-icon="mdi-account-tie" />
+        </template>
+        <v-list-item prepend-icon="mdi-format-list-bulleted" title="Alle Mitarbeiter" @click="navigateTo('employees-list')" />
+        <v-list-item prepend-icon="mdi-account-plus" title="Neuer Mitarbeiter" @click="navigateTo('add-employee')" />
+      </v-list-group>
+
       <!-- BESTELLUNGEN -->
       <v-list-group value="orders" prepend-icon="mdi-cart">
         <template v-slot:activator="{ props }">
@@ -98,12 +107,15 @@ const navigateTo = (tab) => {
   activeTab.value = tab
   const routes = {
     dashboard: '/',
-    tickets: '/tickets',   // neu hinzugefügt
+    tickets: '/tickets',
     'products-list': '/products',
     'add-product': '/products/add',
     categories: '/products/categories',
     'customers-list': '/customers',
     'add-customer': '/customers/add',
+    // Neue Mitarbeiter-Routen
+    'employees-list': '/employees',
+    'add-employee': '/employees/add',
     'orders-list': '/orders',
     'add-order': '/orders/add',
     stats: '/stats',
@@ -114,7 +126,7 @@ const navigateTo = (tab) => {
 </script>
 
 <style scoped>
-/* Styles du sidebar header */
+/* Styles des sidebar headers */
 .sidebar-header {
   padding: 20px 16px;
   background: rgba(0, 0, 0, 0.2);
@@ -126,26 +138,31 @@ const navigateTo = (tab) => {
   padding: 20px 8px;
 }
 
-/* Styles existants */
+/* Übrige Stile */
 .v-navigation-drawer {
   border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
+
 .v-navigation-drawer .v-list-item {
   min-height: 36px !important;
   padding-top: 2px !important;
   padding-bottom: 2px !important;
 }
+
 .v-navigation-drawer .v-list-item--active {
   background-color: rgba(25, 118, 210, 0.08);
   color: #1976d2;
   font-weight: 500;
 }
+
 .v-navigation-drawer .v-list-item--active .v-icon {
   color: #1976d2;
 }
+
 .v-navigation-drawer .v-list-group__items .v-list-item {
   padding-left: 32px !important;
 }
+
 @media (max-width: 600px) {
   .v-navigation-drawer {
     width: 56px !important;

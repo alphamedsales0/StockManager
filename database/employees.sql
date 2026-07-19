@@ -1,0 +1,25 @@
+-- Table employees (sans UNSIGNED)
+CREATE TABLE employees (
+    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    benutzer_id INT(11) NOT NULL UNIQUE,
+    mitarbeiter_nummer VARCHAR(20) UNIQUE NULL,
+    vorname VARCHAR(50) NOT NULL,
+    nachname VARCHAR(50) NOT NULL,
+    telefon VARCHAR(20) NULL,
+    mobil VARCHAR(20) NULL,
+    position VARCHAR(100) NULL,
+    abteilung VARCHAR(100) NULL,
+    einstellungsdatum DATE NULL,
+    geburtsdatum DATE NULL,
+    gehalt DECIMAL(12,2) NULL,
+    notfall_kontakt_name VARCHAR(100) NULL,
+    notfall_kontakt_telefon VARCHAR(20) NULL,
+    erstellt_am TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    aktualisiert_am TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (benutzer_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_nachname (nachname),
+    INDEX idx_abteilung (abteilung),
+    INDEX idx_position (position),
+    INDEX idx_einstellungsdatum (einstellungsdatum),
+    INDEX idx_mitarbeiter_nummer (mitarbeiter_nummer)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

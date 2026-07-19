@@ -1,6 +1,6 @@
 <?php
-// api/stock_manager_products.php
-// Gestion CORS dynamique
+// api/employees.php
+// Gestion CORS dynamique (identique à stock_manager_products.php)
 if (isset($_SERVER['HTTP_ORIGIN'])) {
     header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
     header('Access-Control-Allow-Credentials: true');
@@ -9,7 +9,7 @@ if (isset($_SERVER['HTTP_ORIGIN'])) {
 
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) {
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
     }
     if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])) {
         header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
@@ -22,14 +22,75 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/database_connect.php';
 
 // ------------------------------------------------------------
-// 1. GET : récupérer tous les produits
+// 1. GET : liste ou détail
 // ------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
     try {
-        $stmt = $pdo->query("SELECT * FROM articles ORDER BY id DESC");
-        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'data' => $products], JSON_UNESCAPED_UNICODE);
-    } catch (Exception $e) {
+        if ($id > 0) {
+            // Détail d'un employé
+            $stmt = $pdo->prepare("
+                SELECT
+                    u.id AS benutzer_id,
+                    u.email,
+                    u.is_active,
+                    e.*
+                FROM users u
+                JOIN employees e ON u.id = e.benutzer_id
+                WHERE u.id = ? AND u.role = 'employee'
+            ");
+            $stmt->execute([$id]);
+            $employee = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$employee) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Mitarbeiter nicht gefunden']);
+                exit;
+            }
+
+            // Adresses actives
+            $stmtAddr = $pdo->prepare("
+                SELECT id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
+                FROM employees_addresses
+                WHERE mitarbeiter_id = ? AND ist_aktiv = 1
+            ");
+            $stmtAddr->execute([$employee['id']]);
+            $addresses = $stmtAddr->fetchAll(PDO::FETCH_ASSOC);
+            $employee['addresses'] = $addresses;
+
+            unset($employee['password_hash']); // sécurité
+            echo json_encode(['success' => true, 'employee' => $employee]);
+        } else {
+            // Liste de tous les employés
+            $stmt = $pdo->query("
+                SELECT
+                    u.id AS benutzer_id,
+                    u.email,
+                    u.is_active,
+                    e.id AS mitarbeiter_id,
+                    e.mitarbeiter_nummer,
+                    e.vorname,
+                    e.nachname,
+                    e.telefon,
+                    e.mobil,
+                    e.position,
+                    e.abteilung,
+                    e.einstellungsdatum,
+                    ea.strasse,
+                    ea.hausnummer,
+                    ea.plz,
+                    ea.stadt,
+                    ea.land
+                FROM users u
+                JOIN employees e ON u.id = e.benutzer_id
+                LEFT JOIN employees_addresses ea ON e.id = ea.mitarbeiter_id AND ea.adresstyp = 'primär' AND ea.ist_aktiv = 1
+                WHERE u.role = 'employee'
+                ORDER BY e.nachname, e.vorname
+            ");
+            $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'employees' => $employees]);
+        }
+    } catch (Throwable $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
@@ -37,232 +98,286 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 // ------------------------------------------------------------
-// 2. POST : créer un nouveau produit (avec spécificités, images, livraison)
+// 2. POST : créer un employé
 // ------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
-    if (!$input || !isset($input['article'])) {
+    if (!$input) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Données du produit manquantes']);
+        echo json_encode(['success' => false, 'error' => 'Données JSON invalides']);
         exit;
     }
 
-    $article = $input['article'];
-    $specifics = $input['specifics'] ?? [];
-    $shipping = $input['shipping'] ?? [];
-    $images = $input['images'] ?? [];
+    // Log
+    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " INPUT: " . json_encode($input) . "\n", FILE_APPEND);
 
-    // Validation des champs obligatoires de la table `articles`
-    $required = ['name', 'brand', 'category', 'price', 'main_image', 'article_type', 'article_number'];
-    foreach ($required as $field) {
-        if (empty($article[$field])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Champ requis manquant : $field"]);
-            exit;
-        }
+    $email = trim($input['email'] ?? '');
+    $password = $input['password'] ?? '';
+    $vorname = trim($input['vorname'] ?? '');
+    $nachname = trim($input['nachname'] ?? '');
+
+    if (!$email || !$password || !$vorname || !$nachname) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'E-Mail, Passwort, Vorname und Nachname sind erforderlich']);
+        exit;
     }
 
+    $pdo->beginTransaction();
     try {
-        $pdo->beginTransaction();
+        // 1. Insérer dans users
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+        $name = $vorname . ' ' . $nachname;
+        $stmt = $pdo->prepare("
+            INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, 'employee', 1, NOW(), NOW())
+        ");
+        $stmt->execute([$name, $email, $hashed]);
+        $benutzer_id = $pdo->lastInsertId();
+        file_put_contents(__DIR__ . '/debug.log', "User inserted with ID $benutzer_id\n", FILE_APPEND);
 
-        // ----- Insertion dans la table `articles` -----
-        $sql = "INSERT INTO articles (
-                    name, brand, category, price, main_image, article_type, article_number,
-                    color, warranty_years, weight_capacity, power_supply, application_area,
-                    in_stock, is_new, best_seller, description
-                ) VALUES (
-                    :name, :brand, :category, :price, :main_image, :article_type, :article_number,
-                    :color, :warranty_years, :weight_capacity, :power_supply, :application_area,
-                    :in_stock, :is_new, :best_seller, :description
-                )";
-
-        $stmt = $pdo->prepare($sql);
+        // 2. Insérer dans employees
+        $stmt = $pdo->prepare("
+            INSERT INTO employees (
+                benutzer_id, mitarbeiter_nummer, vorname, nachname, telefon, mobil,
+                position, abteilung, einstellungsdatum, geburtsdatum, gehalt,
+                notfall_kontakt_name, notfall_kontakt_telefon, aktualisiert_am
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $mitarbeiter_nummer = empty($input['mitarbeiter_nummer']) ? null : $input['mitarbeiter_nummer'];
         $stmt->execute([
-            ':name' => $article['name'],
-            ':brand' => $article['brand'],
-            ':category' => $article['category'],
-            ':price' => $article['price'],
-            ':main_image' => $article['main_image'],
-            ':article_type' => $article['article_type'],
-            ':article_number' => $article['article_number'],
-            ':color' => $article['color'] ?? null,
-            ':warranty_years' => $article['warranty_years'] ?? null,
-            ':weight_capacity' => $article['weight_capacity'] ?? null,
-            ':power_supply' => $article['power_supply'] ?? null,
-            ':application_area' => $article['application_area'] ?? null,
-            ':in_stock' => $article['in_stock'] ?? 1,
-            ':is_new' => $article['is_new'] ?? 0,
-            ':best_seller' => $article['best_seller'] ?? 0,
-            ':description' => $article['description'] ?? null
+            $benutzer_id,
+            $mitarbeiter_nummer,
+            $vorname,
+            $nachname,
+            empty($input['telefon']) ? null : $input['telefon'],
+            empty($input['mobil']) ? null : $input['mobil'],
+            empty($input['position']) ? null : $input['position'],
+            empty($input['abteilung']) ? null : $input['abteilung'],
+            empty($input['einstellungsdatum']) ? null : $input['einstellungsdatum'],
+            empty($input['geburtsdatum']) ? null : $input['geburtsdatum'],
+            empty($input['gehalt']) ? null : $input['gehalt'],
+            empty($input['notfall_kontakt_name']) ? null : $input['notfall_kontakt_name'],
+            empty($input['notfall_kontakt_telefon']) ? null : $input['notfall_kontakt_telefon']
         ]);
+        $mitarbeiter_id = $pdo->lastInsertId();
+        file_put_contents(__DIR__ . '/debug.log', "Employee inserted with ID $mitarbeiter_id\n", FILE_APPEND);
 
-        $articleId = $pdo->lastInsertId();
-
-        // ----- Insertion dans la table spécifique selon `article_type` -----
-        if ($article['article_type'] === 'treadmill') {
-            $sql = "INSERT INTO treadmills (
-                        article_id, motor_power, max_speed, max_inclination, display_type,
-                        training_programs, has_ekg, is_foldable, has_touchscreen, has_bluetooth,
-                        has_heart_rate_monitor, has_wifi, has_speaker, power_range, display_info,
-                        programs_info, comfort_features
-                    ) VALUES (
-                        :article_id, :motor_power, :max_speed, :max_inclination, :display_type,
-                        :training_programs, :has_ekg, :is_foldable, :has_touchscreen, :has_bluetooth,
-                        :has_heart_rate_monitor, :has_wifi, :has_speaker, :power_range, :display_info,
-                        :programs_info, :comfort_features
-                    )";
-            $stmt = $pdo->prepare($sql);
+        // 3. Adresse primaire si fournie
+        $addr = $input['adresse'] ?? null;
+        if ($addr && !empty($addr['strasse']) && !empty($addr['hausnummer'])) {
+            $stmt = $pdo->prepare("
+                INSERT INTO employees_addresses (
+                    mitarbeiter_id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
+                ) VALUES (?, 'primär', ?, ?, ?, ?, ?, 1)
+            ");
             $stmt->execute([
-                ':article_id' => $articleId,
-                ':motor_power' => $specifics['motor_power'] ?? null,
-                ':max_speed' => $specifics['max_speed'] ?? null,
-                ':max_inclination' => $specifics['max_inclination'] ?? null,
-                ':display_type' => $specifics['display_type'] ?? null,
-                ':training_programs' => $specifics['training_programs'] ?? null,
-                ':has_ekg' => $specifics['has_ekg'] ?? 0,
-                ':is_foldable' => $specifics['is_foldable'] ?? 0,
-                ':has_touchscreen' => $specifics['has_touchscreen'] ?? 0,
-                ':has_bluetooth' => $specifics['has_bluetooth'] ?? 0,
-                ':has_heart_rate_monitor' => $specifics['has_heart_rate_monitor'] ?? 0,
-                ':has_wifi' => $specifics['has_wifi'] ?? 0,
-                ':has_speaker' => $specifics['has_speaker'] ?? 0,
-                ':power_range' => $specifics['power_range'] ?? null,
-                ':display_info' => $specifics['display_info'] ?? null,
-                ':programs_info' => $specifics['programs_info'] ?? null,
-                ':comfort_features' => $specifics['comfort_features'] ?? null
+                $mitarbeiter_id,
+                $addr['strasse'],
+                $addr['hausnummer'],
+                $addr['plz'] ?? null,
+                $addr['stadt'] ?? null,
+                $addr['land'] ?? 'Deutschland'
             ]);
-        } elseif ($article['article_type'] === 'bike') {
-            $sql = "INSERT INTO exercise_bikes (
-                        article_id, resistance_type, max_resistance, pedal_type, seat_adjustment,
-                        handlebar_adjustment, has_backrest, has_pedal_straps, console_features
-                    ) VALUES (
-                        :article_id, :resistance_type, :max_resistance, :pedal_type, :seat_adjustment,
-                        :handlebar_adjustment, :has_backrest, :has_pedal_straps, :console_features
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':resistance_type' => $specifics['resistance_type'] ?? null,
-                ':max_resistance' => $specifics['max_resistance'] ?? null,
-                ':pedal_type' => $specifics['pedal_type'] ?? null,
-                ':seat_adjustment' => $specifics['seat_adjustment'] ?? null,
-                ':handlebar_adjustment' => $specifics['handlebar_adjustment'] ?? null,
-                ':has_backrest' => $specifics['has_backrest'] ?? 0,
-                ':has_pedal_straps' => $specifics['has_pedal_straps'] ?? 0,
-                ':console_features' => $specifics['console_features'] ?? null
-            ]);
-        } elseif ($article['article_type'] === 'strength') {
-            $sql = "INSERT INTO strength_machines (
-                        article_id, weight_stack_kg, max_user_weight_kg, dimensions,
-                        adjustment_range, has_adjustable_seat, has_adjustable_backrest,
-                        has_digital_display, muscle_groups_targeted, color_options,
-                        frame_material, warranty_years
-                    ) VALUES (
-                        :article_id, :weight_stack_kg, :max_user_weight_kg, :dimensions,
-                        :adjustment_range, :has_adjustable_seat, :has_adjustable_backrest,
-                        :has_digital_display, :muscle_groups_targeted, :color_options,
-                        :frame_material, :warranty_years
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':weight_stack_kg' => $specifics['weight_stack_kg'] ?? null,
-                ':max_user_weight_kg' => $specifics['max_user_weight_kg'] ?? null,
-                ':dimensions' => $specifics['dimensions'] ?? null,
-                ':adjustment_range' => $specifics['adjustment_range'] ?? null,
-                ':has_adjustable_seat' => $specifics['has_adjustable_seat'] ?? 0,
-                ':has_adjustable_backrest' => $specifics['has_adjustable_backrest'] ?? 0,
-                ':has_digital_display' => $specifics['has_digital_display'] ?? 0,
-                ':muscle_groups_targeted' => $specifics['muscle_groups_targeted'] ?? null,
-                ':color_options' => $specifics['color_options'] ?? null,
-                ':frame_material' => $specifics['frame_material'] ?? null,
-                ':warranty_years' => $specifics['warranty_years'] ?? null
-            ]);
-        // --- NOUVEAU : Reha-Zubehör ---
-        } elseif ($article['article_type'] === 'rehabilitation_accessory') {
-            $sql = "INSERT INTO rehabilitation_accessories (
-                        article_id, material, compatibility, usage_area,
-                        weight_kg, dimensions, has_adjustable, has_certification,
-                        color_options, warranty_years
-                    ) VALUES (
-                        :article_id, :material, :compatibility, :usage_area,
-                        :weight_kg, :dimensions, :has_adjustable, :has_certification,
-                        :color_options, :warranty_years
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':material' => $specifics['material'] ?? null,
-                ':compatibility' => $specifics['compatibility'] ?? null,
-                ':usage_area' => $specifics['usage_area'] ?? null,
-                ':weight_kg' => isset($specifics['weight_kg']) && $specifics['weight_kg'] !== '' ? (float)$specifics['weight_kg'] : null,
-                ':dimensions' => $specifics['dimensions'] ?? null,
-                ':has_adjustable' => $specifics['has_adjustable'] ?? 0,
-                ':has_certification' => $specifics['has_certification'] ?? 0,
-                ':color_options' => $specifics['color_options'] ?? null,
-                ':warranty_years' => isset($specifics['warranty_years']) && $specifics['warranty_years'] !== '' ? (int)$specifics['warranty_years'] : null
-            ]);
-        }
-
-        // ----- Insertion des images supplémentaires -----
-        if (!empty($images)) {
-            $sql = "INSERT INTO article_images (article_id, image_url, image_order, image_type, article_name)
-                    VALUES (:article_id, :image_url, :image_order, :image_type, :article_name)";
-            $stmt = $pdo->prepare($sql);
-            foreach ($images as $image) {
-                $stmt->execute([
-                    ':article_id' => $articleId,
-                    ':image_url' => $image['url'],
-                    ':image_order' => $image['image_order'] ?? 1,
-                    ':image_type' => $image['type'] ?? 'gallery',
-                    ':article_name' => $image['article_name'] ?? $article['name']
-                ]);
-            }
-        }
-
-        // ----- Insertion des règles de livraison -----
-        if (!empty($shipping)) {
-            $sql = "INSERT INTO shipping_rules (
-                        article_id, shipping_cost, free_shipping_threshold, shipping_method, estimated_delivery_days
-                    ) VALUES (
-                        :article_id, :shipping_cost, :free_shipping_threshold, :shipping_method, :estimated_delivery_days
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':shipping_cost' => (isset($shipping['shipping_cost']) && $shipping['shipping_cost'] !== '') ? (float)$shipping['shipping_cost'] : null,
-                ':free_shipping_threshold' => (isset($shipping['free_shipping_threshold']) && $shipping['free_shipping_threshold'] !== '') ? (float)$shipping['free_shipping_threshold'] : null,
-                ':shipping_method' => $shipping['shipping_method'] ?? null,
-                ':estimated_delivery_days' => (isset($shipping['estimated_delivery_days']) && $shipping['estimated_delivery_days'] !== '') ? (int)$shipping['estimated_delivery_days'] : null
-            ]);
+            file_put_contents(__DIR__ . '/debug.log', "Address inserted\n", FILE_APPEND);
         }
 
         $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Mitarbeiter angelegt', 'id' => $benutzer_id]);
 
-        echo json_encode([
-            'success' => true,
-            'message' => 'Produit créé avec succès',
-            'article_id' => $articleId,
-            'article_number' => $article['article_number']
-        ], JSON_UNESCAPED_UNICODE);
-
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        file_put_contents(__DIR__ . '/debug.log', "PDO ERROR: " . $e->getMessage() . " - Code: " . $e->getCode() . "\n", FILE_APPEND);
         http_response_code(500);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Erreur SQL : ' . $e->getMessage(),
-            'code' => $e->getCode(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
-        ], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        file_put_contents(__DIR__ . '/debug.log', "GENERAL ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit;
 }
 
-// Si la méthode HTTP n'est ni GET ni POST
+// ------------------------------------------------------------
+// 3. PUT : mettre à jour un employé
+// ------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'ID fehlt (paramètre ?id=...)']);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Données JSON invalides']);
+        exit;
+    }
+
+    // Vérifier que l'utilisateur existe
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ? AND role = 'employee'");
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Mitarbeiter nicht gefunden']);
+        exit;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Mise à jour users (email + password éventuel)
+        $email = $input['email'] ?? null;
+        $password = $input['password'] ?? null;
+        $updates = [];
+        $params = [];
+        if ($email) {
+            $updates[] = "email = ?";
+            $params[] = $email;
+        }
+        if ($password) {
+            $hashed = password_hash($password, PASSWORD_DEFAULT);
+            $updates[] = "password_hash = ?";
+            $params[] = $hashed;
+        }
+        if (!empty($updates)) {
+            $updates[] = "updated_at = NOW()";
+            $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ?";
+            $params[] = $id;
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+
+        // Mise à jour employees
+        $stmt = $pdo->prepare("
+            UPDATE employees SET
+                mitarbeiter_nummer = ?,
+                vorname = ?,
+                nachname = ?,
+                telefon = ?,
+                mobil = ?,
+                position = ?,
+                abteilung = ?,
+                einstellungsdatum = ?,
+                geburtsdatum = ?,
+                gehalt = ?,
+                notfall_kontakt_name = ?,
+                notfall_kontakt_telefon = ?,
+                aktualisiert_am = NOW()
+            WHERE benutzer_id = ?
+        ");
+        $stmt->execute([
+            $input['mitarbeiter_nummer'] ?? null,
+            $input['vorname'] ?? null,
+            $input['nachname'] ?? null,
+            $input['telefon'] ?? null,
+            $input['mobil'] ?? null,
+            $input['position'] ?? null,
+            $input['abteilung'] ?? null,
+            $input['einstellungsdatum'] ?? null,
+            $input['geburtsdatum'] ?? null,
+            $input['gehalt'] ?? null,
+            $input['notfall_kontakt_name'] ?? null,
+            $input['notfall_kontakt_telefon'] ?? null,
+            $id
+        ]);
+
+        // Gestion des adresses
+        $stmt = $pdo->prepare("SELECT id FROM employees WHERE benutzer_id = ?");
+        $stmt->execute([$id]);
+        $emp = $stmt->fetch();
+        if ($emp) {
+            $mitarbeiter_id = $emp['id'];
+            // Supprimer les anciennes adresses actives
+            $stmt = $pdo->prepare("DELETE FROM employees_addresses WHERE mitarbeiter_id = ? AND ist_aktiv = 1");
+            $stmt->execute([$mitarbeiter_id]);
+
+            // Insérer les nouvelles adresses
+            if (isset($input['addresses']) && is_array($input['addresses'])) {
+                foreach ($input['addresses'] as $addr) {
+                    if (empty($addr['strasse']) || empty($addr['hausnummer'])) continue;
+                    $stmt = $pdo->prepare("
+                        INSERT INTO employees_addresses (
+                            mitarbeiter_id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([
+                        $mitarbeiter_id,
+                        $addr['adresstyp'] ?? 'primär',
+                        $addr['strasse'],
+                        $addr['hausnummer'],
+                        $addr['plz'] ?? null,
+                        $addr['stadt'] ?? null,
+                        $addr['land'] ?? 'Deutschland',
+                        $addr['ist_aktiv'] ?? 1
+                    ]);
+                }
+            } elseif (isset($input['adresse']) && !empty($input['adresse']['strasse'])) {
+                $addr = $input['adresse'];
+                $stmt = $pdo->prepare("
+                    INSERT INTO employees_addresses (
+                        mitarbeiter_id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
+                    ) VALUES (?, 'primär', ?, ?, ?, ?, ?, 1)
+                ");
+                $stmt->execute([
+                    $mitarbeiter_id,
+                    $addr['strasse'],
+                    $addr['hausnummer'],
+                    $addr['plz'] ?? null,
+                    $addr['stadt'] ?? null,
+                    $addr['land'] ?? 'Deutschland'
+                ]);
+            }
+        }
+
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => 'Mitarbeiter aktualisiert']);
+
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        if ($e->errorInfo[1] == 1062) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'error' => 'E-Mail oder Mitarbeiter-Nummer existiert bereits']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ------------------------------------------------------------
+// 4. DELETE : supprimer un employé
+// ------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'ID fehlt (paramètre ?id=...)']);
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'employee'");
+        $stmt->execute([$id]);
+        if ($stmt->rowCount() == 0) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Mitarbeiter nicht gefunden']);
+            exit;
+        }
+        echo json_encode(['success' => true, 'message' => 'Mitarbeiter gelöscht']);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// Si la méthode HTTP n'est pas prise en charge
 http_response_code(405);
-echo json_encode(['success' => false, 'error' => 'Méthode non autorisée'], JSON_UNESCAPED_UNICODE);
-?>
+echo json_encode(['success' => false, 'error' => 'Méthode non autorisée']);

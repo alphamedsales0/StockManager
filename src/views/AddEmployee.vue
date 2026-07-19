@@ -1,302 +1,118 @@
 <template>
-  <v-container fluid class="page pa-8">
-    <v-row justify="center">
-      <v-col cols="12" md="8" lg="6">
-        <v-card class="premium-card">
+  <v-container>
+    <h1 class="text-h4 mb-4">Neuer Mitarbeiter</h1>
+    <v-form @submit.prevent="submit" ref="form">
+      <!-- Benutzerdaten -->
+      <v-text-field v-model="employee.email" label="E-Mail" type="email" required />
+      <v-text-field v-model="employee.password" label="Passwort" type="password" required />
 
-          <!-- Header -->
-          <div class="header pa-8">
-            <div class="d-flex align-center">
+      <!-- Persönliche Daten -->
+      <v-row>
+        <v-col cols="6">
+          <v-text-field v-model="employee.vorname" label="Vorname" required />
+        </v-col>
+        <v-col cols="6">
+          <v-text-field v-model="employee.nachname" label="Nachname" required />
+        </v-col>
+      </v-row>
+      <v-text-field v-model="employee.mitarbeiter_nummer" label="Mitarbeiter-Nummer" />
+      <v-row>
+        <v-col cols="6">
+          <v-text-field v-model="employee.telefon" label="Telefon" />
+        </v-col>
+        <v-col cols="6">
+          <v-text-field v-model="employee.mobil" label="Mobil" />
+        </v-col>
+      </v-row>
+      <v-text-field v-model="employee.position" label="Position" />
+      <v-text-field v-model="employee.abteilung" label="Abteilung" />
+      <v-row>
+        <v-col cols="6">
+          <v-text-field v-model="employee.einstellungsdatum" label="Einstellungsdatum" type="date" />
+        </v-col>
+        <v-col cols="6">
+          <v-text-field v-model="employee.geburtsdatum" label="Geburtsdatum" type="date" />
+        </v-col>
+      </v-row>
+      <v-text-field v-model="employee.gehalt" label="Gehalt" type="number" step="0.01" prefix="€" />
+      <v-text-field v-model="employee.notfall_kontakt_name" label="Notfallkontakt (Name)" />
+      <v-text-field v-model="employee.notfall_kontakt_telefon" label="Notfallkontakt (Telefon)" />
 
-              <v-avatar
-                color="primary"
-                size="60"
-              >
-                <v-icon size="32">
-                  mdi-account-plus
-                </v-icon>
-              </v-avatar>
+      <!-- Adresse -->
+      <v-expansion-panels>
+        <v-expansion-panel>
+          <v-expansion-panel-title>Adresse (primär)</v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <v-text-field v-model="employee.adresse.strasse" label="Straße" required />
+            <v-text-field v-model="employee.adresse.hausnummer" label="Hausnummer" required />
+            <v-row>
+              <v-col cols="4">
+                <v-text-field v-model="employee.adresse.plz" label="PLZ" required />
+              </v-col>
+              <v-col cols="8">
+                <v-text-field v-model="employee.adresse.stadt" label="Stadt" required />
+              </v-col>
+            </v-row>
+            <v-text-field v-model="employee.adresse.land" label="Land" />
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
 
-              <div class="ml-5">
-                <div class="text-h4 font-weight-bold">
-                  Neuer Mitarbeiter
-                </div>
-
-                <div class="text-grey">
-                  Mitarbeiterkonto erstellen
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <v-divider></v-divider>
-
-          <v-card-text class="pa-8">
-
-            <v-form
-              ref="form"
-              @submit.prevent="submit"
-            >
-
-              <v-row>
-
-                <!-- Nom -->
-
-                <v-col cols="12">
-                  <v-text-field
-                    v-model="employee.name"
-                    label="Vollständiger Name"
-                    prepend-inner-icon="mdi-account-outline"
-                    variant="solo-filled"
-                    density="comfortable"
-                    rounded="lg"
-                    :rules="[
-                      v => !!v || 'Name ist erforderlich'
-                    ]"
-                  />
-                </v-col>
-
-                <!-- Email -->
-
-                <v-col cols="12">
-                  <v-text-field
-                    v-model="employee.email"
-                    label="E-Mail"
-                    prepend-inner-icon="mdi-email-outline"
-                    variant="solo-filled"
-                    density="comfortable"
-                    rounded="lg"
-                    :rules="[
-                      v => !!v || 'E-Mail ist erforderlich',
-                      v => /.+@.+\..+/.test(v) || 'Ungültige E-Mail'
-                    ]"
-                  />
-                </v-col>
-
-                <!-- Password -->
-
-                <v-col cols="12">
-                  <v-text-field
-                    v-model="employee.password"
-                    :type="showPassword ? 'text' : 'password'"
-                    label="Passwort"
-                    prepend-inner-icon="mdi-lock-outline"
-                    :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-                    @click:append-inner="showPassword = !showPassword"
-                    variant="solo-filled"
-                    density="comfortable"
-                    rounded="lg"
-                    :rules="[
-                      v => !!v || 'Passwort ist erforderlich',
-                      v => v.length >= 8 || 'Mindestens 8 Zeichen'
-                    ]"
-                  />
-                </v-col>
-
-                <!-- Confirmation Password -->
-
-                <v-col cols="12">
-                  <v-text-field
-                    v-model="confirmPassword"
-                    :type="showConfirmPassword ? 'text' : 'password'"
-                    label="Passwort bestätigen"
-                    prepend-inner-icon="mdi-lock-check-outline"
-                    :append-inner-icon="showConfirmPassword ? 'mdi-eye-off' : 'mdi-eye'"
-                    @click:append-inner="showConfirmPassword=!showConfirmPassword"
-                    variant="solo-filled"
-                    density="comfortable"
-                    rounded="lg"
-                    :rules="[
-                      v => !!v || 'Bitte Passwort bestätigen',
-                      v => v === employee.password || 'Die Passwörter stimmen nicht überein'
-                    ]"
-                  />
-                </v-col>
-
-                <!-- Role -->
-
-                <v-col cols="12">
-                  <v-select
-                    v-model="employee.role"
-                    :items="roles"
-                    label="Rolle"
-                    prepend-inner-icon="mdi-shield-account"
-                    variant="solo-filled"
-                    density="comfortable"
-                    rounded="lg"
-                    :rules="[
-                      v => !!v || 'Rolle ist erforderlich'
-                    ]"
-                  />
-                </v-col>
-
-              </v-row>
-
-              <v-divider class="my-8"></v-divider>
-
-              <div class="d-flex justify-end ga-4">
-
-                <v-btn
-                  variant="text"
-                  color="grey"
-                  @click="$router.back()"
-                >
-                  Abbrechen
-                </v-btn>
-
-                <v-btn
-                  color="primary"
-                  type="submit"
-                  size="large"
-                  rounded="lg"
-                  :loading="loading"
-                >
-                  <v-icon start>
-                    mdi-content-save
-                  </v-icon>
-
-                  Mitarbeiter speichern
-                </v-btn>
-
-              </div>
-
-            </v-form>
-
-          </v-card-text>
-
-        </v-card>
-      </v-col>
-    </v-row>
+      <v-btn type="submit" color="success" :loading="loading">Speichern</v-btn>
+      <v-btn type="button" color="grey" @click="$router.back()">Abbrechen</v-btn>
+    </v-form>
   </v-container>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import axios from 'axios'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 const router = useRouter()
-
 const form = ref(null)
 const loading = ref(false)
-
-const showPassword = ref(false)
-const showConfirmPassword = ref(false)
-
-const confirmPassword = ref('')
-
-const roles = [
-  {
-    title: 'Mitarbeiter',
-    value: 'employee'
-  },
-  {
-    title: 'Manager',
-    value: 'manager'
-  },
-  {
-    title: 'Administrator',
-    value: 'admin'
-  }
-]
-
 const employee = ref({
-  name: '',
   email: '',
   password: '',
-  role: 'employee'
+  vorname: '',
+  nachname: '',
+  mitarbeiter_nummer: '',
+  telefon: '',
+  mobil: '',
+  position: '',
+  abteilung: '',
+  einstellungsdatum: '',
+  geburtsdatum: '',
+  gehalt: null,
+  notfall_kontakt_name: '',
+  notfall_kontakt_telefon: '',
+  adresse: {
+    strasse: '',
+    hausnummer: '',
+    plz: '',
+    stadt: '',
+    land: 'Deutschland'
+  }
 })
 
 const submit = async () => {
-
   const { valid } = await form.value.validate()
-
   if (!valid) return
 
-  if (employee.value.password !== confirmPassword.value) {
-    alert('Die Passwörter stimmen nicht überein.')
-    return
-  }
-
   loading.value = true
-
   try {
-
-    await axios.post('/api/employees', employee.value)
-
-    router.push('/employees')
-
+    const response = await axios.post('/api/employees.php', employee.value)
+    if (response.data.success) {
+      router.push('/employees')
+    } else {
+      alert('Fehler beim Speichern: ' + (response.data.error || 'Unbekannter Fehler'))
+    }
   } catch (error) {
-
     console.error(error)
-
-    alert('Fehler beim Speichern.')
-
+    alert('Netzwerkfehler beim Speichern.')
   } finally {
-
     loading.value = false
-
   }
-
 }
 </script>
-
-<style scoped>
-
-.page{
-
-    min-height:100vh;
-
-    background:linear-gradient(
-        135deg,
-        #f5f7fa,
-        #eef3f9
-    );
-
-}
-
-.premium-card{
-
-    border-radius:24px;
-
-    border:1px solid #E6EAF0;
-
-    box-shadow:
-        0 12px 40px rgba(0,0,0,.06);
-
-    overflow:hidden;
-
-}
-
-.header{
-
-    background:
-        linear-gradient(
-            90deg,
-            white,
-            #fafcff
-        );
-
-}
-
-.v-field{
-
-    border-radius:14px;
-
-}
-
-.v-btn{
-
-    text-transform:none;
-
-    font-weight:600;
-
-}
-
-.text-grey{
-
-    color:#6b7280;
-
-}
-</style>

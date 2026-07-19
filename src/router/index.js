@@ -54,26 +54,63 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
-  // ---------- NEUE ROUTES FÜR MITARBEITER ----------
-  {
-    path: '/employees',
-    name: 'Employees',
-    component: () => import('../views/Employees.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/employees/add',
-    name: 'AddEmployee',
-    component: () => import('../views/AddEmployee.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/employees/edit/:id',
-    name: 'EditEmployee',
-    component: () => import('../components/employees/EditEmployee.vue'), // oder views/EditEmployee.vue
-    meta: { requiresAuth: true }
+ // ---------- MITARBEITER MANAGEMENT ----------
+
+
+{
+ path:'/employees/add',
+ name:'AddEmployee',
+ component:()=>import('../components/employees/AddEmployee.vue'),
+ meta:{
+   requiresAuth:true
+ }
+},
+
+
+{
+  path: '/employees',
+
+  name: 'Employees',
+
+  component: () =>
+    import('../views/EmployeesView.vue'),
+
+  meta: {
+    requiresAuth: true
   }
-  // ------------------------------------------------
+
+},
+
+
+{
+  path: '/employees/:id',
+
+  name: 'EmployeeDetail',
+
+  component: () =>
+    import('../views/EmployeeDetailView.vue'),
+
+  meta: {
+    requiresAuth: true
+  }
+
+},
+
+
+{
+  path: '/employees/edit/:id',
+
+  name: 'EditEmployee',
+
+  component: () =>
+    import('../components/employees/EditEmployee.vue'),
+
+  meta: {
+    requiresAuth: true
+  }
+
+}
+
 ]
 
 const router = createRouter({

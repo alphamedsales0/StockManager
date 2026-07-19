@@ -79,7 +79,7 @@ const employee = ref(null)
 const fetchEmployee = async () => {
   const id = route.params.id
   try {
-    const response = await axios.get(`/api/employees.php?id=${id}`)
+    const response = await axios.get(`/api/employees_get.php?id=${id}`)
     if (response.data.success) {
       const data = response.data.employee
       // Extraire la première adresse active (primär)
@@ -112,7 +112,7 @@ const submit = async () => {
   try {
     const payload = { ...employee.value }
     if (!payload.password) delete payload.password
-    const response = await axios.put(`/api/employees.php?id=${payload.benutzer_id}`, payload)
+    const response = await axios.put(`/api/employees_update.php?id=${payload.benutzer_id}`, payload)
     if (response.data.success) {
       router.push('/employees')
     } else {

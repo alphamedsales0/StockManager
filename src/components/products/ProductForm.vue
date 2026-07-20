@@ -700,6 +700,7 @@ const submit = async () => {
   transition: right 0.3s ease;
 }
 
+
 .floating-help-btn.open {
   right: 400px;
 }

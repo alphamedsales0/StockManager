@@ -1305,8 +1305,6 @@ letter-spacing:.3px;
 
 }
 
-
-
 .v-btn {
 
 text-transform:none;
@@ -1314,8 +1312,6 @@ text-transform:none;
 font-weight:600;
 
 }
-
-
 
 .v-data-table {
 

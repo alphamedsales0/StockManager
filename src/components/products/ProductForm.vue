@@ -110,7 +110,7 @@
               label="URL des Hauptbilds *"
               :rules="[required]"
               variant="outlined"
-              hint="URL des Hauptbilds des Produkts"
+              hint="URL des Hauptbilds des Produkts (wird automatisch aus der Galerie übernommen, falls leer)"
             ></v-text-field>
             <v-img
               v-if="product.main_image"
@@ -230,7 +230,7 @@
               </v-row>
             </template>
 
-            <!-- ===== Reha-Zubehör ===== -->
+            <!-- Reha-Zubehör -->
             <template v-if="product.article_type === 'rehabilitation_accessory'">
               <v-row>
                 <v-col cols="12" md="6">
@@ -263,14 +263,13 @@
           </v-card-text>
         </v-card>
 
-        <!-- ========== BILDERGALERIE MODIFIÉE ========== -->
+        <!-- Bildergalerie -->
         <v-card variant="outlined" class="mb-6">
           <v-card-title class="text-subtitle-1 bg-grey-lighten-3 py-2">
             Bildergalerie
           </v-card-title>
           <v-card-text>
             <div v-for="(img, idx) in additionalImages" :key="idx" class="d-flex align-center mb-2">
-              <!-- Sélecteur méthode -->
               <v-select
                 v-model="img.method"
                 :items="imageUploadMethods"
@@ -282,7 +281,6 @@
                 @update:model-value="onImageMethodChange(img)"
               />
 
-              <!-- Champ URL (si méthode 'url') -->
               <v-text-field
                 v-if="img.method === 'url'"
                 v-model="img.url"
@@ -293,7 +291,6 @@
                 :rules="img.method === 'url' ? [requiredImage] : []"
               />
 
-              <!-- File input (si méthode 'upload') -->
               <div v-else class="file-input-wrapper mr-2">
                 <input
                   type="file"
@@ -305,7 +302,6 @@
                 <span v-else class="file-placeholder">Keine Datei ausgewählt</span>
               </div>
 
-              <!-- Type d'image -->
               <v-select
                 v-model="img.type"
                 :items="['gallery', 'main']"
@@ -470,7 +466,7 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// Zusätzliche Bilder – avec nouvelles propriétés
+// Zusätzliche Bilder
 const additionalImages = ref([])
 
 // Auswahllisten
@@ -488,17 +484,16 @@ const articleTypes = [
   { title: 'Reha-Zubehör', value: 'rehabilitation_accessory' }
 ]
 
-// Méthodes d'upload d'images
 const imageUploadMethods = [
   { title: 'Bild-URL', value: 'url' },
   { title: 'Bild hochladen', value: 'upload' }
 ]
 
-// Règles de validation
+// Regeln
 const required = v => !!v || 'Dieses Feld ist erforderlich'
 const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
-// --- Gestion des images ---
+// --- Bildverwaltung ---
 const addImage = () => {
   additionalImages.value.push({
     url: '',
@@ -517,11 +512,10 @@ const onFileSelected = (event, idx) => {
   const file = event.target.files[0]
   if (!file) return
 
-  // Validation du type
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
   if (!allowedTypes.includes(file.type)) {
     alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
-    event.target.value = '' // reset
+    event.target.value = ''
     return
   }
 
@@ -541,7 +535,7 @@ const onImageMethodChange = (img) => {
   }
 }
 
-// --- Changement de type d'article ---
+// --- Artikeltypwechsel ---
 const onArticleTypeChange = () => {
   Object.keys(specifics).forEach(key => delete specifics[key])
 }
@@ -551,14 +545,14 @@ const cancel = () => {
   router.push('/dashboard')
 }
 
-// --- SUBMIT principal ---
+// --- SUBMIT (CORRIGÉ) ---
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
   submitting.value = true
   try {
-    // 1. Upload des images sélectionnées en mode 'upload'
+    // 1. Bilder hochladen (nur upload-Methode)
     const uploadPromises = additionalImages.value
       .filter(img => img.method === 'upload' && img.file)
       .map(async (img) => {
@@ -574,21 +568,52 @@ const submit = async () => {
         if (response.data.success) {
           img.url = response.data.url
         } else {
-          throw new Error('Upload failed: ' + (response.data.error || 'Unknown error'))
+          throw new Error('Upload fehlgeschlagen: ' + (response.data.error || 'unbekannt'))
         }
       })
 
     await Promise.all(uploadPromises)
 
-    // 2. Vérifier que toutes les images ont une URL (si méthode 'url', on valide déjà)
-    const missingUrls = additionalImages.value.some(img => !img.url)
-    if (missingUrls) {
-      throw new Error('Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.')
+    // 2. Prüfen, ob alle Bilder eine URL haben
+    const missingUrl = additionalImages.value.some(img => !img.url)
+    if (missingUrl) {
+      throw new Error('Bitte für jedes Bild eine URL angeben oder eine Datei hochladen.')
     }
 
-    // 3. Construire le payload
+    // 3. Hauptbild aus Galerie setzen, falls nicht separat eingegeben
+    const mainFromGallery = additionalImages.value.find(img => img.type === 'main')?.url || additionalImages.value[0]?.url
+    if (!product.main_image && mainFromGallery) {
+      product.main_image = mainFromGallery
+    }
+
+    // 4. Sicherstellen, dass main_image gesetzt ist
+    if (!product.main_image) {
+      throw new Error('Bitte ein Hauptbild angeben (entweder URL oder als "main" in der Galerie markieren).')
+    }
+
+    // 5. Datentypen korrigieren
+    product.price = parseFloat(product.price) || 0
+
+    // 6. Payload bauen – mit article-Wrapper
     const payload = {
-      article: { ...product },
+      article: {
+        name: product.name,
+        brand: product.brand,
+        category: product.category,
+        price: product.price,
+        main_image: product.main_image,
+        article_type: product.article_type,
+        article_number: product.article_number,
+        color: product.color || null,
+        warranty_years: product.warranty_years || null,
+        weight_capacity: product.weight_capacity || null,
+        power_supply: product.power_supply || null,
+        application_area: product.application_area || null,
+        in_stock: product.in_stock ? 1 : 0,
+        is_new: product.is_new ? 1 : 0,
+        best_seller: product.best_seller ? 1 : 0,
+        description: product.description || null
+      },
       specifics: { ...specifics },
       shipping: { ...shipping },
       images: additionalImages.value.map((img, idx) => ({
@@ -599,7 +624,7 @@ const submit = async () => {
       }))
     }
 
-    // 4. Envoyer au backend
+    // 7. Senden
     const response = await axios.post(
       'https://alpha-med-care.com/api/stock_manager_products.php',
       payload,
@@ -609,19 +634,29 @@ const submit = async () => {
     if (response.data.success) {
       snackbar.value = {
         show: true,
-        text: '✅ Das Produkt wurde erfolgreich erstellt!',
+        text: '✅ Produkt erfolgreich erstellt!',
         color: 'success'
       }
       redirecting.value = true
       setTimeout(() => router.push('/dashboard'), 2000)
     } else {
-      throw new Error(response.data.error || 'Unbekannter Fehler')
+      throw new Error(response.data.error || 'Unbekannter Fehler beim Speichern')
     }
   } catch (error) {
     console.error('Fehler beim Erstellen des Produkts:', error)
+
+    let errorMsg = 'Unbekannter Fehler'
+    if (error.response) {
+      errorMsg = error.response.data?.error || error.response.data?.message || `Server-Fehler (${error.response.status})`
+    } else if (error.request) {
+      errorMsg = 'Keine Antwort vom Server. Bitte Netzwerk prüfen.'
+    } else {
+      errorMsg = error.message
+    }
+
     snackbar.value = {
       show: true,
-      text: `❌ Fehler: ${error.message}`,
+      text: `❌ Fehler: ${errorMsg}`,
       color: 'error'
     }
     redirecting.value = false
@@ -673,7 +708,6 @@ const submit = async () => {
   background: #1565c0;
 }
 
-/* ---- Styles pour le file input personnalisé ---- */
 .file-input-wrapper {
   display: flex;
   align-items: center;
@@ -712,7 +746,6 @@ const submit = async () => {
   margin-left: 4px;
 }
 
-/* Ajustement pour mobile */
 @media (max-width: 768px) {
   .file-input-wrapper {
     flex: 1 1 100%;

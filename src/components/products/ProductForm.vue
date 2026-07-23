@@ -48,16 +48,29 @@
               </v-col>
 
               <v-col cols="12" md="4">
-                <v-select v-model="product.category" :items="categories" label="Kategorie *" :rules="[required]" variant="outlined"/>
+                <v-select 
+                  v-model="product.category" 
+                  :items="categories" 
+                  item-title="name" 
+                  item-value="value"
+                  label="Kategorie *" 
+                  :rules="[required]" 
+                  variant="outlined"
+                />
               </v-col>
 
               <v-col cols="12" md="4">
-                <v-select v-model="product.article_type" :items="articleTypes"
-                          label="Artikeltyp *" :rules="[required]"
-                          variant="outlined"
-                          @update:model-value="onArticleTypeChange"/>
+                <v-select 
+                  v-model="product.article_type" 
+                  :items="articleTypes" 
+                  item-title="name" 
+                  item-value="value"
+                  label="Artikeltyp *" 
+                  :rules="[required]" 
+                  variant="outlined"
+                  @update:model-value="onArticleTypeChange"
+                />
               </v-col>
-
               <v-col cols="12" md="4">
                 <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined"/>
               </v-col>
@@ -416,7 +429,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import GuideDrawer from '../../components/dashboard/GuideDrawer.vue'
@@ -469,21 +482,32 @@ const shipping = reactive({
 // Zusätzliche Bilder
 const additionalImages = ref([])
 
-// Auswahllisten
-const categories = [
-  { title: 'Kardio', value: 'cardio' },
-  { title: 'Kraft', value: 'strength' },
-  { title: 'Rehabilitation', value: 'rehabilitation' },
-  { title: 'Zubehör', value: 'accessories' }
-]
+// Dynamische Auswahllisten – werden beim Mounten geladen
+const categories = ref([])
+const articleTypes = ref([])
 
-const articleTypes = [
-  { title: 'Laufband', value: 'treadmill' },
-  { title: 'Fahrrad', value: 'bike' },
-  { title: 'Kraftgerät', value: 'strength' },
-  { title: 'Reha-Zubehör', value: 'rehabilitation_accessory' }
-]
+// Lade‑Funktion für Kategorien und Artikeltypen
+const loadOptions = async () => {
+  try {
+    const [catRes, typeRes] = await Promise.all([
+      axios.get('https://alpha-med-care.com/api/get_categories.php'),
+      axios.get('https://alpha-med-care.com/api/get_article_types.php')
+    ])
+    categories.value = catRes.data
+    articleTypes.value = typeRes.data
+  } catch (error) {
+    console.error('Fehler beim Laden der Kategorien/Artikeltypen:', error)
+    categories.value = []
+    articleTypes.value = []
+    snackbar.value = {
+      show: true,
+      text: '❌ Kategorien konnten nicht geladen werden',
+      color: 'error'
+    }
+  }
+}
 
+// Statische Hilfslisten für die Bild-Upload-Methoden
 const imageUploadMethods = [
   { title: 'Bild-URL', value: 'url' },
   { title: 'Bild hochladen', value: 'upload' }
@@ -545,10 +569,18 @@ const cancel = () => {
   router.push('/dashboard')
 }
 
-// --- SUBMIT (CORRIGÉ) ---
+// --- SUBMIT mit Absicherung gegen Objekt-Werte ---
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
+
+  // Sicherstellen, dass category und article_type Strings sind
+  if (typeof product.category !== 'string') {
+    product.category = product.category?.value || ''
+  }
+  if (typeof product.article_type !== 'string') {
+    product.article_type = product.article_type?.value || ''
+  }
 
   submitting.value = true
   try {
@@ -664,6 +696,11 @@ const submit = async () => {
     submitting.value = false
   }
 }
+
+// Beim Mounten die dynamischen Optionen laden
+onMounted(() => {
+  loadOptions()
+})
 </script>
 
 <style scoped>
@@ -699,7 +736,6 @@ const submit = async () => {
   box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
   transition: right 0.3s ease;
 }
-
 
 .floating-help-btn.open {
   right: 400px;

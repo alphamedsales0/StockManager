@@ -58,6 +58,7 @@
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Produkte"
+          :active="activeTab === 'products-list'"
           @click="navigateTo('products-list')"
         />
 
@@ -65,29 +66,25 @@
         <v-list-item
           prepend-icon="mdi-plus-box-outline"
           title="Neues Produkt"
+          :active="activeTab === 'add-product'"
           @click="navigateTo('add-product')"
         />
 
-        <!-- Kategorien (als Untergruppe mit eigenen Unterpunkten) -->
-        <v-list-group value="categories">
-          <template #activator="{ props }">
-            <v-list-item v-bind="props" title="Kategorien" prepend-icon="mdi-tag-outline" />
-          </template>
+        <!-- Kategorien (direkt) -->
+        <v-list-item
+          prepend-icon="mdi-tag-outline"
+          title="Kategorien"
+          :active="activeTab === 'categories'"
+          @click="navigateTo('categories')"
+        />
 
-          <!-- Artikeltypen -->
-          <v-list-item
-            prepend-icon="mdi-format-list-checks"
-            title="Artikeltypen"
-            @click="navigateTo('article-types')"
-          />
-
-          <!-- Hersteller -->
-          <v-list-item
-            prepend-icon="mdi-domain"
-            title="Hersteller"
-            @click="navigateTo('manufacturers')"
-          />
-        </v-list-group>
+        <!-- Artikeltypen (direkt) -->
+        <v-list-item
+          prepend-icon="mdi-format-list-checks"
+          title="Artikeltypen"
+          :active="activeTab === 'article-types'"
+          @click="navigateTo('article-types')"
+        />
       </v-list-group>
 
       <!-- KUNDEN -->
@@ -98,11 +95,13 @@
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Kunden"
+          :active="activeTab === 'customers-list'"
           @click="navigateTo('customers-list')"
         />
         <v-list-item
           prepend-icon="mdi-account-plus-outline"
           title="Neuer Kunde"
+          :active="activeTab === 'add-customer'"
           @click="navigateTo('add-customer')"
         />
       </v-list-group>
@@ -115,6 +114,7 @@
         <v-list-item
           prepend-icon="mdi-account-multiple-outline"
           title="Mitarbeiter Übersicht"
+          :active="activeTab === 'employees-list'"
           @click="navigateTo('employees-list')"
         >
           <template #append>
@@ -124,16 +124,18 @@
         <v-list-item
           prepend-icon="mdi-account-plus-outline"
           title="Neuer Mitarbeiter"
+          :active="activeTab === 'add-employee'"
           @click="navigateTo('add-employee')"
         />
         <v-list-item
           prepend-icon="mdi-card-account-details-outline"
           title="Profile"
+          :active="activeTab === 'employee-profile'"
           @click="navigateTo('employee-profile')"
         />
       </v-list-group>
 
-      <!-- BESTELLUNGEN (Dropdown) -->
+      <!-- BESTELLUNGEN -->
       <v-list-group value="orders">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Bestellungen" prepend-icon="mdi-cart-outline" />
@@ -141,11 +143,13 @@
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Bestellungen"
+          :active="activeTab === 'orders-list'"
           @click="navigateTo('orders-list')"
         />
         <v-list-item
           prepend-icon="mdi-cart-plus"
           title="Neue Bestellung"
+          :active="activeTab === 'add-order'"
           @click="navigateTo('add-order')"
         />
       </v-list-group>
@@ -155,11 +159,13 @@
       <v-list-item
         prepend-icon="mdi-chart-line"
         title="Statistiken"
+        :active="activeTab === 'stats'"
         @click="navigateTo('stats')"
       />
       <v-list-item
         prepend-icon="mdi-help-circle-outline"
         title="Hilfe"
+        :active="activeTab === 'help'"
         @click="navigateTo('help')"
       />
     </v-list>
@@ -182,26 +188,20 @@ const activeTab = computed(() => {
   if (path === '/') return 'dashboard'
   if (path === '/tickets') return 'tickets'
 
-  // Produkt‑Unterpunkte
   if (path === '/products') return 'products-list'
   if (path === '/products/add') return 'add-product'
 
-  // Kategorien‑Unterpunkte (neu)
-  if (path === '/products/categories/types') return 'article-types'
-  if (path === '/products/categories/manufacturers') return 'manufacturers'
-  // Falls Sie eine eigene Übersichtsseite für Kategorien haben:
-  // if (path === '/products/categories') return 'categories'
+  // Neue Pfade für Kategorien und Artikeltypen
+  if (path === '/categories') return 'categories'
+  if (path === '/article-types') return 'article-types'
 
-  // Kunden
   if (path === '/customers') return 'customers-list'
   if (path === '/customers/add') return 'add-customer'
 
-  // Mitarbeiter
   if (path === '/employees') return 'employees-list'
   if (path === '/employees/add') return 'add-employee'
   if (path.startsWith('/employees/')) return 'employee-profile'
 
-  // Bestellungen
   if (path === '/orders') return 'orders-list'
   if (path === '/orders/add') return 'add-order'
 
@@ -220,9 +220,9 @@ const navigateTo = (tab) => {
     'products-list': '/products',
     'add-product': '/products/add',
 
-    // Kategorien‑Unterpunkte (neue Pfade)
-    'article-types': '/products/categories/types',
-    manufacturers: '/products/categories/manufacturers',
+    // Neue Einträge
+    'categories': '/categories',
+    'article-types': '/article-types',
 
     'customers-list': '/customers',
     'add-customer': '/customers/add',
@@ -264,9 +264,5 @@ const navigateTo = (tab) => {
 }
 .v-list-item--active .v-icon {
   color: #1976d2;
-}
-/* Erhöhte Einrückung für die Unter‑Unterpunkte (Artikeltypen & Hersteller) */
-.v-list-group__items .v-list-group__items .v-list-item {
-  padding-left: 48px !important;
 }
 </style>

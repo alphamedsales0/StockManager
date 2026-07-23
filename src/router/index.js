@@ -54,6 +54,20 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  // Neue Routen für Kategorien und Artikeltypen
+  {
+    path: '/categories',
+    name: 'CategoriesList',
+    component: () => import('../views/CategoriesList.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/article-types',
+    name: 'ArticleTypesList',
+    component: () => import('../views/ArticleTypesList.vue'),
+    meta: { requiresAuth: true }
+  },
+
  // ---------- MITARBEITER MANAGEMENT ----------
 
 

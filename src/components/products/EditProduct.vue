@@ -51,11 +51,12 @@
                 <v-text-field v-model="product.name" label="Produktname *" :rules="[required]" variant="outlined" />
               </v-col>
               <v-col cols="12" md="6">
-                <!-- ====== NEU: Combobox für Marke ====== -->
-               <v-combobox
+                <!-- Combobox für Marke – item-value hinzugefügt -->
+                <v-combobox
                   v-model="product.brand"
                   :items="brands"
                   item-title="name"
+                  item-value="value"
                   label="Marke *"
                   :rules="[required]"
                   variant="outlined"
@@ -71,10 +72,29 @@
               </v-col>
 
               <v-col cols="12" md="4">
-                <v-select v-model="product.category" :items="categories" label="Kategorie *" :rules="[required]" variant="outlined" />
+                <!-- Kategorie – item-title und item-value hinzugefügt -->
+                <v-select
+                  v-model="product.category"
+                  :items="categories"
+                  item-title="name"
+                  item-value="value"
+                  label="Kategorie *"
+                  :rules="[required]"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="12" md="4">
-                <v-select v-model="product.article_type" :items="articleTypes" label="Artikeltyp *" :rules="[required]" variant="outlined" @update:model-value="onArticleTypeChange" />
+                <!-- Artikeltyp – item-title und item-value hinzugefügt -->
+                <v-select
+                  v-model="product.article_type"
+                  :items="articleTypes"
+                  item-title="name"
+                  item-value="value"
+                  label="Artikeltyp *"
+                  :rules="[required]"
+                  variant="outlined"
+                  @update:model-value="onArticleTypeChange"
+                />
               </v-col>
               <v-col cols="12" md="4">
                 <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined" />
@@ -395,13 +415,18 @@ const snackbar = ref({
   color: 'success'
 })
 
+// Hilfsfunktion für Snackbar
+const showSnackbar = (text, color = 'success') => {
+  snackbar.value = { show: true, text, color }
+}
+
 // Produktdaten
 const product = reactive({
   name: '',
-  brand: '',  // <-- wird über Combobox gefüllt
-  category: '',
+  brand: '',      // jetzt ein String (value)
+  category: '',   // jetzt ein String (value)
   price: null,
-  article_type: '',
+  article_type: '', // jetzt ein String (value)
   article_number: '',
   color: '',
   warranty_years: null,
@@ -428,7 +453,7 @@ const allImages = ref([])
 // Auswahllisten
 const categories = ref([])
 const articleTypes = ref([])
-const brands = ref([]) // <-- NEU
+const brands = ref([])
 
 const imageTypeOptions = [
   { title: 'Hauptbild', value: 'main' },
@@ -441,7 +466,7 @@ const imageUploadMethods = [
   { title: 'Bild hochladen', value: 'upload' }
 ]
 
-// Validierung
+// Validierungsregeln
 const required = v => !!v || 'Dieses Feld ist erforderlich'
 const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
@@ -458,21 +483,42 @@ const loadBrands = async () => {
 }
 
 const onBrandChange = async (val) => {
-  if (typeof val === 'string' && val.trim() !== '') {
-    const exists = brands.value.some(b => b.name.toLowerCase() === val.trim().toLowerCase())
+  // Falls val ein Objekt ist (z.B. bei Auswahl aus der Liste), den value extrahieren
+  let brandValue = val
+  if (typeof val === 'object' && val !== null && 'value' in val) {
+    brandValue = val.value
+  }
+  // Falls val ein String ist, bleibt er so
+  if (typeof brandValue === 'string' && brandValue.trim() !== '') {
+    const trimmed = brandValue.trim()
+    // Prüfen, ob die Marke bereits existiert (anhand value oder name)
+    const exists = brands.value.some(b =>
+      b.value?.toLowerCase() === trimmed.toLowerCase() ||
+      b.name?.toLowerCase() === trimmed.toLowerCase()
+    )
     if (!exists) {
       try {
-        const newBrand = { name: val.trim() }
+        const newBrand = {
+          name: trimmed,
+          value: trimmed.toLowerCase().replace(/\s+/g, '-')
+        }
         const res = await axios.post('/api/add_brand_stock.php', newBrand)
         if (res.data.success) {
           brands.value.push(res.data.item)
-          product.brand = res.data.item.name  // Markenname speichern
-          showSnackbar('Neue Marke angelegt', 'success')
+          product.brand = res.data.item.value
+          showSnackbar('✅ Neue Marke angelegt', 'success')
         }
       } catch (error) {
         console.error('Fehler beim Anlegen der Marke:', error)
-        showSnackbar('Marke konnte nicht angelegt werden', 'error')
+        showSnackbar('❌ Marke konnte nicht angelegt werden', 'error')
       }
+    } else {
+      // Die Marke existiert bereits – setze den korrekten value
+      const existing = brands.value.find(b =>
+        b.value?.toLowerCase() === trimmed.toLowerCase() ||
+        b.name?.toLowerCase() === trimmed.toLowerCase()
+      )
+      if (existing) product.brand = existing.value
     }
   }
 }
@@ -506,11 +552,7 @@ const loadOptions = async () => {
     console.error('Fehler beim Laden der Optionen:', error)
     categories.value = []
     articleTypes.value = []
-    snackbar.value = {
-      show: true,
-      text: `❌ Optionen konnten nicht geladen werden: ${error.message}`,
-      color: 'error'
-    }
+    showSnackbar(`❌ Optionen konnten nicht geladen werden: ${error.message}`, 'error')
   }
 }
 
@@ -522,7 +564,7 @@ const loadProduct = async () => {
     if (response.data.success) {
       const data = response.data.product
 
-      // Allgemeine Daten – inkl. Marke
+      // Allgemeine Daten – die Felder sind bereits Strings
       Object.assign(product, data.article)
       Object.assign(specifics, data.specifics)
       Object.assign(shipping, data.shipping)
@@ -563,11 +605,7 @@ const loadProduct = async () => {
     }
   } catch (error) {
     console.error('Fehler:', error)
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler beim Laden: ${error.message}`,
-      color: 'error'
-    }
+    showSnackbar(`❌ Fehler beim Laden: ${error.message}`, 'error')
     setTimeout(() => router.push('/products'), 2000)
   } finally {
     loading.value = false
@@ -576,6 +614,7 @@ const loadProduct = async () => {
 
 // ---------- ARTIKELTYP ÄNDERN ----------
 const onArticleTypeChange = () => {
+  // Alle spezifischen Felder zurücksetzen
   Object.keys(specifics).forEach(key => delete specifics[key])
 }
 
@@ -650,15 +689,11 @@ const submit = async () => {
 
   const mainImageObj = allImages.value.find(img => img.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
-    snackbar.value = {
-      show: true,
-      text: '❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")',
-      color: 'error'
-    }
+    showSnackbar('❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")', 'error')
     return
   }
 
-  // Uploads
+  // Uploads durchführen
   const uploadPromises = allImages.value
     .filter(img => img.method === 'upload' && img.file)
     .map(async (img) => {
@@ -688,21 +723,14 @@ const submit = async () => {
   try {
     await Promise.all(uploadPromises)
   } catch (error) {
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler beim Upload: ${error.message}`,
-      color: 'error'
-    }
+    showSnackbar(`❌ Fehler beim Upload: ${error.message}`, 'error')
     return
   }
 
+  // Prüfen, ob alle Bilder eine URL haben
   const missingUrl = allImages.value.some(img => !img.url)
   if (missingUrl) {
-    snackbar.value = {
-      show: true,
-      text: '❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.',
-      color: 'error'
-    }
+    showSnackbar('❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.', 'error')
     return
   }
 
@@ -734,11 +762,7 @@ const submit = async () => {
     )
 
     if (response.data.success) {
-      snackbar.value = {
-        show: true,
-        text: '✅ Produkt erfolgreich aktualisiert!',
-        color: 'success'
-      }
+      showSnackbar('✅ Produkt erfolgreich aktualisiert!', 'success')
       redirecting.value = true
       setTimeout(() => {
         router.push('/products')
@@ -748,11 +772,7 @@ const submit = async () => {
     }
   } catch (error) {
     console.error('Fehler beim Aktualisieren:', error)
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler: ${error.message}`,
-      color: 'error'
-    }
+    showSnackbar(`❌ Fehler: ${error.message}`, 'error')
     redirecting.value = false
   } finally {
     submitting.value = false
@@ -772,11 +792,7 @@ const deleteProduct = async () => {
     })
 
     if (response.data && response.data.success === true) {
-      snackbar.value = {
-        show: true,
-        text: '🗑️ Produkt erfolgreich gelöscht.',
-        color: 'success'
-      }
+      showSnackbar('🗑️ Produkt erfolgreich gelöscht.', 'success')
       deleteDialog.value = false
       redirecting.value = true
       setTimeout(() => router.push('/products'), 2000)
@@ -793,11 +809,7 @@ const deleteProduct = async () => {
     } else {
       message = error.message
     }
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler beim Löschen: ${message}`,
-      color: 'error'
-    }
+    showSnackbar(`❌ Fehler beim Löschen: ${message}`, 'error')
     deleteDialog.value = false
   } finally {
     deleting.value = false
@@ -818,7 +830,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* gleiche Styles wie in ProductCreate */
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
 .action-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); color: rgb(17, 90, 10); }

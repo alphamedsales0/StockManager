@@ -1,4 +1,6 @@
 <?php
+// Autor: Alpha Med Care
+// upload_image.php - API pour télécharger une image et retourner son URL publique
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: POST, OPTIONS');

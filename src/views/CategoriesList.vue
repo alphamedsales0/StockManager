@@ -1,133 +1,355 @@
 <template>
-  <v-container>
-    <v-card>
-      <v-card-title class="d-flex justify-space-between align-center">
-        <span>Kategorien</span>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openAddDialog">
+  <v-container fluid class="pa-6">
+
+    <!-- HEADER CARD -->
+    <v-card rounded="xl" elevation="3" class="mb-6">
+      <v-toolbar color="transparent" class="px-4">
+        <v-toolbar-title>
+          <v-icon color="primary" class="mr-2">mdi-format-list-bulleted-type</v-icon>
+          <strong>Kategorien</strong>
+        </v-toolbar-title>
+
+        <v-spacer />
+
+        <v-text-field
+          v-model="search"
+          label="Suchen..."
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          style="max-width:300px"
+        />
+
+        <v-btn color="primary" prepend-icon="mdi-plus" class="ml-4" rounded="lg" @click="openAddDialog">
           Neu
         </v-btn>
-      </v-card-title>
-
-      <v-card-text>
-        <v-list>
-          <v-list-item v-for="cat in categories" :key="cat.id">
-            <v-list-item-title>{{ cat.name }}</v-list-item-title>
-            <v-list-item-subtitle>Wert: {{ cat.value }}</v-list-item-subtitle>
-          </v-list-item>
-        </v-list>
-      </v-card-text>
+      </v-toolbar>
     </v-card>
 
-    <!-- Dialog zum Hinzufügen -->
+    <!-- DATATABLE -->
+    <v-card rounded="xl" elevation="3">
+      <v-data-table-server
+        v-model:items-per-page="itemsPerPage"
+        :headers="headers"
+        :items="categories"
+        :items-length="totalItems"
+        :loading="loading"
+        :search="search"
+        item-value="id"
+        @update:options="loadItems"
+      >
+        <!-- ID -->
+        <template #item.id="{ item }">
+          <v-chip size="small" color="primary" variant="tonal">#{{ item.id }}</v-chip>
+        </template>
+
+        <!-- NAME -->
+        <template #item.name="{ item }">
+          <div class="d-flex align-center">
+            <v-avatar size="36" color="primary" class="mr-3">
+              <v-icon>mdi-tag</v-icon>
+            </v-avatar>
+            <div><strong>{{ item.name }}</strong></div>
+          </div>
+        </template>
+
+        <!-- VALUE -->
+        <template #item.value="{ item }">
+          <v-chip color="secondary" variant="outlined">{{ item.value }}</v-chip>
+        </template>
+
+        <!-- ACTIONS -->
+        <template #item.actions="{ item }">
+          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEditDialog(item)"></v-btn>
+          <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="openDeleteDialog(item)"></v-btn>
+        </template>
+
+        <!-- Leere Tabelle -->
+        <template #no-data>
+          <div class="pa-6 text-center text-grey">
+            <v-icon size="48" class="mb-2">mdi-inbox-outline</v-icon>
+            <div>Keine Kategorien vorhanden</div>
+          </div>
+        </template>
+      </v-data-table-server>
+    </v-card>
+
+    <!-- ADD / EDIT DIALOG -->
     <v-dialog v-model="dialog" max-width="500">
-      <v-card>
-        <v-card-title>Neue Kategorie anlegen</v-card-title>
+      <v-card rounded="xl">
+        <v-card-title class="pa-6">
+          <v-icon color="primary" class="mr-2">mdi-tag-plus</v-icon>
+          {{ editing ? 'Kategorie bearbeiten' : 'Neue Kategorie anlegen' }}
+        </v-card-title>
         <v-card-text>
-          <v-text-field
-            v-model="newCategory.name"
-            label="Name *"
-            :rules="[required]"
-            variant="outlined"
-          />
-          <v-text-field
-            v-model="newCategory.value"
-            label="Technischer Wert *"
-            hint="z.B. 'cardio' (wird in der URL verwendet)"
-            :rules="[required]"
-            variant="outlined"
-          />
+          <v-form ref="formRef" @submit.prevent="saveCategory">
+            <v-text-field
+              v-model="form.name"
+              label="Name"
+              variant="outlined"
+              prepend-inner-icon="mdi-tag"
+              class="mb-3"
+              :rules="[v => !!v?.trim() || 'Name ist erforderlich']"
+              required
+            />
+            <v-text-field
+              v-model="form.value"
+              label="Technischer Wert"
+              hint="z.B. cardio"
+              persistent-hint
+              variant="outlined"
+              prepend-inner-icon="mdi-code-tags"
+              :rules="[v => !!v?.trim() || 'Technischer Wert ist erforderlich']"
+              required
+            />
+            <v-card-actions class="pa-0 mt-4">
+              <v-spacer />
+              <v-btn variant="text" @click="dialog=false">Abbrechen</v-btn>
+              <v-btn color="primary" type="submit" :loading="saving">Speichern</v-btn>
+            </v-card-actions>
+          </v-form>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- DELETE CONFIRMATION -->
+    <v-dialog v-model="deleteDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-title>
+          <v-icon color="error" class="mr-2">mdi-alert</v-icon>
+          Löschen bestätigen
+        </v-card-title>
+        <v-card-text>
+          Möchten Sie die Kategorie <strong>{{ selectedItem?.name }}</strong> wirklich löschen?
         </v-card-text>
         <v-card-actions>
-          <v-btn text @click="dialog = false">Abbrechen</v-btn>
-          <v-btn color="primary" @click="saveCategory" :loading="saving">Speichern</v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog=false">Abbrechen</v-btn>
+          <v-btn color="error" :loading="deleting" @click="deleteCategory">Löschen</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Snackbar für Meldungen -->
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="5000">
+    <!-- SNACKBAR -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="4000">
       {{ snackbar.text }}
       <template #actions>
-        <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false" />
+        <v-btn icon="mdi-close" variant="text" @click="snackbar.show=false"></v-btn>
       </template>
     </v-snackbar>
+
   </v-container>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 
+// ------------------------------------------------------
+// État
+// ------------------------------------------------------
 const categories = ref([])
-const dialog = ref(false)
-const saving = ref(false)
-const newCategory = ref({ name: '', value: '' })
-const snackbar = ref({ show: false, text: '', color: 'success' })
+const totalItems = ref(0)
+const loading = ref(false)
+const itemsPerPage = ref(10)
+const search = ref('')
 
-const required = v => !!v || 'Dieses Feld ist erforderlich'
+const headers = [
+  { title: 'ID', key: 'id', sortable: true },
+  { title: 'Name', key: 'name', sortable: true },
+  { title: 'Technischer Wert', key: 'value', sortable: true },
+  { title: 'Aktionen', key: 'actions', sortable: false, align: 'end' }
+]
 
-const loadCategories = async () => {
+// Options de tableau (pour rechargement)
+let currentOptions = {
+  page: 1,
+  itemsPerPage: 10,
+  sortBy: [{ key: 'id', order: 'desc' }]
+}
+
+// ------------------------------------------------------
+// Chargement des données
+// ------------------------------------------------------
+const loadItems = async (options) => {
+  currentOptions = options
+  loading.value = true
+
   try {
-    const res = await axios.get('https://alpha-med-care.com/api/get_categories.php')
-    categories.value = res.data
-  } catch (error) {
-    console.error('Fehler beim Laden der Kategorien:', error)
-    let msg = 'Kategorien konnten nicht geladen werden.'
-    if (error.response) {
-      msg += ` (Status ${error.response.status})`
-      if (error.response.data?.error) msg += ': ' + error.response.data.error
-    } else if (error.request) {
-      msg += ' Keine Antwort vom Server.'
+    const params = new URLSearchParams({
+      page: options.page,
+      itemsPerPage: options.itemsPerPage,
+      search: search.value,
+      sortBy: options.sortBy?.length ? options.sortBy[0].key : 'id',
+      sortOrder: options.sortBy?.length ? options.sortBy[0].order : 'desc'
+    })
+
+    const response = await fetch(`/api/get_categories_pagination.php?${params.toString()}`)
+    const data = await response.json()
+
+    if (data.success) {
+      categories.value = data.items
+      totalItems.value = data.total
     } else {
-      msg += ' ' + error.message
+      showSnackbar('Fehler: ' + (data.message || 'Unbekannt'), 'error')
     }
-    snackbar.value = { show: true, text: '❌ ' + msg, color: 'error' }
+  } catch (error) {
+    showSnackbar('Netzwerkfehler beim Laden', 'error')
+    console.error(error)
+  } finally {
+    loading.value = false
   }
 }
+
+// ------------------------------------------------------
+// Montage
+// ------------------------------------------------------
+onMounted(() => {
+  loadItems(currentOptions)
+})
+
+// ------------------------------------------------------
+// Recherche
+// ------------------------------------------------------
+watch(search, () => {
+  currentOptions.page = 1
+  loadItems(currentOptions)
+})
+
+// ------------------------------------------------------
+// Dialog Ajouter / Éditer
+// ------------------------------------------------------
+const dialog = ref(false)
+const editing = ref(false)
+const saving = ref(false)
+const form = ref({ id: null, name: '', value: '' })
+const formRef = ref(null)
 
 const openAddDialog = () => {
-  newCategory.value = { name: '', value: '' }
+  editing.value = false
+  form.value = { id: null, name: '', value: '' }
   dialog.value = true
+  formRef.value?.resetValidation()
 }
 
+const openEditDialog = (item) => {
+  editing.value = true
+  form.value = { id: item.id, name: item.name, value: item.value }
+  dialog.value = true
+  formRef.value?.resetValidation()
+}
+
+// ------------------------------------------------------
+// Sauvegarder
+// ------------------------------------------------------
 const saveCategory = async () => {
-  if (!newCategory.value.name || !newCategory.value.value) {
-    snackbar.value = { show: true, text: 'Bitte füllen Sie alle Felder aus.', color: 'warning' }
-    return
-  }
+  const { valid } = await formRef.value?.validate() || { valid: false }
+  if (!valid) return
 
   saving.value = true
   try {
-    const response = await axios.post(
-      'https://alpha-med-care.com/api/add_category.php',
-      newCategory.value,
-      { headers: { 'Content-Type': 'application/json' } }
-    )
+    let url, method
+    if (editing.value) {
+      url = '/api/update_category.php'
+      method = 'put'
+    } else {
+      url = '/api/add_category.php'
+      method = 'post'
+    }
+
+    const response = await axios({
+      method,
+      url,
+      data: form.value,
+      headers: { 'Content-Type': 'application/json' }
+    })
 
     if (response.data.success) {
-      snackbar.value = { show: true, text: '✅ Kategorie erfolgreich angelegt!', color: 'success' }
+      showSnackbar('Kategorie erfolgreich gespeichert', 'success')
       dialog.value = false
-      await loadCategories() // Liste neu laden
+      await loadItems(currentOptions)
     } else {
-      throw new Error(response.data.error || 'Unbekannter Fehler')
+      showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
     }
   } catch (error) {
-    console.error('Fehler beim Speichern:', error)
-    let msg = 'Fehler beim Speichern der Kategorie.'
-    if (error.response) {
-      msg += ` Status ${error.response.status}: `
-      if (error.response.data?.error) msg += error.response.data.error
-      else msg += error.response.statusText
-    } else if (error.request) {
-      msg += ' Keine Antwort vom Server.'
-    } else {
-      msg += ' ' + error.message
-    }
-    snackbar.value = { show: true, text: '❌ ' + msg, color: 'error' }
+    console.error(error)
+    showSnackbar(error.response?.data?.message || 'Fehler beim Speichern', 'error')
   } finally {
     saving.value = false
   }
 }
 
-onMounted(loadCategories)
+// ------------------------------------------------------
+// Supprimer
+// ------------------------------------------------------
+const deleteDialog = ref(false)
+const deleting = ref(false)
+const selectedItem = ref(null)
+
+const openDeleteDialog = (item) => {
+  selectedItem.value = item
+  deleteDialog.value = true
+}
+
+const deleteCategory = async () => {
+  deleting.value = true
+  try {
+    const response = await axios({
+      method: 'post',
+      url: '/api/delete_category.php',
+      data: { id: selectedItem.value.id },
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (response.data.success) {
+      showSnackbar('Kategorie gelöscht', 'success')
+      deleteDialog.value = false
+      await loadItems(currentOptions)
+    } else {
+      showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
+    }
+  } catch (error) {
+    console.error(error)
+    showSnackbar('Fehler beim Löschen', 'error')
+  } finally {
+    deleting.value = false
+  }
+}
+
+// ------------------------------------------------------
+// Snackbar
+// ------------------------------------------------------
+const snackbar = ref({ show: false, text: '', color: 'success' })
+
+const showSnackbar = (text, color = 'success') => {
+  snackbar.value = { show: true, text, color }
+}
 </script>
+
+<style scoped>
+.v-container { max-width: 1600px; }
+.v-card { transition: all .25s ease; }
+.v-card:hover { transform: translateY(-2px); }
+.v-toolbar { min-height: 80px; }
+.v-toolbar-title { font-size: 1.25rem; letter-spacing: .3px; }
+:deep(.v-data-table) { border-radius: 16px; overflow: hidden; }
+:deep(.v-data-table-header__content) { font-weight: 700; color: rgb(var(--v-theme-primary)); }
+:deep(.v-data-table__td) { height: 64px; }
+:deep(.v-data-table__tr) { transition: background .2s ease; }
+:deep(.v-data-table__tr:hover) { background: rgba(var(--v-theme-primary), .05); }
+.v-btn { text-transform: none; letter-spacing: .2px; }
+.v-dialog .v-card { overflow: hidden; }
+.v-dialog .v-card-title { font-size: 1.2rem; font-weight: 700; }
+:deep(.v-field) { border-radius: 12px; }
+:deep(.v-field--focused) { box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), .15); }
+.v-chip { font-weight: 600; }
+.v-snackbar { font-weight: 500; }
+@media(max-width:900px) {
+  .v-toolbar { flex-wrap: wrap; height: auto; padding-bottom: 15px; }
+  .v-toolbar-title { width: 100%; margin-bottom: 15px; }
+  .v-text-field { width: 100% !important; max-width: none !important; }
+  .v-btn { margin-top: 10px; }
+}
+</style>

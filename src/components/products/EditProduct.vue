@@ -17,6 +17,16 @@
           <v-btn variant="outlined" @click="cancel" prepend-icon="mdi-arrow-left" class="back-btn">
             Zurück
           </v-btn>
+          <!-- NEU: Lösch-Button -->
+          <v-btn
+            color="error"
+            variant="tonal"
+            @click="confirmDelete"
+            prepend-icon="mdi-delete"
+            class="delete-btn"
+          >
+            Löschen
+          </v-btn>
           <v-btn
             @click="submit"
             prepend-icon="mdi-content-save"
@@ -268,12 +278,37 @@
 
         <!-- ======================== AKTIONSLEISTE ======================== -->
         <v-card-actions class="justify-end">
+          <!-- NEU: Lösch-Button links -->
+          <v-btn color="error" variant="tonal" @click="confirmDelete" prepend-icon="mdi-delete" class="mr-auto">
+            Löschen
+          </v-btn>
           <v-btn variant="outlined" @click="cancel">Abbrechen</v-btn>
           <v-btn color="primary" :loading="submitting" @click="submit" :disabled="!valid">
             Änderungen speichern
           </v-btn>
         </v-card-actions>
       </v-form>
+
+      <!-- NEU: Bestätigungsdialog -->
+      <v-dialog v-model="deleteDialog" max-width="500">
+        <v-card>
+          <v-card-title class="text-h6">
+            <v-icon color="error" start>mdi-alert</v-icon>
+            Produkt wirklich löschen?
+          </v-card-title>
+          <v-card-text>
+            Möchten Sie das Produkt <strong>{{ product.name }}</strong> (ID: {{ productId }}) 
+            endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn variant="text" @click="deleteDialog = false">Abbrechen</v-btn>
+            <v-btn color="error" @click="deleteProduct" :loading="deleting">
+              Ja, löschen
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </v-card>
 
     <!-- Loader -->
@@ -323,6 +358,10 @@ const loading = ref(true)
 const redirecting = ref(false)
 const formRef = ref(null)
 const guideDrawer = ref(false)
+
+// NEU: Lösch-Dialog & Zustand
+const deleteDialog = ref(false)
+const deleting = ref(false)
 
 const snackbar = ref({
   show: false,
@@ -474,12 +513,10 @@ const addImage = () => {
 const removeImage = (idx) => {
   const img = allImages.value[idx]
   if (img.type === 'main') {
-    // Falls das Hauptbild gelöscht wird, setze ein anderes Bild als Hauptbild
     const nextMain = allImages.value.find((_, i) => i !== idx && allImages.value[i].url)
     if (nextMain) {
       nextMain.type = 'main'
     } else {
-      // Fallback: leeres Hauptbild hinzufügen
       allImages.value.push({
         id: null,
         url: '',
@@ -508,23 +545,20 @@ const onFileSelected = (event, idx) => {
   const file = event.target.files[0]
   if (!file) return
 
-  // Validierung
   const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
   if (!allowedTypes.includes(file.type)) {
     alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
-    event.target.value = '' // reset
+    event.target.value = ''
     return
   }
 
   const img = allImages.value[idx]
   img.file = file
   img.fileName = file.name
-  // Die Vorschau wird mit einer lokalen URL versehen
   img.url = URL.createObjectURL(file)
 }
 
 const handleImageError = (event, idx) => {
-  // Falls das Bild nicht geladen werden kann, eventuell auf Placeholder setzen
   event.target.src = 'https://placehold.co/300x200?text=Fehler'
 }
 
@@ -535,7 +569,6 @@ const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
-  // Prüfen, ob ein Hauptbild vorhanden ist (Typ 'main')
   const mainImageObj = allImages.value.find(img => img.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
     snackbar.value = {
@@ -546,7 +579,7 @@ const submit = async () => {
     return
   }
 
-  // 1. Upload aller Bilder, die im Modus 'upload' sind und eine Datei haben
+  // Upload aller Bilder im Modus 'upload'
   const uploadPromises = allImages.value
     .filter(img => img.method === 'upload' && img.file)
     .map(async (img) => {
@@ -561,9 +594,8 @@ const submit = async () => {
         )
         if (response.data.success) {
           img.url = response.data.url
-          img.file = null // libérer la mémoire
+          img.file = null
           img.fileName = ''
-          // Switch back to URL method
           img.method = 'url'
         } else {
           throw new Error(response.data.error || 'Upload fehlgeschlagen')
@@ -585,7 +617,6 @@ const submit = async () => {
     return
   }
 
-  // 2. Sicherstellen, dass alle Bilder eine URL haben
   const missingUrl = allImages.value.some(img => !img.url)
   if (missingUrl) {
     snackbar.value = {
@@ -596,7 +627,6 @@ const submit = async () => {
     return
   }
 
-  // 3. Payload erstellen
   product.main_image = mainImageObj.url
 
   const galleryImages = allImages.value
@@ -651,6 +681,57 @@ const submit = async () => {
 }
 
 // --------------------------------------------------------------
+// NEU: Löschfunktionen
+// --------------------------------------------------------------
+const confirmDelete = () => {
+  deleteDialog.value = true
+}
+
+const deleteProduct = async () => {
+  deleting.value = true
+  try {
+    // RELATIVEN PFAD verwenden (wie bei anderen API-Aufrufen auch)
+    const response = await axios.post('/api/delete_product.php', {
+      product_id: productId.value
+    })
+
+    console.log('Serverantwort:', response.data)
+
+    if (response.data && response.data.success === true) {
+      snackbar.value = {
+        show: true,
+        text: '🗑️ Produkt erfolgreich gelöscht.',
+        color: 'success'
+      }
+      deleteDialog.value = false
+      redirecting.value = true
+      setTimeout(() => router.push('/products'), 2000)
+    } else {
+      throw new Error(response.data?.error || 'Unbekannter Fehler')
+    }
+  } catch (error) {
+    console.error('❌ Löschfehler:', error)
+    let message = 'Unbekannter Fehler'
+    if (error.response) {
+      message = error.response.data?.error || `HTTP ${error.response.status}`
+    } else if (error.request) {
+      message = 'Keine Antwort vom Server'
+    } else {
+      message = error.message
+    }
+    snackbar.value = {
+      show: true,
+      text: `❌ Fehler beim Löschen: ${message}`,
+      color: 'error'
+    }
+    deleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
+
+// --------------------------------------------------------------
 // Abbrechen
 // --------------------------------------------------------------
 const cancel = () => {
@@ -678,6 +759,10 @@ onMounted(() => {
   color: rgb(17, 90, 10);
 }
 .back-btn {
+  border-radius: 50px;
+  box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
+}
+.delete-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
 }

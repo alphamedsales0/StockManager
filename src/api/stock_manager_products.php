@@ -111,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         :has_heart_rate_monitor, :has_wifi, :has_speaker, :power_range, :display_info,
                         :programs_info, :comfort_features
                     )";
+                    
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':article_id' => $articleId,
@@ -131,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':programs_info' => $specifics['programs_info'] ?? null,
                 ':comfort_features' => $specifics['comfort_features'] ?? null
             ]);
+
         } elseif ($article['article_type'] === 'bike') {
             $sql = "INSERT INTO exercise_bikes (
                         article_id, resistance_type, max_resistance, pedal_type, seat_adjustment,
@@ -163,6 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         :has_digital_display, :muscle_groups_targeted, :color_options,
                         :frame_material, :warranty_years
                     )";
+
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':article_id' => $articleId,

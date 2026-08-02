@@ -68,6 +68,13 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
+  {
+    path: '/brands',
+    name: 'Brands',
+    component: () => import('../components/products/Brands.vue'),
+    meta: { requiresAuth: true } // falls Sie Authentifizierung nutzen
+  },
+
  // ---------- MITARBEITER MANAGEMENT ----------
 
 

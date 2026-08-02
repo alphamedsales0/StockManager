@@ -70,7 +70,7 @@
           @click="navigateTo('add-product')"
         />
 
-        <!-- Kategorien (direkt) -->
+        <!-- Kategorien -->
         <v-list-item
           prepend-icon="mdi-tag-outline"
           title="Kategorien"
@@ -78,12 +78,20 @@
           @click="navigateTo('categories')"
         />
 
-        <!-- Artikeltypen (direkt) -->
+        <!-- Artikeltypen -->
         <v-list-item
           prepend-icon="mdi-format-list-checks"
           title="Artikeltypen"
           :active="activeTab === 'article-types'"
           @click="navigateTo('article-types')"
+        />
+
+        <!-- ====== NEU: MARKEN ====== -->
+        <v-list-item
+          prepend-icon="mdi-tag"
+          title="Marken"
+          :active="activeTab === 'brands'"
+          @click="navigateTo('brands')"
         />
       </v-list-group>
 
@@ -191,9 +199,9 @@ const activeTab = computed(() => {
   if (path === '/products') return 'products-list'
   if (path === '/products/add') return 'add-product'
 
-  // Neue Pfade für Kategorien und Artikeltypen
   if (path === '/categories') return 'categories'
   if (path === '/article-types') return 'article-types'
+  if (path === '/brands') return 'brands'   // <-- NEU
 
   if (path === '/customers') return 'customers-list'
   if (path === '/customers/add') return 'add-customer'
@@ -220,9 +228,9 @@ const navigateTo = (tab) => {
     'products-list': '/products',
     'add-product': '/products/add',
 
-    // Neue Einträge
     'categories': '/categories',
     'article-types': '/article-types',
+    'brands': '/brands',   // <-- NEU
 
     'customers-list': '/customers',
     'add-customer': '/customers/add',

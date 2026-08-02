@@ -38,15 +38,31 @@
 
           <v-card-text>
             <v-row>
-              <!-- 1. Zeile: name + brand (md="6") -->
+              <!-- 1. Zeile: name + brand (als Combobox) -->
               <v-col cols="12" md="6">
                 <v-text-field v-model="product.name" label="Produktname *" :rules="[required]" variant="outlined"/>
               </v-col>
               <v-col cols="12" md="6">
-                <v-text-field v-model="product.brand" label="Marke *" :rules="[required]" variant="outlined"/>
+                <!-- ====== NEU: Combobox für Marke ====== -->
+                <v-combobox
+                  v-model="product.brand"
+                  :items="brands"
+                  item-title="name"
+                  label="Marke *"
+                  :rules="[required]"
+                  variant="outlined"
+                  @update:model-value="onBrandChange"
+                  no-filter
+                >
+              <template #no-data>
+                <v-list-item>
+                  <span class="text-caption">Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.</span>
+                </v-list-item>
+              </template>
+              </v-combobox>
               </v-col>
 
-              <!-- 2. Zeile: category, article_type, article_number (md="4") -->
+              <!-- 2. Zeile: category, article_type, article_number -->
               <v-col cols="12" md="4">
                 <v-select 
                   v-model="product.category" 
@@ -74,7 +90,7 @@
                 <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined"/>
               </v-col>
 
-              <!-- 3. Zeile: price, color, warranty_years (md="4") -->
+              <!-- 3. Zeile: price, color, warranty_years -->
               <v-col cols="12" md="4">
                 <v-text-field v-model="product.price" label="Preis (€) *" type="number" :rules="[required]" variant="outlined"/>
               </v-col>
@@ -85,7 +101,7 @@
                 <v-text-field v-model="product.warranty_years" label="Garantie (Jahre)" type="number" variant="outlined"/>
               </v-col>
 
-              <!-- 4. Zeile: weight_capacity, power_supply, application_area (md="4") -->
+              <!-- 4. Zeile: weight_capacity, power_supply, application_area -->
               <v-col cols="12" md="4">
                 <v-text-field v-model="product.weight_capacity" label="Tragfähigkeit" variant="outlined"/>
               </v-col>
@@ -96,24 +112,24 @@
                 <v-text-field v-model="product.application_area" label="Anwendungsbereich" variant="outlined"/>
               </v-col>
 
-              <!-- Beschreibung (volle Breite) -->
+              <!-- Beschreibung -->
               <v-col cols="12">
                 <v-textarea v-model="product.description" label="Beschreibung" rows="3" variant="outlined"/>
               </v-col>
 
-              <!-- Checkboxen (ohne Wrapper, wie im Original) -->
+              <!-- Checkboxen -->
               <v-col cols="12">
-              <div class="d-flex flex-wrap gap-4 mt-2">
-                <v-checkbox v-model="product.in_stock" label="Auf Lager" hide-details></v-checkbox>
-                <v-checkbox v-model="product.is_new" label="Neues Produkt" hide-details></v-checkbox>
-                <v-checkbox v-model="product.best_seller" label="Bestseller" hide-details></v-checkbox>
-              </div>
-            </v-col>
+                <div class="d-flex flex-wrap gap-4 mt-2">
+                  <v-checkbox v-model="product.in_stock" label="Auf Lager" hide-details></v-checkbox>
+                  <v-checkbox v-model="product.is_new" label="Neues Produkt" hide-details></v-checkbox>
+                  <v-checkbox v-model="product.best_seller" label="Bestseller" hide-details></v-checkbox>
+                </div>
+              </v-col>
             </v-row>
           </v-card-text>
         </v-card>
 
-        <!-- ======================== BILDER (Hauptbild + Galerie) ======================== -->
+        <!-- ======================== BILDER ======================== -->
         <v-card variant="outlined" class="mb-6">
           <v-card-title class="text-subtitle-1 bg-grey-lighten-3 py-2">
             Bilder (Hauptbild + Galerie)
@@ -273,16 +289,6 @@
                 </v-col>
               </v-row>
             </template>
-
-            <!-- Kraftgerät -->
-            <template v-if="product.article_type === 'strength'">
-              <!-- (bleibt wie gehabt) -->
-            </template>
-
-            <!-- Reha-Zubehör -->
-            <template v-if="product.article_type === 'rehabilitation_accessory'">
-              <!-- (bleibt wie gehabt) -->
-            </template>
           </v-card-text>
         </v-card>
 
@@ -319,7 +325,7 @@
       </v-form>
     </v-card>
 
-    <!-- Overlays & Snackbar (unverändert) -->
+    <!-- Overlay & Snackbar -->
     <v-overlay
       v-model="redirecting"
       class="align-center justify-center"
@@ -381,7 +387,7 @@ const snackbar = ref({
 // Produktstammdaten
 const product = reactive({
   name: '',
-  brand: '',
+  brand: '', // wird über Combobox gesetzt
   category: '',
   price: null,
   main_image: '',
@@ -420,13 +426,58 @@ const imageTypeOptions = [
   { title: 'Detail', value: 'detail' }
 ]
 
-// Dynamische Listen
+// Dynamische Listen für Kategorien, Artikeltypen und Marken
 const categories = ref([])
 const articleTypes = ref([])
+const brands = ref([]) // <-- NEU: Marken
 
 // Regeln
 const required = v => !!v || 'Dieses Feld ist erforderlich'
 const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
+
+// ---------- MARKEN (NEU) ----------
+const loadBrands = async () => {
+  try {
+    const res = await axios.get('/api/get_brands_stock.php')
+    if (res.data.success) {
+      brands.value = res.data.items
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Marken:', error)
+  }
+}
+
+const onBrandChange = async (val) => {
+  // Wenn der Benutzer einen neuen Text eingegeben hat (String)
+  if (typeof val === 'string' && val.trim() !== '') {
+    const exists = brands.value.some(b => b.name.toLowerCase() === val.trim().toLowerCase())
+    if (!exists) {
+      try {
+        const newBrand = {
+          name: val.trim(),
+          value: val.trim().toLowerCase().replace(/\s+/g, '-')
+        }
+        const res = await axios.post('/api/add_brand.php', newBrand)
+        if (res.data.success) {
+          brands.value.push(res.data.item)
+          product.brand = res.data.item.value // technischer Wert
+          snackbar.value = {
+            show: true,
+            text: '✅ Neue Marke angelegt',
+            color: 'success'
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Anlegen der Marke:', error)
+        snackbar.value = {
+          show: true,
+          text: '❌ Marke konnte nicht angelegt werden',
+          color: 'error'
+        }
+      }
+    }
+  }
+}
 
 // ---------- BILDVERWALTUNG ----------
 const addImage = () => {
@@ -487,15 +538,14 @@ const onArticleTypeChange = () => {
   Object.keys(specifics).forEach(key => delete specifics[key])
 }
 
-// ---------- OPTIONEN LADEN (korrigiert) ----------
+// ---------- OPTIONEN LADEN (Kategorien, Artikeltypen) ----------
 const loadOptions = async () => {
   try {
     const [catRes, typeRes] = await Promise.all([
-      axios.get('https://alpha-med-care.com/api/get_categories.php'),
-      axios.get('https://alpha-med-care.com/api/get_article_types.php')
+      axios.get('/api/get_categories.php'),
+      axios.get('/api/get_article_types.php')
     ])
 
-    // Je nach API-Antwort: entweder { success, items } oder direkt ein Array
     let cats = catRes.data
     let types = typeRes.data
 
@@ -527,7 +577,7 @@ const loadOptions = async () => {
 
 // ---------- NAVIGATION ----------
 const cancel = () => {
-  router.push('/dashboard')
+  router.push('/products')
 }
 
 // ---------- SUBMIT ----------
@@ -553,7 +603,7 @@ const submit = async () => {
       formData.append('image', img.file)
       try {
         const response = await axios.post(
-          'https://alpha-med-care.com/api/upload_image.php',
+          '/api/upload_image.php',
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         )
@@ -608,7 +658,7 @@ const submit = async () => {
   const payload = {
     article: {
       name: product.name,
-      brand: product.brand,
+      brand: product.brand, // <-- hier wird die Marke (technischer Wert) übergeben
       category: product.category,
       price: product.price,
       main_image: product.main_image,
@@ -632,7 +682,7 @@ const submit = async () => {
   submitting.value = true
   try {
     const response = await axios.post(
-      'https://alpha-med-care.com/api/stock_manager_products.php',
+      '/api/stock_manager_products.php',
       payload,
       { headers: { 'Content-Type': 'application/json' } }
     )
@@ -644,7 +694,7 @@ const submit = async () => {
         color: 'success'
       }
       redirecting.value = true
-      setTimeout(() => router.push('/dashboard'), 2000)
+      setTimeout(() => router.push('/products'), 2000)
     } else {
       throw new Error(response.data.error || 'Unbekannter Fehler beim Speichern')
     }
@@ -672,6 +722,7 @@ const submit = async () => {
 // ---------- LIFECYCLE ----------
 onMounted(() => {
   loadOptions()
+  loadBrands()   // <-- Marken laden
   // Standardmäßig ein leeres Hauptbild anlegen
   allImages.value.push({
     url: '',

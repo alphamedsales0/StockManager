@@ -1,35 +1,56 @@
 <template>
   <v-card rounded="lg" elevation="2" style="height: 100%;">
-     <!-- Header modernisé -->
+    <!-- Header modernisé -->
     <v-card-title class="d-flex justify-space-between align-center bg-grey-lighten-4 px-4 py-3">
       <span class="text-h6 font-weight-semibold">
         Produktverteilung
       </span>
-
       <div class="d-flex align-center ga-1">
         <v-btn icon variant="text" size="small" color="grey-darken-1">
           <v-icon size="20">mdi-fullscreen</v-icon>
         </v-btn>
-        <v-btn icon variant="text" size="small" color="grey-darken-1">
+        <v-btn icon variant="text" size="small" color="grey-darken-1" @click="refresh">
           <v-icon size="20">mdi-refresh</v-icon>
         </v-btn>
       </div>
-
     </v-card-title>
+
     <v-card-text class="pa-4 text-center">
-      <canvas ref="chartCanvas" width="200" height="200"></canvas>
-      <div class="chart-info mt-4">
-        <div class="legend-two-columns">
-          <div class="legend-col legend-left">
-            <div v-for="item in leftItems" :key="item.category" class="legend-item">
-              <span class="dot" :style="{ backgroundColor: item.color }"></span>
-              <span class="ms-1">{{ item.category }}: {{ item.percentage }}%</span>
+      <!-- Ladezustand -->
+      <div v-if="productStore.loading" class="py-8">
+        <v-progress-circular indeterminate color="primary" />
+        <p class="text-caption mt-2">Lade Produktdaten...</p>
+      </div>
+
+      <!-- Fehler -->
+      <div v-else-if="productStore.error" class="py-8">
+        <v-icon size="48" color="error">mdi-alert-circle</v-icon>
+        <p class="text-caption text-error mt-2">{{ productStore.error }}</p>
+        <v-btn size="small" color="primary" @click="refresh">Erneut laden</v-btn>
+      </div>
+
+      <!-- Keine Daten -->
+      <div v-else-if="categoryStats.length === 0" class="py-8">
+        <v-icon size="48" color="grey-lighten-2">mdi-chart-doughnut</v-icon>
+        <p class="text-caption text-grey-darken-1 mt-2">Keine Produktdaten verfügbar</p>
+      </div>
+
+      <!-- Chart und Legende -->
+      <div v-else>
+        <canvas ref="chartCanvas" width="200" height="200"></canvas>
+        <div class="chart-info mt-4">
+          <div class="legend-two-columns">
+            <div class="legend-col legend-left">
+              <div v-for="item in leftItems" :key="item.category" class="legend-item">
+                <span class="dot" :style="{ backgroundColor: item.color }"></span>
+                <span class="ms-1">{{ item.category }}: {{ item.percentage }}%</span>
+              </div>
             </div>
-          </div>
-          <div class="legend-col legend-right">
-            <div v-for="item in rightItems" :key="item.category" class="legend-item">
-              <span class="dot" :style="{ backgroundColor: item.color }"></span>
-              <span class="ms-1">{{ item.category }}: {{ item.percentage }}%</span>
+            <div class="legend-col legend-right">
+              <div v-for="item in rightItems" :key="item.category" class="legend-item">
+                <span class="dot" :style="{ backgroundColor: item.color }"></span>
+                <span class="ms-1">{{ item.category }}: {{ item.percentage }}%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -39,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watchEffect } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { useProductStore } from '../../stores/stock_manager_products'
 
@@ -69,18 +90,7 @@ const categoryStats = computed(() => {
   })).sort((a, b) => b.count - a.count)
 })
 
-// Chart-Daten
-const chartData = computed(() => ({
-  labels: categoryStats.value.map(s => s.category),
-  datasets: [{
-    data: categoryStats.value.map(s => s.percentage),
-    backgroundColor: categoryStats.value.map(s => s.color),
-    borderWidth: 0,
-    cutout: '65%'
-  }]
-}))
-
-// Legende – jetzt direkt aus categoryStats
+// Legende auf zwei Spalten verteilen
 const leftItems = computed(() => {
   const stats = categoryStats.value
   const mid = Math.ceil(stats.length / 2)
@@ -93,29 +103,61 @@ const rightItems = computed(() => {
   return stats.slice(mid)
 })
 
-// Chart rendern
+// Chart rendern oder zerstören
 const renderChart = () => {
-  if (!chartCanvas.value || categoryStats.value.length === 0) return
-  if (chartInstance) chartInstance.destroy()
+  if (!chartCanvas.value) return
+
+  // Bestehenden Chart entfernen
+  if (chartInstance) {
+    chartInstance.destroy()
+    chartInstance = null
+  }
+
+  // Nur zeichnen, wenn Daten vorhanden sind
+  if (categoryStats.value.length === 0) return
+
   chartInstance = new Chart(chartCanvas.value, {
     type: 'doughnut',
-    data: chartData.value,
+    data: {
+      labels: categoryStats.value.map(s => s.category),
+      datasets: [{
+        data: categoryStats.value.map(s => s.percentage),
+        backgroundColor: categoryStats.value.map(s => s.color),
+        borderWidth: 0,
+        cutout: '65%'
+      }]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}%` } }
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${ctx.raw}%`
+          }
+        }
       }
     }
   })
 }
 
-onMounted(() => {
+// Manuelles Neuladen (über Refresh‑Button)
+const refresh = () => {
+  productStore.fetchProducts()
+}
+
+// watchEffect rendert bei jeder Änderung von categoryStats neu
+watchEffect(() => {
   renderChart()
 })
 
-watch(categoryStats, () => renderChart(), { deep: true })
+// Falls beim Mounten noch keine Daten vorhanden sind, nachladen
+onMounted(() => {
+  if (productStore.products.length === 0 && !productStore.loading) {
+    productStore.fetchProducts()
+  }
+})
 </script>
 
 <style scoped>

@@ -17,7 +17,6 @@
           <v-btn variant="outlined" @click="cancel" prepend-icon="mdi-arrow-left" class="back-btn">
             Zurück
           </v-btn>
-          <!-- NEU: Lösch-Button -->
           <v-btn
             color="error"
             variant="tonal"
@@ -50,19 +49,55 @@
             <v-row>
               <v-col cols="12" md="6">
                 <v-text-field v-model="product.name" label="Produktname *" :rules="[required]" variant="outlined" />
-                <v-text-field v-model="product.brand" label="Marke *" :rules="[required]" variant="outlined" class="mt-2" />
-                <v-select v-model="product.category" :items="categories" label="Kategorie *" :rules="[required]" variant="outlined" class="mt-2" />
-                <v-select v-model="product.article_type" :items="articleTypes" label="Artikeltyp *" :rules="[required]" variant="outlined" class="mt-2" @update:model-value="onArticleTypeChange" />
-                <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined" class="mt-2" />
+              </v-col>
+              <v-col cols="12" md="6">
+                <!-- ====== NEU: Combobox für Marke ====== -->
+               <v-combobox
+                  v-model="product.brand"
+                  :items="brands"
+                  item-title="name"
+                  label="Marke *"
+                  :rules="[required]"
+                  variant="outlined"
+                  @update:model-value="onBrandChange"
+                  no-filter
+                >
+                  <template #no-data>
+                    <v-list-item>
+                      <span class="text-caption">Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.</span>
+                    </v-list-item>
+                  </template>
+                </v-combobox>
               </v-col>
 
-              <v-col cols="12" md="6">
+              <v-col cols="12" md="4">
+                <v-select v-model="product.category" :items="categories" label="Kategorie *" :rules="[required]" variant="outlined" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-select v-model="product.article_type" :items="articleTypes" label="Artikeltyp *" :rules="[required]" variant="outlined" @update:model-value="onArticleTypeChange" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="4">
                 <v-text-field v-model="product.price" label="Preis (€) *" type="number" :rules="[required]" variant="outlined" />
-                <v-text-field v-model="product.color" label="Farbe" variant="outlined" class="mt-2" />
-                <v-text-field v-model="product.warranty_years" label="Garantie (Jahre)" type="number" variant="outlined" class="mt-2" />
-                <v-text-field v-model="product.weight_capacity" label="Tragfähigkeit (kg)" variant="outlined" class="mt-2" />
-                <v-text-field v-model="product.power_supply" label="Stromversorgung" variant="outlined" class="mt-2" />
-                <v-text-field v-model="product.application_area" label="Anwendungsbereich" variant="outlined" class="mt-2" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.color" label="Farbe" variant="outlined" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.warranty_years" label="Garantie (Jahre)" type="number" variant="outlined" />
+              </v-col>
+
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.weight_capacity" label="Tragfähigkeit (kg)" variant="outlined" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.power_supply" label="Stromversorgung" variant="outlined" />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.application_area" label="Anwendungsbereich" variant="outlined" />
               </v-col>
 
               <v-col cols="12">
@@ -80,7 +115,7 @@
           </v-card-text>
         </v-card>
 
-        <!-- ======================== BILDER (Hauptbild + Galerie) ======================== -->
+        <!-- ======================== BILDER ======================== -->
         <v-card variant="outlined" class="mb-6">
           <v-card-title class="text-subtitle-1 bg-grey-lighten-3 py-2">
             Bilder (Hauptbild + Galerie)
@@ -96,7 +131,6 @@
                 lg="3"
               >
                 <v-card variant="outlined" class="pa-2 h-100 d-flex flex-column">
-                  <!-- Bildvorschau -->
                   <v-img
                     :src="img.url || 'https://placehold.co/300x200?text=Kein+Bild'"
                     height="200"
@@ -105,7 +139,6 @@
                     @error="handleImageError($event, idx)"
                   />
 
-                  <!-- Méthode d'ajout -->
                   <v-select
                     v-model="img.method"
                     :items="imageUploadMethods"
@@ -117,7 +150,6 @@
                     @update:model-value="onImageMethodChange(img)"
                   />
 
-                  <!-- Champ URL (si méthode 'url') -->
                   <v-text-field
                     v-if="img.method === 'url'"
                     v-model="img.url"
@@ -129,7 +161,6 @@
                     :rules="img.method === 'url' ? [requiredImage] : []"
                   />
 
-                  <!-- Upload (si méthode 'upload') -->
                   <div v-else class="file-input-wrapper mb-1">
                     <input
                       type="file"
@@ -141,7 +172,6 @@
                     <span v-else class="file-placeholder">Keine Datei ausgewählt</span>
                   </div>
 
-                  <!-- Typ + Löschen -->
                   <div class="d-flex align-center mt-1">
                     <v-select
                       v-model="img.type"
@@ -157,7 +187,6 @@
                     </v-btn>
                   </div>
 
-                  <!-- Hinweis Hauptbild -->
                   <div v-if="img.type === 'main'" class="text-caption text-primary font-weight-bold mt-1">
                     ⭐ Hauptbild
                   </div>
@@ -278,7 +307,6 @@
 
         <!-- ======================== AKTIONSLEISTE ======================== -->
         <v-card-actions class="justify-end">
-          <!-- NEU: Lösch-Button links -->
           <v-btn color="error" variant="tonal" @click="confirmDelete" prepend-icon="mdi-delete" class="mr-auto">
             Löschen
           </v-btn>
@@ -289,7 +317,7 @@
         </v-card-actions>
       </v-form>
 
-      <!-- NEU: Bestätigungsdialog -->
+      <!-- Lösch-Dialog -->
       <v-dialog v-model="deleteDialog" max-width="500">
         <v-card>
           <v-card-title class="text-h6">
@@ -338,7 +366,6 @@
     <v-icon :icon="guideDrawer ? 'mdi-close' : 'mdi-help-circle'" color="white" />
   </div>
 
-  <!-- Guide Drawer -->
   <GuideDrawer v-model="guideDrawer" />
 </template>
 
@@ -359,7 +386,6 @@ const redirecting = ref(false)
 const formRef = ref(null)
 const guideDrawer = ref(false)
 
-// NEU: Lösch-Dialog & Zustand
 const deleteDialog = ref(false)
 const deleting = ref(false)
 
@@ -372,7 +398,7 @@ const snackbar = ref({
 // Produktdaten
 const product = reactive({
   name: '',
-  brand: '',
+  brand: '',  // <-- wird über Combobox gefüllt
   category: '',
   price: null,
   article_type: '',
@@ -400,17 +426,9 @@ const shipping = reactive({
 const allImages = ref([])
 
 // Auswahllisten
-const categories = [
-  { title: 'Kardio', value: 'cardio' },
-  { title: 'Kraft', value: 'strength' },
-  { title: 'Rehabilitation', value: 'rehabilitation' },
-  { title: 'Zubehör', value: 'accessories' }
-]
-
-const articleTypes = [
-  { title: 'Laufband', value: 'treadmill' },
-  { title: 'Fahrrad', value: 'bike' }
-]
+const categories = ref([])
+const articleTypes = ref([])
+const brands = ref([]) // <-- NEU
 
 const imageTypeOptions = [
   { title: 'Hauptbild', value: 'main' },
@@ -418,7 +436,6 @@ const imageTypeOptions = [
   { title: 'Detail', value: 'detail' }
 ]
 
-// Méthodes d'upload
 const imageUploadMethods = [
   { title: 'Bild-URL', value: 'url' },
   { title: 'Bild hochladen', value: 'upload' }
@@ -428,9 +445,76 @@ const imageUploadMethods = [
 const required = v => !!v || 'Dieses Feld ist erforderlich'
 const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
-// --------------------------------------------------------------
-// Daten laden
-// --------------------------------------------------------------
+// ---------- MARKEN (NEU) ----------
+const loadBrands = async () => {
+  try {
+    const res = await axios.get('/api/get_brands_stock.php')
+    if (res.data.success) {
+      brands.value = res.data.items
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Marken:', error)
+  }
+}
+
+const onBrandChange = async (val) => {
+  if (typeof val === 'string' && val.trim() !== '') {
+    const exists = brands.value.some(b => b.name.toLowerCase() === val.trim().toLowerCase())
+    if (!exists) {
+      try {
+        const newBrand = { name: val.trim() }
+        const res = await axios.post('/api/add_brand_stock.php', newBrand)
+        if (res.data.success) {
+          brands.value.push(res.data.item)
+          product.brand = res.data.item.name  // Markenname speichern
+          showSnackbar('Neue Marke angelegt', 'success')
+        }
+      } catch (error) {
+        console.error('Fehler beim Anlegen der Marke:', error)
+        showSnackbar('Marke konnte nicht angelegt werden', 'error')
+      }
+    }
+  }
+}
+
+// ---------- OPTIONEN LADEN (Kategorien, Artikeltypen) ----------
+const loadOptions = async () => {
+  try {
+    const [catRes, typeRes] = await Promise.all([
+      axios.get('/api/get_categories.php'),
+      axios.get('/api/get_article_types.php')
+    ])
+
+    let cats = catRes.data
+    let types = typeRes.data
+
+    if (cats.success !== undefined) {
+      cats = cats.items || []
+    } else if (!Array.isArray(cats)) {
+      cats = []
+    }
+
+    if (types.success !== undefined) {
+      types = types.items || []
+    } else if (!Array.isArray(types)) {
+      types = []
+    }
+
+    categories.value = cats
+    articleTypes.value = types
+  } catch (error) {
+    console.error('Fehler beim Laden der Optionen:', error)
+    categories.value = []
+    articleTypes.value = []
+    snackbar.value = {
+      show: true,
+      text: `❌ Optionen konnten nicht geladen werden: ${error.message}`,
+      color: 'error'
+    }
+  }
+}
+
+// ---------- PRODUKT LADEN ----------
 const loadProduct = async () => {
   loading.value = true
   try {
@@ -438,11 +522,12 @@ const loadProduct = async () => {
     if (response.data.success) {
       const data = response.data.product
 
+      // Allgemeine Daten – inkl. Marke
       Object.assign(product, data.article)
       Object.assign(specifics, data.specifics)
       Object.assign(shipping, data.shipping)
 
-      // Bilder zusammenführen
+      // Bilder
       const images = []
       const mainImageUrl = data.article.main_image || ''
 
@@ -489,16 +574,12 @@ const loadProduct = async () => {
   }
 }
 
-// --------------------------------------------------------------
-// Artikeltyp ändern
-// --------------------------------------------------------------
+// ---------- ARTIKELTYP ÄNDERN ----------
 const onArticleTypeChange = () => {
   Object.keys(specifics).forEach(key => delete specifics[key])
 }
 
-// --------------------------------------------------------------
-// Bildverwaltung
-// --------------------------------------------------------------
+// ---------- BILDVERWALTUNG ----------
 const addImage = () => {
   allImages.value.push({
     id: null,
@@ -562,9 +643,7 @@ const handleImageError = (event, idx) => {
   event.target.src = 'https://placehold.co/300x200?text=Fehler'
 }
 
-// --------------------------------------------------------------
-// Speichern (mit Upload)
-// --------------------------------------------------------------
+// ---------- SPEICHERN ----------
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
@@ -579,7 +658,7 @@ const submit = async () => {
     return
   }
 
-  // Upload aller Bilder im Modus 'upload'
+  // Uploads
   const uploadPromises = allImages.value
     .filter(img => img.method === 'upload' && img.file)
     .map(async (img) => {
@@ -588,7 +667,7 @@ const submit = async () => {
 
       try {
         const response = await axios.post(
-          'https://alpha-med-care.com/api/upload_image.php',
+          '/api/upload_image.php',
           formData,
           { headers: { 'Content-Type': 'multipart/form-data' } }
         )
@@ -680,9 +759,7 @@ const submit = async () => {
   }
 }
 
-// --------------------------------------------------------------
-// NEU: Löschfunktionen
-// --------------------------------------------------------------
+// ---------- LÖSCHEN ----------
 const confirmDelete = () => {
   deleteDialog.value = true
 }
@@ -690,12 +767,9 @@ const confirmDelete = () => {
 const deleteProduct = async () => {
   deleting.value = true
   try {
-    // RELATIVEN PFAD verwenden (wie bei anderen API-Aufrufen auch)
     const response = await axios.post('/api/delete_product.php', {
       product_id: productId.value
     })
-
-    console.log('Serverantwort:', response.data)
 
     if (response.data && response.data.success === true) {
       snackbar.value = {
@@ -730,100 +804,41 @@ const deleteProduct = async () => {
   }
 }
 
-
-// --------------------------------------------------------------
-// Abbrechen
-// --------------------------------------------------------------
+// ---------- ABBRECHEN ----------
 const cancel = () => {
-  router.push('/dashboard')
+  router.push('/products')
 }
 
-// --------------------------------------------------------------
-// Lifecycle
-// --------------------------------------------------------------
+// ---------- LIFECYCLE ----------
 onMounted(() => {
+  loadOptions()
+  loadBrands()
   loadProduct()
 })
 </script>
 
 <style scoped>
-.gap-2 {
-  gap: 8px;
-}
-.gap-4 {
-  gap: 16px;
-}
-.action-btn {
-  border-radius: 50px;
-  box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
-  color: rgb(17, 90, 10);
-}
-.back-btn {
-  border-radius: 50px;
-  box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
-}
-.delete-btn {
-  border-radius: 50px;
-  box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
-}
+/* gleiche Styles wie in ProductCreate */
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+.action-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); color: rgb(17, 90, 10); }
+.back-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); }
+.delete-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); }
 .floating-help-btn {
-  position: fixed;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  background: #1976d2;
-  width: 50px;
-  height: 50px;
-  border-radius: 10px 0 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2000;
-  box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
+  position: fixed; top: 50%; right: 0; transform: translateY(-50%);
+  background: #1976d2; width: 50px; height: 50px;
+  border-radius: 10px 0 0 10px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2000; box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
   transition: right 0.3s ease;
 }
-.floating-help-btn.open {
-  right: 400px;
-}
-.floating-help-btn:hover {
-  background: #1565c0;
-}
-.h-100 {
-  height: 100%;
-}
-
+.floating-help-btn.open { right: 400px; }
+.floating-help-btn:hover { background: #1565c0; }
+.h-100 { height: 100%; }
 .file-input-wrapper {
-  display: flex;
-  align-items: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 4px 8px;
-  background: #f9f9f9;
-  min-height: 36px;
-  position: relative;
-  overflow: hidden;
+  display: flex; align-items: center; border: 1px solid #ccc; border-radius: 4px;
+  padding: 4px 8px; background: #f9f9f9; min-height: 36px; position: relative; overflow: hidden;
 }
-.file-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-.file-name {
-  font-size: 0.9rem;
-  color: #333;
-  margin-left: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.file-placeholder {
-  color: #999;
-  font-size: 0.9rem;
-  margin-left: 4px;
-}
+.file-input { position: absolute; top: 0; left: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.file-name { font-size: 0.9rem; color: #333; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-placeholder { color: #999; font-size: 0.9rem; margin-left: 4px; }
 </style>

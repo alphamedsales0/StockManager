@@ -53,22 +53,22 @@
               <v-col cols="12" md="6">
                 <!-- Combobox für Marke – item-value hinzugefügt -->
                 <v-combobox
-                  v-model="product.brand"
-                  :items="brands"
-                  item-title="name"
-                  item-value="value"
-                  label="Marke *"
-                  :rules="[required]"
-                  variant="outlined"
-                  @update:model-value="onBrandChange"
-                  no-filter
-                >
-                  <template #no-data>
-                    <v-list-item>
-                      <span class="text-caption">Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.</span>
-                    </v-list-item>
-                  </template>
-                </v-combobox>
+  v-model="product.brand"
+  :items="brands"
+  item-title="name"
+  item-value="name"
+  label="Marke *"
+  :rules="[required]"
+  variant="outlined"
+  @update:model-value="onBrandChange"
+  no-filter
+>
+  <template #no-data>
+    <v-list-item>
+      <span class="text-caption">Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.</span>
+    </v-list-item>
+  </template>
+</v-combobox>
               </v-col>
 
               <v-col cols="12" md="4">
@@ -483,45 +483,32 @@ const loadBrands = async () => {
 }
 
 const onBrandChange = async (val) => {
-  // Falls val ein Objekt ist (z.B. bei Auswahl aus der Liste), den value extrahieren
-  let brandValue = val
-  if (typeof val === 'object' && val !== null && 'value' in val) {
-    brandValue = val.value
+  // Normalisierung: Falls val ein Objekt ist, den Namen extrahieren
+  if (typeof val === 'object' && val !== null && 'name' in val) {
+    val = val.name;
   }
-  // Falls val ein String ist, bleibt er so
-  if (typeof brandValue === 'string' && brandValue.trim() !== '') {
-    const trimmed = brandValue.trim()
-    // Prüfen, ob die Marke bereits existiert (anhand value oder name)
-    const exists = brands.value.some(b =>
-      b.value?.toLowerCase() === trimmed.toLowerCase() ||
-      b.name?.toLowerCase() === trimmed.toLowerCase()
-    )
-    if (!exists) {
-      try {
-        const newBrand = {
-          name: trimmed,
-          value: trimmed.toLowerCase().replace(/\s+/g, '-')
-        }
-        const res = await axios.post('/api/add_brand_stock.php', newBrand)
-        if (res.data.success) {
-          brands.value.push(res.data.item)
-          product.brand = res.data.item.value
-          showSnackbar('✅ Neue Marke angelegt', 'success')
-        }
-      } catch (error) {
-        console.error('Fehler beim Anlegen der Marke:', error)
-        showSnackbar('❌ Marke konnte nicht angelegt werden', 'error')
+  if (typeof val !== 'string' || val.trim() === '') return;
+
+  const trimmed = val.trim();
+  const exists = brands.value.some(b => b.name?.toLowerCase() === trimmed.toLowerCase());
+
+  if (!exists) {
+    try {
+      const res = await axios.post('/api/add_brand_stock.php', { name: trimmed });
+      if (res.data.success) {
+        brands.value.push(res.data.item); // { id, name }
+        product.brand = trimmed;
+        showSnackbar('✅ Neue Marke angelegt', 'success');
       }
-    } else {
-      // Die Marke existiert bereits – setze den korrekten value
-      const existing = brands.value.find(b =>
-        b.value?.toLowerCase() === trimmed.toLowerCase() ||
-        b.name?.toLowerCase() === trimmed.toLowerCase()
-      )
-      if (existing) product.brand = existing.value
+    } catch (error) {
+      console.error('Fehler beim Anlegen der Marke:', error);
+      showSnackbar('❌ Marke konnte nicht angelegt werden', 'error');
     }
+  } else {
+    const existing = brands.value.find(b => b.name?.toLowerCase() === trimmed.toLowerCase());
+    if (existing) product.brand = existing.name;
   }
-}
+};
 
 // ---------- OPTIONEN LADEN (Kategorien, Artikeltypen) ----------
 const loadOptions = async () => {
@@ -684,16 +671,18 @@ const handleImageError = (event, idx) => {
 
 // ---------- SPEICHERN ----------
 const submit = async () => {
+  // 1. Formular-Validierung
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
+  // 2. Prüfen, ob ein Hauptbild existiert
   const mainImageObj = allImages.value.find(img => img.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
     showSnackbar('❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")', 'error')
     return
   }
 
-  // Uploads durchführen
+  // 3. Uploads für hochgeladene Bilder durchführen
   const uploadPromises = allImages.value
     .filter(img => img.method === 'upload' && img.file)
     .map(async (img) => {
@@ -727,15 +716,17 @@ const submit = async () => {
     return
   }
 
-  // Prüfen, ob alle Bilder eine URL haben
+  // 4. Prüfen, ob alle Bilder eine URL haben
   const missingUrl = allImages.value.some(img => !img.url)
   if (missingUrl) {
     showSnackbar('❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.', 'error')
     return
   }
 
+  // 5. Hauptbild setzen
   product.main_image = mainImageObj.url
 
+  // 6. Galerie-Bilder vorbereiten
   const galleryImages = allImages.value
     .filter(img => img.type !== 'main')
     .map((img, idx) => ({
@@ -745,16 +736,37 @@ const submit = async () => {
       order: idx + 1
     }))
 
+  // 7. ⚠️ NORMALISIERUNG der Werte, die als Objekt kommen könnten
+  //    (besonders wichtig für brand, category, article_type)
+  function normalizeValue(value) {
+    if (typeof value === 'object' && value !== null) {
+      // Wenn das Objekt ein 'name'-Feld hat, nehmen Sie dieses
+      if (value.name !== undefined) {
+        return String(value.name).trim()
+      }
+      // Sonst leeren String
+      return ''
+    }
+    return String(value).trim()
+  }
+
+  // Werte im product-Objekt normalisieren
+  product.brand       = normalizeValue(product.brand)
+  product.category    = normalizeValue(product.category)
+  product.article_type = normalizeValue(product.article_type)
+
+  // 8. Payload erstellen
+  const payload = {
+    product_id: productId.value,
+    article: { ...product },
+    specifics: { ...specifics },
+    shipping: { ...shipping },
+    images: galleryImages
+  }
+
+  // 9. Senden
   submitting.value = true
   try {
-    const payload = {
-      product_id: productId.value,
-      article: { ...product },
-      specifics: { ...specifics },
-      shipping: { ...shipping },
-      images: galleryImages
-    }
-
     const response = await axios.post(
       '/api/update_product.php',
       payload,
@@ -778,7 +790,6 @@ const submit = async () => {
     submitting.value = false
   }
 }
-
 // ---------- LÖSCHEN ----------
 const confirmDelete = () => {
   deleteDialog.value = true

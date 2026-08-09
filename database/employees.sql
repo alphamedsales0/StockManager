@@ -16,6 +16,8 @@ CREATE TABLE employees (
     notfall_kontakt_telefon VARCHAR(20) NULL,
     erstellt_am TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     aktualisiert_am TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    steuer_id VARCHAR(30) NULL,
+    sozialversicherungsnummer VARCHAR(20) NULL,
     FOREIGN KEY (benutzer_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_nachname (nachname),
     INDEX idx_abteilung (abteilung),

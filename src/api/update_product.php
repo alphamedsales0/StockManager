@@ -29,6 +29,29 @@ $specifics = $input['specifics'] ?? [];
 $shippingData = $input['shipping'] ?? [];
 $imagesData = $input['images'] ?? [];
 
+// ==================== NORMALISIERUNG ====================
+// Diese Funktion stellt sicher, dass Werte, die als Objekt oder Array
+// übergeben werden, in einen einfachen String umgewandelt werden.
+// Das verhindert, dass in der Datenbank "Array" gespeichert wird.
+function normalizeValue($value) {
+    if (is_array($value)) {
+        // Falls das Array einen 'name'-Schlüssel hat (z.B. {id:1, name:'Marke'})
+        if (isset($value['name'])) {
+            return (string)$value['name'];
+        }
+        // Falls es ein anderes Array ist, leeren String zurückgeben
+        return '';
+    }
+    // Ansonsten den Wert als String zurückgeben (trimmen optional)
+    return (string)$value;
+}
+
+// Die kritischen Felder normalisieren
+$articleData['brand']       = normalizeValue($articleData['brand']);
+$articleData['category']    = normalizeValue($articleData['category']);
+$articleData['article_type'] = normalizeValue($articleData['article_type']);
+// ========================================================
+
 $host_name = 'db5018574434.hosting-data.io';
 $database = 'dbs14737411';
 $user_name = 'dbu2173288';

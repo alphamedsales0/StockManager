@@ -1,4 +1,4 @@
--- Table employees (sans UNSIGNED)
+-- Table employees (korrigiert: steuerklasse statt teuerklasse)
 CREATE TABLE employees (
     id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
     benutzer_id INT(11) NOT NULL UNIQUE,
@@ -18,6 +18,10 @@ CREATE TABLE employees (
     aktualisiert_am TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
     steuer_id VARCHAR(30) NULL,
     sozialversicherungsnummer VARCHAR(20) NULL,
+    vertragsart VARCHAR(50) NULL,
+    wochenarbeitszeit DECIMAL(4,2) NULL,
+    steuerklasse VARCHAR(2) NULL DEFAULT '1',   -- hier korrigiert
+    konfession VARCHAR(20) NULL DEFAULT 'keine',
     FOREIGN KEY (benutzer_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_nachname (nachname),
     INDEX idx_abteilung (abteilung),

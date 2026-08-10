@@ -1,5 +1,8 @@
 <?php
 // employees_create.php
+// Vollständig, ohne Zählprüfung, nur mit Logging
+// Letzte Aktualisierung: 2025-08-10
+
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -16,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/database_connect.php';
 
-// PHPMailer einbinden (falls vorhanden)
+// PHPMailer (optional)
 $usePHPMailer = false;
 if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     require __DIR__ . '/phpmailer/src/Exception.php';
@@ -25,18 +28,59 @@ if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     $usePHPMailer = true;
 }
 
-// Config laden (für SMTP)
 $config = [];
 if (file_exists(__DIR__ . '/config.php')) {
     $config = require __DIR__ . '/config.php';
 }
 
-// Eingabe (FormData) – employee als JSON-String
-$rawInput = file_get_contents('php://input');
+// ----- Hilfsfunktion für fehlersicheres EXECUTE mit Logging (ohne Zählprüfung) -----
+function executeWithCheck($pdo, $sql, $params = [])
+{
+    $placeholderCount = substr_count($sql, '?');
+    $paramCount = count($params);
+
+    file_put_contents(
+        __DIR__ . '/debug.log',
+        date('Y-m-d H:i:s') .
+        "\nSQL: {$sql}\n" .
+        "PLACEHOLDERS: {$placeholderCount}\n" .
+        "PARAMS COUNT: {$paramCount}\n" .
+        "PARAMS: " . json_encode($params, JSON_UNESCAPED_UNICODE) . "\n",
+        FILE_APPEND
+    );
+
+    if ($placeholderCount !== $paramCount) {
+        throw new Exception(
+            "SQL Placeholder Fehler: {$placeholderCount} Platzhalter, aber {$paramCount} Parameter."
+        );
+    }
+
+    $stmt = $pdo->prepare($sql);
+
+    if (!$stmt->execute($params)) {
+        $errorInfo = $stmt->errorInfo();
+
+        file_put_contents(
+            __DIR__ . '/debug.log',
+            date('Y-m-d H:i:s') .
+            " SQL ERROR: " . json_encode($errorInfo) . "\n",
+            FILE_APPEND
+        );
+
+        throw new Exception(
+            "SQL-Fehler: " . ($errorInfo[2] ?? 'Unbekannter Fehler')
+        );
+    }
+
+    return $stmt;
+}
+
+// ----- Eingabe verarbeiten -----
 $employeeData = null;
 if (isset($_POST['employee'])) {
     $employeeData = json_decode($_POST['employee'], true);
 } else {
+    $rawInput = file_get_contents('php://input');
     $employeeData = json_decode($rawInput, true);
 }
 
@@ -52,11 +96,22 @@ if (!$email || !$vorname || !$nachname) {
     exit;
 }
 
-// 1. Benutzername generieren (erster Teil des Vornamens + . + Nachname)
-$firstPart = strtok($vorname, ' ');
-$username = $firstPart . '.' . $nachname;
+// ----- Hilfsfunktionen -----
+function generateEmployeeNumber($pdo) {
+    $prefix = 'EMP-';
+    $date = date('Ymd');
+    $sql = "SELECT MAX(CAST(SUBSTRING(mitarbeiter_nummer, LENGTH(?) + 1 + 8 + 1) AS UNSIGNED)) 
+            FROM employees 
+            WHERE mitarbeiter_nummer LIKE ?";
+    $stmt = $pdo->prepare($sql);
+    $likePattern = $prefix . $date . '-%';
+    $stmt->execute([$prefix, $likePattern]);
+    $max = $stmt->fetchColumn();
+    $next = ($max ? $max + 1 : 1);
+    $number = str_pad($next, 4, '0', STR_PAD_LEFT);
+    return $prefix . $date . '-' . $number;
+}
 
-// 2. Sicheres Passwort generieren (12 Zeichen)
 function generatePassword($length = 12) {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=';
     $password = '';
@@ -65,31 +120,51 @@ function generatePassword($length = 12) {
     }
     return $password;
 }
+
+$firstPart = strtok($vorname, ' ');
+$username = $firstPart . '.' . $nachname;
 $plainPassword = generatePassword();
 
 $pdo->beginTransaction();
 
 try {
-    // 3. User anlegen (name = Benutzername, email, password_hash)
-    $hashed = password_hash($plainPassword, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("
-        INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, 'employee', 1, NOW(), NOW())
-    ");
-    $stmt->execute([$username, $email, $hashed]);
+    // 1. User anlegen
+    $sql = "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, 'employee', 1, NOW(), NOW())";
+    executeWithCheck($pdo, $sql, [$username, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
     $benutzer_id = $pdo->lastInsertId();
-    file_put_contents(__DIR__ . '/debug.log', "User inserted with ID $benutzer_id, username: $username\n", FILE_APPEND);
 
-    // 4. Employee-Datensatz anlegen
-    $stmt = $pdo->prepare("
-        INSERT INTO employees (
-            benutzer_id, mitarbeiter_nummer, vorname, nachname, telefon, mobil,
-            position, abteilung, einstellungsdatum, geburtsdatum, gehalt,
-            notfall_kontakt_name, notfall_kontakt_telefon, aktualisiert_am
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    ");
-    $mitarbeiter_nummer = empty($employeeData['mitarbeiter_nummer']) ? null : $employeeData['mitarbeiter_nummer'];
-    $stmt->execute([
+    // 2. Mitarbeiternummer generieren
+    $mitarbeiter_nummer = generateEmployeeNumber($pdo);
+
+    // 3. Employee anlegen – korrekte Anzahl Platzhalter: 19 (alle ?) + NOW() = 20 Spalten
+    $sql = "
+INSERT INTO employees (
+    benutzer_id,
+    mitarbeiter_nummer,
+    vorname,
+    nachname,
+    telefon,
+    mobil,
+    position,
+    abteilung,
+    einstellungsdatum,
+    geburtsdatum,
+    gehalt,
+    notfall_kontakt_name,
+    notfall_kontakt_telefon,
+    steuer_id,
+    sozialversicherungsnummer,
+    vertragsart,
+    wochenarbeitszeit,
+    steuerklasse,
+    konfession,
+    aktualisiert_am
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()
+)";
+    $params = [
         $benutzer_id,
         $mitarbeiter_nummer,
         $vorname,
@@ -102,20 +177,24 @@ try {
         empty($employeeData['geburtsdatum']) ? null : $employeeData['geburtsdatum'],
         empty($employeeData['gehalt']) ? null : $employeeData['gehalt'],
         empty($employeeData['notfall_kontakt_name']) ? null : $employeeData['notfall_kontakt_name'],
-        empty($employeeData['notfall_kontakt_telefon']) ? null : $employeeData['notfall_kontakt_telefon']
-    ]);
+        empty($employeeData['notfall_kontakt_telefon']) ? null : $employeeData['notfall_kontakt_telefon'],
+        empty($employeeData['steuer_id']) ? null : $employeeData['steuer_id'],
+        empty($employeeData['sozialversicherungsnummer']) ? null : $employeeData['sozialversicherungsnummer'],
+        empty($employeeData['vertragsart']) ? null : $employeeData['vertragsart'],
+        empty($employeeData['wochenarbeitszeit']) ? null : $employeeData['wochenarbeitszeit'],
+        empty($employeeData['steuerklasse']) ? '1' : $employeeData['steuerklasse'],
+        empty($employeeData['konfession']) ? 'keine' : $employeeData['konfession']
+    ];
+    executeWithCheck($pdo, $sql, $params);
     $mitarbeiter_id = $pdo->lastInsertId();
-    file_put_contents(__DIR__ . '/debug.log', "Employee inserted with ID $mitarbeiter_id\n", FILE_APPEND);
 
-    // 5. Adresse (optional)
+    // 4. Adresse
     $addr = $employeeData['adresse'] ?? null;
     if ($addr && !empty($addr['strasse']) && !empty($addr['hausnummer'])) {
-        $stmt = $pdo->prepare("
-            INSERT INTO employees_addresses (
-                mitarbeiter_id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
-            ) VALUES (?, 'primär', ?, ?, ?, ?, ?, 1)
-        ");
-        $stmt->execute([
+        $sql = "INSERT INTO employees_addresses (
+                    mitarbeiter_id, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
+                ) VALUES (?, 'primär', ?, ?, ?, ?, ?, 1)";
+        executeWithCheck($pdo, $sql, [
             $mitarbeiter_id,
             $addr['strasse'],
             $addr['hausnummer'],
@@ -123,24 +202,125 @@ try {
             $addr['stadt'] ?? null,
             $addr['land'] ?? 'Deutschland'
         ]);
-        file_put_contents(__DIR__ . '/debug.log', "Address inserted\n", FILE_APPEND);
+    }
+
+    // 5. Bankverbindungen
+    if (!empty($employeeData['bank_accounts']) && is_array($employeeData['bank_accounts'])) {
+        $sql = "INSERT INTO employee_bank_accounts (
+                    mitarbeiter_id, kontoinhaber, iban, bic, bankname, ist_aktiv
+                ) VALUES (?, ?, ?, ?, ?, ?)";
+        foreach ($employeeData['bank_accounts'] as $account) {
+            if (!empty($account['iban'])) {
+                executeWithCheck($pdo, $sql, [
+                    $mitarbeiter_id,
+                    $account['kontoinhaber'] ?? null,
+                    $account['iban'],
+                    $account['bic'] ?? null,
+                    $account['bankname'] ?? null,
+                    !empty($account['ist_aktiv']) ? 1 : 0
+                ]);
+            }
+        }
+    }
+
+    // 6. Qualifikationen
+    if (!empty($employeeData['qualifications']) && is_array($employeeData['qualifications'])) {
+        $sql = "INSERT INTO employee_qualifications (
+                    mitarbeiter_id, qualifikationstyp, bezeichnung, institution,
+                    abschlussdatum, gueltig_bis, note, datei_pfad
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        foreach ($employeeData['qualifications'] as $qual) {
+            if (!empty($qual['bezeichnung'])) {
+                executeWithCheck($pdo, $sql, [
+                    $mitarbeiter_id,
+                    $qual['qualifikationstyp'] ?? 'Sonstige',
+                    $qual['bezeichnung'],
+                    $qual['institution'] ?? null,
+                    !empty($qual['abschlussdatum']) ? $qual['abschlussdatum'] : null,
+                    !empty($qual['gueltig_bis']) ? $qual['gueltig_bis'] : null,
+                    $qual['note'] ?? null,
+                    $qual['datei_pfad'] ?? null
+                ]);
+            }
+        }
+    }
+
+    // 7. Dokumente
+    if (!empty($employeeData['documents']) && is_array($employeeData['documents'])) {
+        $uploadDir = __DIR__ . '/uploads/employees/' . $mitarbeiter_id . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+
+        $sql = "INSERT INTO employee_documents (
+                    mitarbeiter_id, name, typ, datei_pfad, gueltig_bis
+                ) VALUES (?, ?, ?, ?, ?)";
+        foreach ($employeeData['documents'] as $index => $doc) {
+            if (empty($doc['name']) || empty($doc['typ'])) continue;
+
+            $fileKey = 'document_' . $index;
+            $filePath = '';
+            if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES[$fileKey];
+                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $newName = uniqid() . '.' . $ext;
+                $targetPath = $uploadDir . $newName;
+                if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                    $filePath = '/uploads/employees/' . $mitarbeiter_id . '/' . $newName;
+                }
+            }
+
+            executeWithCheck($pdo, $sql, [
+                $mitarbeiter_id,
+                $doc['name'],
+                $doc['typ'],
+                $filePath,
+                !empty($doc['gueltig_bis']) ? $doc['gueltig_bis'] : null
+            ]);
+        }
+    }
+
+    // 8. Versicherung (in mitarbeiter_versicherungen speichern)
+    $versicherung_typ = $employeeData['versicherung_typ'] ?? null;
+    $versicherung_gesellschaft = $employeeData['versicherung_gesellschaft'] ?? null;
+    $versicherung_nummer = $employeeData['versicherung_nummer'] ?? null;
+    if ($versicherung_gesellschaft || $versicherung_nummer) {
+        $sql = "INSERT INTO mitarbeiter_versicherungen (
+                    mitarbeiter_id, versicherungstyp, versicherungsgesellschaft, versicherungsnummer,
+                    gueltig_ab, gueltig_bis, beitrag, ist_aktiv
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)";
+        executeWithCheck($pdo, $sql, [
+            $mitarbeiter_id,
+            $versicherung_typ ?? 'Krankenversicherung',
+            $versicherung_gesellschaft,
+            $versicherung_nummer,
+            !empty($employeeData['versicherung_gueltig_ab']) ? $employeeData['versicherung_gueltig_ab'] : null,
+            !empty($employeeData['versicherung_gueltig_bis']) ? $employeeData['versicherung_gueltig_bis'] : null,
+            !empty($employeeData['versicherung_beitrag']) ? $employeeData['versicherung_beitrag'] : null
+        ]);
+    }
+
+    // 9. Foto speichern
+    if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+        $photoDir = __DIR__ . '/uploads/employees/' . $mitarbeiter_id . '/';
+        if (!is_dir($photoDir)) mkdir($photoDir, 0777, true);
+        $ext = pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION);
+        $photoName = 'profile.' . $ext;
+        $targetPath = $photoDir . $photoName;
+        move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath);
+        // Optional: Pfad in employees speichern – Spalte foto_pfad muss vorhanden sein
+        // $sql = "UPDATE employees SET foto_pfad = ? WHERE id = ?";
+        // executeWithCheck($pdo, $sql, ['/uploads/employees/' . $mitarbeiter_id . '/' . $photoName, $mitarbeiter_id]);
     }
 
     $pdo->commit();
 
-    // 6. E‑Mail mit Zugangsdaten senden (PHPMailer bevorzugt)
+    // ----- E‑Mail senden (unverändert) -----
     $mailSent = false;
     $mailError = null;
-
-    // HTML- und Text-Version der E-Mail
     $subject = 'Ihre Zugangsdaten für das Mitarbeiterportal';
     $htmlBody = buildCredentialsEmail($vorname, $nachname, $username, $plainPassword);
-    $textBody = "Guten Tag $vorname $nachname,\n\n";
-    $textBody .= "Ihr Mitarbeiterkonto wurde eingerichtet.\n";
-    $textBody .= "Benutzername: $username\n";
-    $textBody .= "Passwort: $plainPassword\n\n";
-    $textBody .= "Bitte ändern Sie Ihr Passwort nach dem ersten Login.\n\n";
-    $textBody .= "Mit freundlichen Grüßen\nIhr Team";
+    $textBody = "Guten Tag $vorname $nachname,\n\nIhr Benutzername: $username\nIhr Passwort: $plainPassword\n\nBitte ändern Sie es nach dem ersten Login.";
 
     if ($usePHPMailer && !empty($config)) {
         try {
@@ -154,14 +334,12 @@ try {
             $mail->Port       = $config['smtp_port'] ?? 587;
             $mail->CharSet    = 'UTF-8';
             $mail->Encoding   = 'base64';
-
             $mail->setFrom($config['smtp_username'], 'Alpha Med Care Service');
             $mail->addAddress($email);
             $mail->Subject = $subject;
             $mail->isHTML(true);
             $mail->Body    = $htmlBody;
             $mail->AltBody = $textBody;
-
             $mail->send();
             $mailSent = true;
         } catch (Exception $e) {
@@ -170,7 +348,6 @@ try {
         }
     }
 
-    // Fallback mit mail()
     if (!$mailSent) {
         $headers = "From: service@alpha-med-care.com\r\n";
         $headers .= "Reply-To: service@alpha-med-care.com\r\n";
@@ -182,35 +359,32 @@ try {
         }
     }
 
-    if ($mailSent) {
-        file_put_contents(__DIR__ . '/debug.log', "Mail sent to $email\n", FILE_APPEND);
-    } else {
-        file_put_contents(__DIR__ . '/debug.log', "Mail could not be sent to $email - " . ($mailError ?: 'unknown error') . "\n", FILE_APPEND);
-    }
+    file_put_contents(__DIR__ . '/debug.log', "Mail sent: " . ($mailSent ? 'yes' : 'no') . "\n", FILE_APPEND);
 
     echo json_encode([
         'success' => true,
-        'message' => 'Mitarbeiter angelegt, E‑Mail wurde versendet',
+        'message' => 'Mitarbeiter angelegt, E‑Mail versendet',
         'id' => $benutzer_id,
+        'mitarbeiter_nummer' => $mitarbeiter_nummer,
         'mail_sent' => $mailSent,
         'mail_error' => $mailError
     ]);
 
 } catch (PDOException $e) {
     $pdo->rollBack();
-    file_put_contents(__DIR__ . '/debug.log', "PDO ERROR: " . $e->getMessage() . " - Code: " . $e->getCode() . "\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/debug.log', "PDO EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Datenbankfehler: ' . $e->getMessage()]);
 } catch (Throwable $e) {
     $pdo->rollBack();
-    file_put_contents(__DIR__ . '/debug.log', "GENERAL ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/debug.log', "GENERAL EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Allgemeiner Fehler: ' . $e->getMessage()]);
 }
 
-/**
- * Erstellt eine moderne HTML-E-Mail mit den Zugangsdaten
- */
+// ============================================================
+// Funktion für die HTML-E-Mail (unverändert)
+// ============================================================
 function buildCredentialsEmail($vorname, $nachname, $username, $password) {
     $changeDate = date('d.m.Y H:i');
     return <<<HTML

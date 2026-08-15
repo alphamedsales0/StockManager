@@ -28,8 +28,6 @@
         </v-col>
       </v-row>
 
-      <!-- MITARBEITER-NUMMER ENTFERNT -->
-
       <v-text-field
         v-model="employee.email"
         label="E-Mail"
@@ -38,6 +36,17 @@
         type="email"
         :rules="[rules.required, rules.email]"
         autocomplete="email"
+      />
+
+      <!-- ROLLE – dynamisch aus API geladen -->
+      <v-select
+        v-model="employee.role"
+        label="Rolle"
+        variant="outlined"
+        prepend-inner-icon="mdi-account-tie"
+        :items="roles"
+        :loading="loadingRoles"
+        :rules="[rules.required]"
       />
 
       <v-row>
@@ -108,10 +117,41 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
+import axios from 'axios'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import { useValidationRules } from '../../composables/useValidationRules'
 
 const store = useEmployeeStore()
 const employee = store.employee
 const rules = useValidationRules()
+
+// Rollen aus der API laden
+const roles = ref([])
+const loadingRoles = ref(false)
+
+const fetchRoles = async () => {
+  loadingRoles.value = true
+  try {
+    const response = await axios.get('/api/get_roles.php')
+    if (response.data.success) {
+      // Wir speichern nur die Namen (oder display_name) für die Anzeige
+      roles.value = response.data.roles.map(r => r.name)
+      // Falls du display_name anzeigen möchtest: 
+      // roles.value = response.data.roles.map(r => r.display_name)
+    } else {
+      console.warn('Rollen konnten nicht geladen werden, verwende Fallback')
+      roles.value = ['admin', 'manager', 'employee', 'technician']
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Rollen:', error)
+    roles.value = ['admin', 'manager', 'employee', 'technician']
+  } finally {
+    loadingRoles.value = false
+  }
+}
+
+onMounted(() => {
+  fetchRoles()
+})
 </script>

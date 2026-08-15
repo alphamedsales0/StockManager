@@ -86,7 +86,7 @@
           @click="navigateTo('article-types')"
         />
 
-        <!-- ====== NEU: MARKEN ====== -->
+        <!-- MARKEN -->
         <v-list-item
           prepend-icon="mdi-tag"
           title="Marken"
@@ -140,6 +140,13 @@
           title="Profile"
           :active="activeTab === 'employee-profile'"
           @click="navigateTo('employee-profile')"
+        />
+        <!-- NEU: ROLLEN -->
+        <v-list-item
+          prepend-icon="mdi-account-cog"
+          title="Rollen"
+          :active="activeTab === 'roles'"
+          @click="navigateTo('roles')"
         />
       </v-list-group>
 
@@ -201,7 +208,7 @@ const activeTab = computed(() => {
 
   if (path === '/categories') return 'categories'
   if (path === '/article-types') return 'article-types'
-  if (path === '/brands') return 'brands'   // <-- NEU
+  if (path === '/brands') return 'brands'
 
   if (path === '/customers') return 'customers-list'
   if (path === '/customers/add') return 'add-customer'
@@ -209,6 +216,9 @@ const activeTab = computed(() => {
   if (path === '/employees') return 'employees-list'
   if (path === '/employees/add') return 'add-employee'
   if (path.startsWith('/employees/')) return 'employee-profile'
+
+  // NEU: Rollen-Route
+  if (path === '/roles') return 'roles'
 
   if (path === '/orders') return 'orders-list'
   if (path === '/orders/add') return 'add-order'
@@ -230,7 +240,7 @@ const navigateTo = (tab) => {
 
     'categories': '/categories',
     'article-types': '/article-types',
-    'brands': '/brands',   // <-- NEU
+    'brands': '/brands',
 
     'customers-list': '/customers',
     'add-customer': '/customers/add',
@@ -238,6 +248,9 @@ const navigateTo = (tab) => {
     'employees-list': '/employees',
     'add-employee': '/employees/add',
     'employee-profile': '/employees/1',
+
+    // NEU: Rollen-Route
+    'roles': '/roles',
 
     'orders-list': '/orders',
     'add-order': '/orders/add',

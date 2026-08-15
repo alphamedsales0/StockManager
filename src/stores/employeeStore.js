@@ -7,7 +7,6 @@ export const useEmployeeStore = defineStore('employee', () => {
     email: '',
     vorname: '',
     nachname: '',
-    mitarbeiter_nummer: '',
     telefon: '',
     mobil: '',
     position: '',
@@ -23,6 +22,7 @@ export const useEmployeeStore = defineStore('employee', () => {
     wochenarbeitszeit: null,
     steuerklasse: '1',
     konfession: 'keine',
+    role: 'employee',          // <-- NEU
     versicherung_typ: 'Krankenversicherung',
     versicherung_gesellschaft: '',
     versicherung_nummer: '',
@@ -65,6 +65,7 @@ export const useEmployeeStore = defineStore('employee', () => {
       wochenarbeitszeit: null,
       steuerklasse: '1',
       konfession: 'keine',
+      role: 'employee',
       versicherung_typ: 'Krankenversicherung',
       versicherung_gesellschaft: '',
       versicherung_nummer: '',

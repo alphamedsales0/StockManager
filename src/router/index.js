@@ -88,7 +88,13 @@ const routes = [
     name: 'EditEmployee',
     component: () => import('../components/employees/EditEmployee.vue'),
     meta: { requiresAuth: true }
-  }
+  },
+  {
+  path: '/roles',
+  name: 'RolesManagement',
+  component: () => import('../views/RolesManagement.vue'),
+  meta: { requiresAuth: true }
+}
 ]
 
 const router = createRouter({

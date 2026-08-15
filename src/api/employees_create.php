@@ -128,10 +128,11 @@ $plainPassword = generatePassword();
 $pdo->beginTransaction();
 
 try {
-    // 1. User anlegen
+    // 1. User anlegen – mit dynamischer Rolle
+    $role = !empty($employeeData['role']) ? $employeeData['role'] : 'employee';
     $sql = "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, 'employee', 1, NOW(), NOW())";
-    executeWithCheck($pdo, $sql, [$username, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
+            VALUES (?, ?, ?, ?, 1, NOW(), NOW())";
+    executeWithCheck($pdo, $sql, [$username, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $role]);
     $benutzer_id = $pdo->lastInsertId();
 
     // 2. Mitarbeiternummer generieren

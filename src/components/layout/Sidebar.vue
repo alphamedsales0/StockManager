@@ -31,7 +31,7 @@
 
     <v-divider class="my-2" />
 
-    <v-list nav dense>
+    <v-list nav density="compact" class="pa-1">
       <!-- DASHBOARD -->
       <v-list-item
         prepend-icon="mdi-view-dashboard-outline"
@@ -48,45 +48,35 @@
         @click="navigateTo('tickets')"
       />
 
-      <!-- PRODUKTE (Hauptgruppe) -->
+      <!-- PRODUKTE -->
       <v-list-group value="products">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Produkte" prepend-icon="mdi-package-variant" />
         </template>
-
-        <!-- Alle Produkte -->
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Produkte"
           :active="activeTab === 'products-list'"
           @click="navigateTo('products-list')"
         />
-
-        <!-- Neues Produkt -->
         <v-list-item
           prepend-icon="mdi-plus-box-outline"
           title="Neues Produkt"
           :active="activeTab === 'add-product'"
           @click="navigateTo('add-product')"
         />
-
-        <!-- Kategorien -->
         <v-list-item
           prepend-icon="mdi-tag-outline"
           title="Kategorien"
           :active="activeTab === 'categories'"
           @click="navigateTo('categories')"
         />
-
-        <!-- Artikeltypen -->
         <v-list-item
           prepend-icon="mdi-format-list-checks"
           title="Artikeltypen"
           :active="activeTab === 'article-types'"
           @click="navigateTo('article-types')"
         />
-
-        <!-- MARKEN -->
         <v-list-item
           prepend-icon="mdi-tag"
           title="Marken"
@@ -114,21 +104,25 @@
         />
       </v-list-group>
 
-      <!-- MITARBEITER -->
+      <!-- MITARBEITER (mit "Team") -->
       <v-list-group value="employees">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Mitarbeiter" prepend-icon="mdi-account-tie-outline" />
         </template>
+
         <v-list-item
           prepend-icon="mdi-account-multiple-outline"
-          title="Mitarbeiter Übersicht"
           :active="activeTab === 'employees-list'"
           @click="navigateTo('employees-list')"
         >
-          <template #append>
-            <v-chip size="x-small" color="primary">NEW</v-chip>
+          <template #title>
+            <span style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+              <span style="font-size: 0.9rem;">Team</span>
+              <v-chip size="x-small" color="primary" density="compact" class="ml-1">NEW</v-chip>
+            </span>
           </template>
         </v-list-item>
+
         <v-list-item
           prepend-icon="mdi-account-plus-outline"
           title="Neuer Mitarbeiter"
@@ -141,7 +135,6 @@
           :active="activeTab === 'employee-profile'"
           @click="navigateTo('employee-profile')"
         />
-        <!-- NEU: ROLLEN -->
         <v-list-item
           prepend-icon="mdi-account-cog"
           title="Rollen"
@@ -196,69 +189,48 @@ const router = useRouter()
 const route = useRoute()
 const uiStore = useUiStore()
 
-// Aktiven Menüpunkt anhand des Pfades ermitteln
 const activeTab = computed(() => {
   const path = route.path
-
   if (path === '/') return 'dashboard'
   if (path === '/tickets') return 'tickets'
-
   if (path === '/products') return 'products-list'
   if (path === '/products/add') return 'add-product'
-
   if (path === '/categories') return 'categories'
   if (path === '/article-types') return 'article-types'
   if (path === '/brands') return 'brands'
-
   if (path === '/customers') return 'customers-list'
   if (path === '/customers/add') return 'add-customer'
-
   if (path === '/employees') return 'employees-list'
   if (path === '/employees/add') return 'add-employee'
   if (path.startsWith('/employees/')) return 'employee-profile'
-
-  // NEU: Rollen-Route
   if (path === '/roles') return 'roles'
-
   if (path === '/orders') return 'orders-list'
   if (path === '/orders/add') return 'add-order'
-
   if (path === '/stats') return 'stats'
   if (path === '/help') return 'help'
-
   return 'dashboard'
 })
 
-// Navigation zu den definierten Routen
 const navigateTo = (tab) => {
   const routes = {
     dashboard: '/',
     tickets: '/tickets',
-
     'products-list': '/products',
     'add-product': '/products/add',
-
-    'categories': '/categories',
+    categories: '/categories',
     'article-types': '/article-types',
-    'brands': '/brands',
-
+    brands: '/brands',
     'customers-list': '/customers',
     'add-customer': '/customers/add',
-
     'employees-list': '/employees',
     'add-employee': '/employees/add',
     'employee-profile': '/employees/1',
-
-    // NEU: Rollen-Route
-    'roles': '/roles',
-
+    roles: '/roles',
     'orders-list': '/orders',
     'add-order': '/orders/add',
-
     stats: '/stats',
     help: '/help'
   }
-
   router.push(routes[tab] || '/')
 }
 </script>
@@ -275,9 +247,27 @@ const navigateTo = (tab) => {
 .v-navigation-drawer {
   border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
-.v-list-item {
-  min-height: 38px !important;
+
+/* Reduziert den Abstand zwischen Icon und Text */
+.v-list-item .v-list-item__prepend {
+  margin-inline-end: 6px !important;
+  min-width: 30px !important;
 }
+
+/* Verhindert das Abschneiden von Titeln */
+.v-list-item .v-list-item__content {
+  overflow: visible !important;
+}
+
+.v-list-item .v-list-item__title {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.v-list-item .v-list-item__title .v-chip {
+  flex-shrink: 0;
+}
+
 .v-list-item--active {
   background: rgba(25, 118, 210, 0.15);
   color: #1976d2;

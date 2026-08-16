@@ -1,14 +1,14 @@
 <template>
   <v-container>
-    <v-card class="mb-6">
-      <v-card-title>
-        <v-icon left>mdi-account-cog</v-icon>
+    <!-- === KARTE: HINZUFÜGEN === -->
+    <v-card class="mb-6" elevation="3">
+      <v-card-title class="bg-primary text-white py-3">
+        <v-icon left color="white" class="mr-2">mdi-account-cog</v-icon>
         Rollenverwaltung
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="pt-4">
         <v-form ref="addForm" @submit.prevent="addRole">
           <v-row align="center">
-            <!-- 3 Felder, je 3/12 auf sm, 12/12 auf xs -->
             <v-col cols="12" sm="3">
               <v-text-field
                 v-model="newRole.name"
@@ -32,7 +32,6 @@
                 variant="outlined"
               />
             </v-col>
-            <!-- Button-Spalte: 3/12, rechtsbündig -->
             <v-col cols="12" sm="3" class="d-flex justify-end" style="height: 100%; align-self: flex-start; padding-top: 10px;">
               <v-btn
                 type="submit"
@@ -41,7 +40,9 @@
                 :disabled="submittingAdd"
                 height="56"
                 class="text-none"
+                size="large"
               >
+                <v-icon left>mdi-plus</v-icon>
                 Rolle hinzufügen
               </v-btn>
             </v-col>
@@ -50,57 +51,120 @@
       </v-card-text>
     </v-card>
 
-    <!-- Rest unverändert -->
-    <v-card>
-      <v-card-title>Vorhandene Rollen</v-card-title>
-      <v-card-text>
-        <v-progress-circular v-if="loadingRoles" indeterminate color="primary" />
-        <v-alert v-if="error" type="error" dismissible>{{ error }}</v-alert>
+    <!-- === KARTE: VORHANDENE ROLLEN === -->
+    <v-card elevation="2">
+      <!-- HEADER MIT SUCHE & SEITENANZAHL -->
+      <v-card-title class="bg-grey-lighten-3 py-3">
+        <v-row align="center" no-gutters>
+          <v-col cols="12" sm="6" md="4" class="d-flex align-center">
+            <v-icon left color="primary" class="mr-2">mdi-format-list-bulleted</v-icon>
+            Vorhandene Rollen
+            <v-chip size="small" color="primary" class="ml-2">{{ filteredRoles.length }}</v-chip>
+          </v-col>
 
-        <v-table v-else-if="!loadingRoles">
+          <v-col cols="12" sm="6" md="8" class="d-flex align-center justify-sm-end mt-2 mt-sm-0">
+            <!-- SUCHFELD -->
+            <v-text-field
+              v-model="searchQuery"
+              label="Suchen..."
+              variant="outlined"
+              density="compact"
+              prepend-inner-icon="mdi-magnify"
+              hide-details
+              class="mr-3"
+              style="max-width: 200px;"
+            />
+
+            <!-- SEITENANZAHL-AUSWAHL -->
+            <v-select
+              v-model="itemsPerPage"
+              :items="itemsPerPageOptions"
+              label="Pro Seite"
+              variant="outlined"
+              density="compact"
+              hide-details
+              style="max-width: 120px;"
+              class="mr-2"
+            />
+          </v-col>
+        </v-row>
+      </v-card-title>
+
+      <v-card-text class="pt-4">
+        <v-progress-circular v-if="loadingRoles" indeterminate color="primary" class="d-block mx-auto my-4" />
+        <v-alert v-if="error" type="error" dismissible class="mb-4">{{ error }}</v-alert>
+
+        <v-table
+          v-else-if="!loadingRoles"
+          striped
+          hover
+          density="compact"
+          class="rounded-lg"
+        >
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Anzeigename</th>
-              <th>Beschreibung</th>
-              <th style="width: 150px;">Aktionen</th>
+              <th class="text-uppercase text-caption font-weight-bold">Name</th>
+              <th class="text-uppercase text-caption font-weight-bold">Anzeigename</th>
+              <th class="text-uppercase text-caption font-weight-bold">Beschreibung</th>
+              <th class="text-uppercase text-caption font-weight-bold text-center" style="width: 150px;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="role in roles" :key="role.id">
-              <td>{{ role.name }}</td>
+            <tr v-for="role in paginatedRoles" :key="role.id">
+              <td><span class="font-weight-medium">{{ role.name }}</span></td>
               <td>{{ role.display_name }}</td>
               <td>{{ role.description || '-' }}</td>
-              <td>
+              <td class="text-center">
                 <v-btn
                   icon="mdi-pencil"
                   size="small"
                   color="primary"
-                  variant="text"
+                  variant="tonal"
+                  class="mr-1"
                   @click="openEditDialog(role)"
                 />
                 <v-btn
                   icon="mdi-delete"
                   size="small"
                   color="error"
-                  variant="text"
+                  variant="tonal"
                   @click="confirmDelete(role)"
                 />
               </td>
             </tr>
-            <tr v-if="roles.length === 0">
-              <td colspan="4" class="text-center">Keine Rollen vorhanden.</td>
+            <tr v-if="filteredRoles.length === 0">
+              <td colspan="4" class="text-center py-6 text-grey">
+                <v-icon size="48" color="grey-lighten-2">mdi-database-off</v-icon>
+                <div class="text-body-2 mt-2">
+                  <span v-if="searchQuery">Keine Rollen gefunden für „{{ searchQuery }}“</span>
+                  <span v-else>Keine Rollen vorhanden</span>
+                </div>
+              </td>
             </tr>
           </tbody>
         </v-table>
+
+        <!-- === PAGINIERUNG === -->
+        <div v-if="filteredRoles.length > 0" class="d-flex justify-center mt-4">
+          <v-pagination
+            v-model="currentPage"
+            :length="totalPages"
+            :total-visible="5"
+            color="primary"
+            rounded="circle"
+          />
+        </div>
       </v-card-text>
     </v-card>
 
     <!-- BEARBEITUNGSDIALOG -->
     <v-dialog v-model="editDialog" max-width="500">
       <v-card>
-        <v-card-title>Rolle bearbeiten</v-card-title>
-        <v-card-text>
+        <v-card-title class="bg-primary text-white">
+          <v-icon left color="white">mdi-pencil</v-icon>
+          Rolle bearbeiten
+        </v-card-title>
+        <v-card-text class="pt-4">
           <v-form ref="editForm" @submit.prevent="updateRole">
             <v-text-field
               v-model="editRole.name"
@@ -121,9 +185,9 @@
             />
           </v-form>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="pa-4">
           <v-btn variant="text" @click="closeEditDialog">Abbrechen</v-btn>
-          <v-btn color="primary" @click="updateRole" :loading="submittingUpdate">Speichern</v-btn>
+          <v-btn color="primary" @click="updateRole" :loading="submittingUpdate" class="text-none">Speichern</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -131,14 +195,17 @@
     <!-- LÖSCHBESTÄTIGUNG -->
     <v-dialog v-model="deleteDialog" max-width="400">
       <v-card>
-        <v-card-title class="text-h6">Rolle löschen</v-card-title>
-        <v-card-text>
-          Soll die Rolle <strong>{{ deleteRole?.display_name }}</strong> wirklich gelöscht werden?
+        <v-card-title class="text-h6 bg-error text-white">
+          <v-icon left color="white">mdi-alert</v-icon>
+          Rolle löschen
+        </v-card-title>
+        <v-card-text class="pt-4">
+          Soll die Rolle <strong class="text-error">{{ deleteRole?.display_name }}</strong> wirklich gelöscht werden?
           Diese Aktion kann nicht rückgängig gemacht werden.
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="pa-4">
           <v-btn variant="text" @click="closeDeleteDialog">Abbrechen</v-btn>
-          <v-btn color="error" @click="deleteRoleConfirm" :loading="deleting">Löschen</v-btn>
+          <v-btn color="error" @click="deleteRoleConfirm" :loading="deleting" class="text-none">Löschen</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -160,14 +227,14 @@
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" location="top end">
       {{ snackbar.text }}
       <template v-slot:actions>
-        <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false" />
+        <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false" color="white" />
       </template>
     </v-snackbar>
   </v-container>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import axios from 'axios'
 import { useValidationRules } from '../composables/useValidationRules'
 
@@ -177,6 +244,20 @@ const rules = useValidationRules()
 const roles = ref([])
 const loadingRoles = ref(false)
 const error = ref(null)
+
+// Paginierung & Suche
+const currentPage = ref(1)
+const itemsPerPage = ref(5)
+const searchQuery = ref('')
+
+// Optionen für Seitenanzahl
+const itemsPerPageOptions = [
+  { title: '5', value: 5 },
+  { title: '10', value: 10 },
+  { title: '25', value: 25 },
+  { title: '50', value: 50 },
+  { title: 'Alle', value: -1 }
+]
 
 // Neue Rolle
 const newRole = ref({
@@ -215,6 +296,40 @@ const showSnackbar = (text, color = 'success') => {
 // API-Basis
 const API_BASE = 'https://alpha-med-care.com/api'
 
+// ----- Berechnete Werte für Filter & Paginierung -----
+const filteredRoles = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return roles.value
+  }
+  const query = searchQuery.value.toLowerCase().trim()
+  return roles.value.filter(role =>
+    role.name.toLowerCase().includes(query) ||
+    role.display_name.toLowerCase().includes(query) ||
+    (role.description && role.description.toLowerCase().includes(query))
+  )
+})
+
+const totalItems = computed(() => filteredRoles.value.length)
+
+const totalPages = computed(() => {
+  if (itemsPerPage.value === -1) return 1
+  return Math.ceil(totalItems.value / itemsPerPage.value)
+})
+
+const paginatedRoles = computed(() => {
+  if (itemsPerPage.value === -1) {
+    return filteredRoles.value
+  }
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  const end = start + itemsPerPage.value
+  return filteredRoles.value.slice(start, end)
+})
+
+// ----- Watch: Wenn Suche oder Seitenanzahl sich ändert, zurück auf Seite 1 -----
+watch([searchQuery, itemsPerPage], () => {
+  currentPage.value = 1
+})
+
 // ----- Rollen laden -----
 const fetchRoles = async () => {
   loadingRoles.value = true
@@ -223,6 +338,9 @@ const fetchRoles = async () => {
     const res = await axios.get(`${API_BASE}/get_roles.php`)
     if (res.data.success && Array.isArray(res.data.roles)) {
       roles.value = res.data.roles
+      if (currentPage.value > totalPages.value && totalPages.value > 0) {
+        currentPage.value = 1
+      }
     } else {
       error.value = 'Ungültige Antwort der API'
     }
@@ -322,7 +440,7 @@ const closeDeleteDialog = () => {
   deleteRole.value = null
 }
 
-// ----- Rolle löschen (hard delete) -----
+// ----- Rolle löschen -----
 const deleteRoleConfirm = async () => {
   if (!deleteRole.value) return
   deleting.value = true

@@ -1,5 +1,8 @@
 <?php
 // employees_update.php
+// Met à jour toutes les données d'un employé
+// Dernière mise à jour : 2025-08-18
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Methods: PUT, OPTIONS");
@@ -32,20 +35,50 @@ if (!$stmt->fetch()) {
 
 $pdo->beginTransaction();
 try {
-    // Mise à jour users (email et mot de passe)
-    $email = $input['email'] ?? null;
-    $password = $input['password'] ?? null;
+    // ----- Mise à jour de la table users -----
     $updates = [];
     $params = [];
+
+    // 1. Email
+    $email = $input['email'] ?? null;
     if ($email) {
         $updates[] = "email = ?";
         $params[] = $email;
     }
+
+    // 2. Mot de passe (si fourni)
+    $password = $input['password'] ?? null;
     if ($password) {
         $hashed = password_hash($password, PASSWORD_DEFAULT);
         $updates[] = "password_hash = ?";
         $params[] = $hashed;
     }
+
+    // 3. Nom complet (si prénom ou nom change)
+    $vorname = $input['vorname'] ?? null;
+    $nachname = $input['nachname'] ?? null;
+    if ($vorname !== null || $nachname !== null) {
+        // Récupérer les valeurs actuelles pour les combiner
+        $stmtCurrent = $pdo->prepare("SELECT vorname, nachname FROM employees WHERE benutzer_id = ?");
+        $stmtCurrent->execute([$id]);
+        $current = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
+        $newVorname = $vorname ?? $current['vorname'];
+        $newNachname = $nachname ?? $current['nachname'];
+        $fullname = trim($newVorname . ' ' . $newNachname);
+        if (!empty($fullname)) {
+            $updates[] = "name = ?";
+            $params[] = $fullname;
+        }
+    }
+
+    // 4. Rôle (déplacé vers la carte professionnelle)
+    $role = $input['role'] ?? null;
+    if ($role) {
+        $updates[] = "role = ?";
+        $params[] = $role;
+    }
+
+    // Exécuter la mise à jour de users si nécessaire
     if (!empty($updates)) {
         $updates[] = "updated_at = NOW()";
         $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = ?";
@@ -54,10 +87,9 @@ try {
         $stmt->execute($params);
     }
 
-    // Mise à jour employees
+    // ----- Mise à jour de la table employees (tous les champs modifiables) -----
     $stmt = $pdo->prepare("
         UPDATE employees SET
-            mitarbeiter_nummer = ?,
             vorname = ?,
             nachname = ?,
             telefon = ?,
@@ -69,11 +101,17 @@ try {
             gehalt = ?,
             notfall_kontakt_name = ?,
             notfall_kontakt_telefon = ?,
+            steuer_id = ?,
+            sozialversicherungsnummer = ?,
+            vertragsart = ?,
+            wochenarbeitszeit = ?,
+            steuerklasse = ?,
+            konfession = ?,
+            vorgesetzter = ?,
             aktualisiert_am = NOW()
         WHERE benutzer_id = ?
     ");
     $stmt->execute([
-        $input['mitarbeiter_nummer'] ?? null,
         $input['vorname'] ?? null,
         $input['nachname'] ?? null,
         $input['telefon'] ?? null,
@@ -85,10 +123,17 @@ try {
         $input['gehalt'] ?? null,
         $input['notfall_kontakt_name'] ?? null,
         $input['notfall_kontakt_telefon'] ?? null,
+        $input['steuer_id'] ?? null,
+        $input['sozialversicherungsnummer'] ?? null,
+        $input['vertragsart'] ?? null,
+        $input['wochenarbeitszeit'] ?? null,
+        $input['steuerklasse'] ?? null,
+        $input['konfession'] ?? null,
+        $input['vorgesetzter'] ?? null,
         $id
     ]);
 
-    // Gestion des adresses
+    // ----- Gestion des adresses (inchangée) -----
     $stmt = $pdo->prepare("SELECT id FROM employees WHERE benutzer_id = ?");
     $stmt->execute([$id]);
     $emp = $stmt->fetch();
@@ -143,7 +188,7 @@ try {
     $pdo->rollBack();
     if ($e->errorInfo[1] == 1062) {
         http_response_code(409);
-        echo json_encode(['success' => false, 'error' => 'E-Mail oder Mitarbeiter-Nummer existiert bereits']);
+        echo json_encode(['success' => false, 'error' => 'E-Mail existiert bereits']);
     } else {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);

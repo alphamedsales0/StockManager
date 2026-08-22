@@ -1,7 +1,7 @@
 <?php
 // employees_create.php
-// Vollständig, ohne Zählprüfung, nur mit Logging
-// Letzte Aktualisierung: 2025-08-10
+// Crée un nouvel employé avec toutes ses données
+// Dernière mise à jour : 2025-08-18
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/database_connect.php';
 
-// PHPMailer (optional)
+// PHPMailer (optionnel)
 $usePHPMailer = false;
 if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     require __DIR__ . '/phpmailer/src/Exception.php';
@@ -33,7 +33,7 @@ if (file_exists(__DIR__ . '/config.php')) {
     $config = require __DIR__ . '/config.php';
 }
 
-// ----- Hilfsfunktion für fehlersicheres EXECUTE mit Logging (ohne Zählprüfung) -----
+// ----- Hilfsfunktion für fehlersicheres EXECUTE mit Logging -----
 function executeWithCheck($pdo, $sql, $params = [])
 {
     $placeholderCount = substr_count($sql, '?');
@@ -121,24 +121,45 @@ function generatePassword($length = 12) {
     return $password;
 }
 
+// Génération du username
+$fullname = $vorname . ' ' . $nachname;
 $firstPart = strtok($vorname, ' ');
-$username = $firstPart . '.' . $nachname;
+$baseUsername = strtolower($firstPart . '.' . $nachname);
+$username = $baseUsername;
 $plainPassword = generatePassword();
+
+// Vérifier l'unicité du username (avec suffixe si nécessaire)
+$stmtCheck = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+$i = 1;
+while (true) {
+    $stmtCheck->execute([$username]);
+    if (!$stmtCheck->fetch()) {
+        break;
+    }
+    $i++;
+    $username = $baseUsername . $i;
+}
 
 $pdo->beginTransaction();
 
 try {
-    // 1. User anlegen – mit dynamischer Rolle
+    // 1. User anlegen – mit name (complet) und username
     $role = !empty($employeeData['role']) ? $employeeData['role'] : 'employee';
-    $sql = "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 1, NOW(), NOW())";
-    executeWithCheck($pdo, $sql, [$username, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $role]);
+    $sql = "INSERT INTO users (name, username, email, password_hash, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())";
+    executeWithCheck($pdo, $sql, [
+        $fullname,
+        $username,
+        $email,
+        password_hash($plainPassword, PASSWORD_DEFAULT),
+        $role
+    ]);
     $benutzer_id = $pdo->lastInsertId();
 
     // 2. Mitarbeiternummer generieren
     $mitarbeiter_nummer = generateEmployeeNumber($pdo);
 
-    // 3. Employee anlegen – korrekte Anzahl Platzhalter: 19 (alle ?) + NOW() = 20 Spalten
+    // 3. Employee anlegen – avec vorgesetzter, steuerklasse, konfession
     $sql = "
 INSERT INTO employees (
     benutzer_id,
@@ -160,10 +181,12 @@ INSERT INTO employees (
     wochenarbeitszeit,
     steuerklasse,
     konfession,
+    vorgesetzter,
     aktualisiert_am
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()
+    ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    NOW()
 )";
     $params = [
         $benutzer_id,
@@ -184,12 +207,13 @@ INSERT INTO employees (
         empty($employeeData['vertragsart']) ? null : $employeeData['vertragsart'],
         empty($employeeData['wochenarbeitszeit']) ? null : $employeeData['wochenarbeitszeit'],
         empty($employeeData['steuerklasse']) ? '1' : $employeeData['steuerklasse'],
-        empty($employeeData['konfession']) ? 'keine' : $employeeData['konfession']
+        empty($employeeData['konfession']) ? 'keine' : $employeeData['konfession'],
+        empty($employeeData['vorgesetzter']) ? null : $employeeData['vorgesetzter']
     ];
     executeWithCheck($pdo, $sql, $params);
     $mitarbeiter_id = $pdo->lastInsertId();
 
-    // 4. Adresse
+    // 4. Adresse (primär)
     $addr = $employeeData['adresse'] ?? null;
     if ($addr && !empty($addr['strasse']) && !empty($addr['hausnummer'])) {
         $sql = "INSERT INTO employees_addresses (
@@ -246,7 +270,7 @@ INSERT INTO employees (
         }
     }
 
-    // 7. Dokumente
+    // 7. Dokumente (avec upload)
     if (!empty($employeeData['documents']) && is_array($employeeData['documents'])) {
         $uploadDir = __DIR__ . '/uploads/employees/' . $mitarbeiter_id . '/';
         if (!is_dir($uploadDir)) {
@@ -281,7 +305,7 @@ INSERT INTO employees (
         }
     }
 
-    // 8. Versicherung (in mitarbeiter_versicherungen speichern)
+    // 8. Versicherung (in mitarbeiter_versicherungen)
     $versicherung_typ = $employeeData['versicherung_typ'] ?? null;
     $versicherung_gesellschaft = $employeeData['versicherung_gesellschaft'] ?? null;
     $versicherung_nummer = $employeeData['versicherung_nummer'] ?? null;
@@ -309,14 +333,14 @@ INSERT INTO employees (
         $photoName = 'profile.' . $ext;
         $targetPath = $photoDir . $photoName;
         move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath);
-        // Optional: Pfad in employees speichern – Spalte foto_pfad muss vorhanden sein
+        // Optionnel : enregistrer le chemin dans employees (si colonne foto_pfad existe)
         // $sql = "UPDATE employees SET foto_pfad = ? WHERE id = ?";
         // executeWithCheck($pdo, $sql, ['/uploads/employees/' . $mitarbeiter_id . '/' . $photoName, $mitarbeiter_id]);
     }
 
     $pdo->commit();
 
-    // ----- E‑Mail senden (unverändert) -----
+    // ----- E‑Mail senden (avec PHPMailer ou fallback) -----
     $mailSent = false;
     $mailError = null;
     $subject = 'Ihre Zugangsdaten für das Mitarbeiterportal';
@@ -367,6 +391,7 @@ INSERT INTO employees (
         'message' => 'Mitarbeiter angelegt, E‑Mail versendet',
         'id' => $benutzer_id,
         'mitarbeiter_nummer' => $mitarbeiter_nummer,
+        'username' => $username,
         'mail_sent' => $mailSent,
         'mail_error' => $mailError
     ]);
@@ -387,7 +412,6 @@ INSERT INTO employees (
 // Funktion für die HTML-E-Mail (unverändert)
 // ============================================================
 function buildCredentialsEmail($vorname, $nachname, $username, $password) {
-    $changeDate = date('d.m.Y H:i');
     return <<<HTML
 <!DOCTYPE html>
 <html>
@@ -415,11 +439,6 @@ function buildCredentialsEmail($vorname, $nachname, $username, $password) {
         .footer a { color: #0f172a; text-decoration: none; }
         .footer a:hover { text-decoration: underline; }
         .footer img { max-width: 120px; margin-bottom: 10px; }
-        @media only screen and (max-width: 480px) {
-            .container { margin: 10px; border-radius: 8px; }
-            .header { padding: 20px; }
-            .content { padding: 20px; }
-        }
     </style>
 </head>
 <body>

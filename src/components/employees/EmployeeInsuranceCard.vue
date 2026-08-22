@@ -5,6 +5,7 @@
       Versicherung &amp; Steuer‑ID
     </v-card-title>
     <v-card-text>
+      <!-- Steuer-ID -->
       <v-text-field
         v-model="employee.steuer_id"
         label="Steuer‑ID"
@@ -13,6 +14,32 @@
         :rules="[rules.number]"
         autocomplete="tax-id"
       />
+      
+
+      <!-- 👇 NOUVEAUX CHAMPS : Steuerklasse & Konfession -->
+      <v-row>
+        <v-col cols="12" sm="6">
+          <v-select
+            v-model="employee.steuerklasse"
+            label="Steuerklasse"
+            variant="outlined"
+            prepend-inner-icon="mdi-currency-eur"
+            :items="['1', '2', '3', '4', '5', '6']"
+            :rules="[rules.required]"
+          />
+        </v-col>
+        <v-col cols="12" sm="6">
+          <v-select
+            v-model="employee.konfession"
+            label="Konfession"
+            variant="outlined"
+            prepend-inner-icon="mdi-church"
+            :items="['rk', 'ev', 'sonstige', 'keine']"
+          />
+        </v-col>
+      </v-row>
+
+      <!-- Sozialversicherungsnummer -->
       <v-text-field
         v-model="employee.sozialversicherungsnummer"
         label="Sozialversicherungsnummer"
@@ -22,8 +49,7 @@
         autocomplete="social-security-number"
       />
 
-      <v-divider class="my-4" />
-
+      <!-- Versicherungsdaten (inchangés) -->
       <v-select
         v-model="employee.versicherung_typ"
         label="Versicherungstyp"
@@ -38,7 +64,6 @@
         prepend-inner-icon="mdi-domain"
         autocomplete="organization"
       />
-      <!-- ANPASSUNG: alphanumerische Validierung -->
       <v-text-field
         v-model="employee.versicherung_nummer"
         label="Versicherungsnummer"

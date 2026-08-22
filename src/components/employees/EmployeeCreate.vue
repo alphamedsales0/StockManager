@@ -20,6 +20,7 @@
         <!-- Linke Spalte -->
         <v-col cols="12" md="6">
           <EmployeePersonalCard />
+          <EmployeeAddressCard />
           <EmployeeInsuranceCard />
           <EmployeePhotoUpload ref="photoUploadRef" />
         </v-col>
@@ -31,7 +32,7 @@
           <EmployeeQualificationsCard />
           <EmployeeDocumentsCard />
           <EmployeeEmergencyCard />
-          <EmployeeAddressCard />
+         
         </v-col>
       </v-row>
 

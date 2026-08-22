@@ -22,7 +22,8 @@ export const useEmployeeStore = defineStore('employee', () => {
     wochenarbeitszeit: null,
     steuerklasse: '1',
     konfession: 'keine',
-    role: 'employee',          // <-- NEU
+    role: 'employee',
+    vorgesetzter: '',                // <-- NOUVEAU
     versicherung_typ: 'Krankenversicherung',
     versicherung_gesellschaft: '',
     versicherung_nummer: '',
@@ -66,6 +67,7 @@ export const useEmployeeStore = defineStore('employee', () => {
       steuerklasse: '1',
       konfession: 'keine',
       role: 'employee',
+      vorgesetzter: '',              
       versicherung_typ: 'Krankenversicherung',
       versicherung_gesellschaft: '',
       versicherung_nummer: '',

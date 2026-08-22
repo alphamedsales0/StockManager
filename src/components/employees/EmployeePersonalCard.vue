@@ -38,16 +38,7 @@
         autocomplete="email"
       />
 
-      <!-- ROLLE – dynamisch aus API geladen -->
-      <v-select
-        v-model="employee.role"
-        label="Rolle"
-        variant="outlined"
-        prepend-inner-icon="mdi-account-tie"
-        :items="roles"
-        :loading="loadingRoles"
-        :rules="[rules.required]"
-      />
+      <!-- SUPPRESSION de Steuerklasse et Konfession -->
 
       <v-row>
         <v-col cols="12" sm="6">
@@ -69,25 +60,7 @@
             :rules="[rules.number]"
           />
         </v-col>
-        <v-col cols="12" sm="6">
-          <v-select
-            v-model="employee.steuerklasse"
-            label="Steuerklasse"
-            variant="outlined"
-            prepend-inner-icon="mdi-currency-eur"
-            :items="['1', '2', '3', '4', '5', '6']"
-            :rules="[rules.required]"
-          />
-        </v-col>
-        <v-col cols="12" sm="6">
-          <v-select
-            v-model="employee.konfession"
-            label="Konfession"
-            variant="outlined"
-            prepend-inner-icon="mdi-church"
-            :items="['rk', 'ev', 'sonstige', 'keine']"
-          />
-        </v-col>
+        <!-- Les colonnes Steuerklasse et Konfession ont été supprimées -->
       </v-row>
 
       <v-row>
@@ -117,41 +90,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import { useValidationRules } from '../../composables/useValidationRules'
 
 const store = useEmployeeStore()
 const employee = store.employee
 const rules = useValidationRules()
-
-// Rollen aus der API laden
-const roles = ref([])
-const loadingRoles = ref(false)
-
-const fetchRoles = async () => {
-  loadingRoles.value = true
-  try {
-    const response = await axios.get('/api/get_roles.php')
-    if (response.data.success) {
-      // Wir speichern nur die Namen (oder display_name) für die Anzeige
-      roles.value = response.data.roles.map(r => r.name)
-      // Falls du display_name anzeigen möchtest: 
-      // roles.value = response.data.roles.map(r => r.display_name)
-    } else {
-      console.warn('Rollen konnten nicht geladen werden, verwende Fallback')
-      roles.value = ['admin', 'manager', 'employee', 'technician']
-    }
-  } catch (error) {
-    console.error('Fehler beim Laden der Rollen:', error)
-    roles.value = ['admin', 'manager', 'employee', 'technician']
-  } finally {
-    loadingRoles.value = false
-  }
-}
-
-onMounted(() => {
-  fetchRoles()
-})
 </script>

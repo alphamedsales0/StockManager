@@ -22,6 +22,7 @@ CREATE TABLE employees (
     wochenarbeitszeit DECIMAL(4,2) NULL,
     steuerklasse VARCHAR(2) NULL DEFAULT '1',   -- hier korrigiert
     konfession VARCHAR(20) NULL DEFAULT 'keine',
+    vorgesetzter VARCHAR(255) NULL DEFAULT NULL,
     FOREIGN KEY (benutzer_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_nachname (nachname),
     INDEX idx_abteilung (abteilung),

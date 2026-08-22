@@ -46,7 +46,6 @@
         variant="outlined"
         prepend-inner-icon="mdi-earth"
         :items="countries"
-        :loading="loadingCountries"
       />
     </v-card-text>
   </v-card>
@@ -55,30 +54,12 @@
 <script setup>
 import { useEmployeeStore } from '../../stores/employeeStore'
 import { useValidationRules } from '../../composables/useValidationRules'
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 const store = useEmployeeStore()
 const employee = store.employee
 const rules = useValidationRules()
 
+// Nur diese fünf Länder
 const countries = ref(['Deutschland', 'Frankreich', 'Belgien', 'Österreich', 'Schweiz'])
-const loadingCountries = ref(false)
-
-// Beispiel: Länderliste von einer API laden
-const fetchCountries = async () => {
-  loadingCountries.value = true
-  try {
-    const response = await fetch('https://restcountries.com/v3.1/all?fields=name')
-    const data = await response.json()
-    countries.value = data.map(c => c.name.common).sort()
-  } catch (error) {
-    console.warn('Länderliste konnte nicht geladen werden, verwende Fallback')
-  } finally {
-    loadingCountries.value = false
-  }
-}
-
-onMounted(() => {
-  fetchCountries()
-})
 </script>

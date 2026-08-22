@@ -94,10 +94,11 @@
         <v-progress-circular v-if="loadingRoles" indeterminate color="primary" class="d-block mx-auto my-4" />
         <v-alert v-if="error" type="error" dismissible class="mb-4">{{ error }}</v-alert>
 
+        <!-- ✅ Correction : striped et hover avec binding booléen -->
         <v-table
           v-else-if="!loadingRoles"
-          striped
-          hover
+          :striped="true"
+          :hover="true"
           density="compact"
           class="rounded-lg"
         >
@@ -293,7 +294,7 @@ const showSnackbar = (text, color = 'success') => {
   snackbar.value = { show: true, text, color }
 }
 
-// API-Basis
+// API-Basis – avec URL absolue pour éviter CORS en dev
 const API_BASE = 'https://alpha-med-care.com/api'
 
 // ----- Berechnete Werte für Filter & Paginierung -----

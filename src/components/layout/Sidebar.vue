@@ -6,7 +6,7 @@
     class="elevation-3"
     :width="uiStore.rail ? 56 : 280"
   >
-    <!-- HEADER -->
+    <!-- HEADER (unverändert) -->
     <div class="sidebar-header" :class="{ 'rail-mode': uiStore.rail }">
       <div
         class="d-flex align-center"
@@ -32,7 +32,7 @@
     <v-divider class="my-2" />
 
     <v-list nav density="compact" class="pa-1">
-      <!-- DASHBOARD -->
+      <!-- DASHBOARD – immer erlaubt -->
       <v-list-item
         prepend-icon="mdi-view-dashboard-outline"
         title="Dashboard"
@@ -40,7 +40,7 @@
         @click="navigateTo('dashboard')"
       />
 
-      <!-- TICKETS -->
+      <!-- TICKETS – immer erlaubt -->
       <v-list-item
         prepend-icon="mdi-ticket-outline"
         title="Tickets"
@@ -48,7 +48,7 @@
         @click="navigateTo('tickets')"
       />
 
-      <!-- PRODUKTE -->
+      <!-- PRODUKTE – für alle sichtbar, aber nur Admin darf navigieren -->
       <v-list-group value="products">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Produkte" prepend-icon="mdi-package-variant" />
@@ -85,7 +85,7 @@
         />
       </v-list-group>
 
-      <!-- KUNDEN -->
+      <!-- KUNDEN – für alle sichtbar -->
       <v-list-group value="customers">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Kunden" prepend-icon="mdi-account-group-outline" />
@@ -104,12 +104,11 @@
         />
       </v-list-group>
 
-      <!-- MITARBEITER (mit "Team") -->
+      <!-- MITARBEITER – für alle sichtbar -->
       <v-list-group value="employees">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Mitarbeiter" prepend-icon="mdi-account-tie-outline" />
         </template>
-
         <v-list-item
           prepend-icon="mdi-account-multiple-outline"
           :active="activeTab === 'employees-list'"
@@ -122,7 +121,6 @@
             </span>
           </template>
         </v-list-item>
-
         <v-list-item
           prepend-icon="mdi-account-plus-outline"
           title="Neuer Mitarbeiter"
@@ -143,7 +141,7 @@
         />
       </v-list-group>
 
-      <!-- BESTELLUNGEN -->
+      <!-- BESTELLUNGEN – für alle sichtbar -->
       <v-list-group value="orders">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Bestellungen" prepend-icon="mdi-cart-outline" />
@@ -164,12 +162,15 @@
 
       <v-divider class="my-2" />
 
+      <!-- STATISTIKEN – für alle sichtbar -->
       <v-list-item
         prepend-icon="mdi-chart-line"
         title="Statistiken"
         :active="activeTab === 'stats'"
         @click="navigateTo('stats')"
       />
+
+      <!-- HILFE – immer erlaubt -->
       <v-list-item
         prepend-icon="mdi-help-circle-outline"
         title="Hilfe"
@@ -184,10 +185,21 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUiStore } from '../../stores/uiStore'
+import { usePermissionStore } from '../../stores/permission'
 
 const router = useRouter()
 const route = useRoute()
 const uiStore = useUiStore()
+const permissionStore = usePermissionStore()
+
+// Liste der geschützten Tabs (nur Admin)
+const protectedTabs = [
+  'products-list', 'add-product', 'categories', 'article-types', 'brands',
+  'customers-list', 'add-customer',
+  'employees-list', 'add-employee', 'employee-profile', 'roles',
+  'orders-list', 'add-order',
+  'stats'
+]
 
 const activeTab = computed(() => {
   const path = route.path
@@ -231,7 +243,18 @@ const navigateTo = (tab) => {
     stats: '/stats',
     help: '/help'
   }
-  router.push(routes[tab] || '/')
+
+  const target = routes[tab] || '/'
+
+  if (protectedTabs.includes(tab)) {
+    // Geschützter Tab – prüfe Berechtigung
+    permissionStore.checkPermission('Admin', () => {
+      router.push(target)
+    })
+  } else {
+    // Ungeschützte Tabs (dashboard, tickets, help) – immer erlaubt
+    router.push(target)
+  }
 }
 </script>
 
@@ -247,27 +270,20 @@ const navigateTo = (tab) => {
 .v-navigation-drawer {
   border-right: 1px solid rgba(0, 0, 0, 0.08);
 }
-
-/* Reduziert den Abstand zwischen Icon und Text */
 .v-list-item .v-list-item__prepend {
   margin-inline-end: 6px !important;
   min-width: 30px !important;
 }
-
-/* Verhindert das Abschneiden von Titeln */
 .v-list-item .v-list-item__content {
   overflow: visible !important;
 }
-
 .v-list-item .v-list-item__title {
   font-size: 0.9rem;
   white-space: nowrap;
 }
-
 .v-list-item .v-list-item__title .v-chip {
   flex-shrink: 0;
 }
-
 .v-list-item--active {
   background: rgba(25, 118, 210, 0.15);
   color: #1976d2;

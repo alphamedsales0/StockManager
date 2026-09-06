@@ -233,6 +233,8 @@ const handleSignIn = async () => {
       notificationStore.showSuccess('Erfolgreich angemeldet', 'Willkommen zurück!')
       loginSuccess.value = true
       setTimeout(() => (loginSuccess.value = false), 1500)
+      // Nach Login zur Dashboard-Seite navigieren
+      router.push('/dashboard')
     } else {
       loginError.value = response.data.message || 'Anmeldung fehlgeschlagen'
       notificationStore.showError('Anmeldung fehlgeschlagen', loginError.value)
@@ -253,14 +255,20 @@ const handleSignIn = async () => {
 const continueAsGuest = async () => {
   isLoading.value = true
   try {
+    // Gast im Store setzen (ohne Server-Request)
     authStore.setUser({
       id: 999,
       name: 'Gast',
-      email: 'gast@example.com',
+      email: 'gast@alpha-med-care.com',
       role: 'Gast'
     })
+    // Sicherstellen, dass isLoggedIn true ist
+    authStore.setLoggedIn(true)
     notificationStore.showSuccess('Als Gast angemeldet', 'Eingeschränkter Zugriff.')
+    // Zur Dashboard-Seite navigieren
+    router.push('/dashboard')
   } catch (error) {
+    console.error('Guest login error:', error)
     notificationStore.showError('Fehler', 'Bitte erneut versuchen.')
   } finally {
     isLoading.value = false
@@ -299,7 +307,7 @@ const handleResetPassword = async () => {
 </script>
 
 <style scoped>
-/* Styles du design gris (inchangés) */
+/* Styles unverändert */
 .login-wrapper {
   min-height: 100vh;
   display: flex;

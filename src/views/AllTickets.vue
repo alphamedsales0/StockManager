@@ -14,7 +14,6 @@
       <!-- Filter- und Suchleiste -->
       <v-card-text class="pt-4">
         <v-row align="center">
-          <!-- Statusfilter -->
           <v-col cols="12" sm="3">
             <v-select
               v-model="filterStatus"
@@ -26,8 +25,6 @@
               @update:modelValue="applyFilters"
             ></v-select>
           </v-col>
-
-          <!-- Ticket-Typ-Filter -->
           <v-col cols="12" sm="3">
             <v-select
               v-model="filterFormType"
@@ -39,8 +36,6 @@
               @update:modelValue="applyFilters"
             ></v-select>
           </v-col>
-
-          <!-- Suchleiste (neu) -->
           <v-col cols="12" sm="4">
             <v-text-field
               v-model="searchQuery"
@@ -55,8 +50,6 @@
               @click:clear="clearSearch"
             ></v-text-field>
           </v-col>
-
-          <!-- Aktualisierungs-Button -->
           <v-col cols="12" sm="2" class="text-right">
             <v-btn color="primary" @click="loadTickets" :loading="loading">
               <v-icon left>mdi-refresh</v-icon> Aktualisieren
@@ -98,9 +91,17 @@
                 </v-chip>
               </td>
               <td class="text-center">
-                <v-btn icon variant="text" size="small" @click.stop="viewDetails(item)">
+                <!-- Aktion nur für Admins sichtbar -->
+                <v-btn
+                  v-if="authStore.user?.role === 'Admin'"
+                  icon
+                  variant="text"
+                  size="small"
+                  @click.stop="viewDetails(item)"
+                >
                   <v-icon>mdi-eye</v-icon>
                 </v-btn>
+                <span v-else class="text-grey">—</span>
               </td>
             </tr>
             <tr v-if="tickets.length === 0 && !loading">
@@ -127,15 +128,19 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { usePermissionStore } from '../stores/permission'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 
 // Refs
 const tickets = ref([])
 const loading = ref(true)
 const filterStatus = ref(null)
 const filterFormType = ref(null)
-const searchQuery = ref('')            // Neue Suchabfrage
+const searchQuery = ref('')
 const page = ref(1)
 const totalPages = ref(1)
 
@@ -152,7 +157,7 @@ const formTypeFilterOptions = [
   { title: 'Wartung', value: 'maintenance' },
   { title: 'Installation', value: 'installation' },
   { title: 'Ersatzteile', value: 'ersatzteile' },
-  { title: 'Angebotsanfrage', value: 'angebot' }   // neu
+  { title: 'Angebotsanfrage', value: 'angebot' }
 ]
 
 // Farbzuordnung
@@ -176,7 +181,7 @@ const loadTickets = async () => {
     const params = new URLSearchParams()
     if (filterStatus.value) params.append('status', filterStatus.value)
     if (filterFormType.value) params.append('form_type', filterFormType.value)
-    if (searchQuery.value) params.append('search', searchQuery.value)   // Suchparameter
+    if (searchQuery.value) params.append('search', searchQuery.value)
     params.append('page', page.value)
     params.append('limit', 20)
 
@@ -216,9 +221,12 @@ const clearSearch = () => {
   applyFilters()
 }
 
-// Navigation zur Detailseite
+// Navigation zur Detailseite – nur für Admins
 const viewDetails = (ticket) => {
-  router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+  // Prüfe Berechtigung mit zentralem Permission-Store
+  permissionStore.checkPermission('Admin', () => {
+    router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+  })
 }
 
 const goBack = () => {
@@ -226,7 +234,16 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  loadTickets()
+  // Auth-Store initialisieren, falls noch kein Benutzer gesetzt ist
+  if (!authStore.user) {
+    authStore.initialize().then(() => {
+      loadTickets()
+    }).catch(() => {
+      loadTickets()
+    })
+  } else {
+    loadTickets()
+  }
 })
 </script>
 

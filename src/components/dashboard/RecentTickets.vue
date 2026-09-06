@@ -58,8 +58,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { usePermissionStore } from '../../stores/permission'
 
 const router = useRouter()
+const permissionStore = usePermissionStore()
+
+// Refs
 const tickets = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -88,7 +92,7 @@ const loadTickets = async () => {
       throw new Error(`HTTP Fehler: ${response.status}`)
     }
     const data = await response.json()
-    console.log('API response:', data) // Debug-Ausgabe
+    console.log('API response:', data)
     if (data.success) {
       tickets.value = data.tickets || []
     } else {
@@ -103,12 +107,14 @@ const loadTickets = async () => {
   }
 }
 
-// Navigiert zur Detailseite (mit source-Parameter)
+// Navigiert zur Detailseite – nur mit Admin-Berechtigung
 const viewDetails = (ticket) => {
-  router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+  permissionStore.checkPermission('Admin', () => {
+    router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+  })
 }
 
-// Navigiert zur vollständigen Ticketübersicht
+// Navigiert zur vollständigen Ticketübersicht (ungeschützt, da die Übersicht selbst prüft)
 const goToAllTickets = () => {
   router.push('/tickets')
 }

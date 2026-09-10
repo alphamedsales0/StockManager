@@ -183,7 +183,7 @@
           </div>
           <v-divider />
           <v-list density="compact" nav>
-            <v-list-item prepend-icon="mdi-account" title="Profil" @click="goTo('/profile')" />
+            <v-list-item prepend-icon="mdi-account" title="Profil" @click="goTo('/users_profile')" />
             <v-list-item prepend-icon="mdi-cog" title="Einstellungen" @click="goTo('/settings')" />
           </v-list>
           <v-divider />

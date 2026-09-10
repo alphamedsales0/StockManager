@@ -78,23 +78,25 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/employees/:id(\\d+)',   // NUR ZAHLEN
+    // ✅ UUID v4 : 36 caractères (hex + tirets)
+    path: '/employees/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
     name: 'EmployeeDetail',
     component: () => import('../views/EmployeeDetailView.vue'),
     meta: { requiresAuth: true }
   },
   {
-    path: '/employees/edit/:id(\\d+)', // NUR ZAHLEN
+    // ✅ UUID v4 pour la route d'édition
+    path: '/employees/edit/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
     name: 'EditEmployee',
     component: () => import('../components/employees/EditEmployee.vue'),
     meta: { requiresAuth: true }
   },
   {
-  path: '/roles',
-  name: 'RolesManagement',
-  component: () => import('../views/RolesManagement.vue'),
-  meta: { requiresAuth: true }
-}
+    path: '/roles',
+    name: 'RolesManagement',
+    component: () => import('../views/RolesManagement.vue'),
+    meta: { requiresAuth: true }
+  }
 ]
 
 const router = createRouter({

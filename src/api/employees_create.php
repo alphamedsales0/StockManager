@@ -2,7 +2,8 @@
 // employees_create.php
 // Crée un nouvel employé avec toutes ses données
 // Dernière mise à jour : 2025-09-10
-// ✅ Adapté à la structure : employees.uid référencé par les tables enfants
+// ✅ Structure : employees.uid référencé par les tables enfants
+// ✅ Uploads : /uploads/employees/{uid}/profil.{ext}  + documents
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -20,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/database_connect.php';
 
-// PHPMailer (optionnel)
+// ----- PHPMailer (optionnel) -----
 $usePHPMailer = false;
 if (file_exists(__DIR__ . '/phpmailer/src/PHPMailer.php')) {
     require __DIR__ . '/phpmailer/src/Exception.php';
@@ -88,10 +89,14 @@ if (isset($_POST['employee'])) {
     $employeeData = json_decode($rawInput, true);
 }
 
-file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " INPUT: " . json_encode($employeeData) . "\n", FILE_APPEND);
+file_put_contents(
+    __DIR__ . '/debug.log',
+    date('Y-m-d H:i:s') . " INPUT: " . json_encode($employeeData) . "\n",
+    FILE_APPEND
+);
 
-$email = trim($employeeData['email'] ?? '');
-$vorname = trim($employeeData['vorname'] ?? '');
+$email    = trim($employeeData['email']    ?? '');
+$vorname  = trim($employeeData['vorname']  ?? '');
 $nachname = trim($employeeData['nachname'] ?? '');
 
 if (!$email || !$vorname || !$nachname) {
@@ -104,9 +109,9 @@ if (!$email || !$vorname || !$nachname) {
 function generateEmployeeNumber($pdo) {
     $prefix = 'EMP-';
     $date = date('Ymd');
-    // Format: EMP-YYYYMMDD-NNNN  → préfixe(4) + date(8) + tiret(1) = 13 caractères
-    $sql = "SELECT MAX(CAST(SUBSTRING(mitarbeiter_nummer, 14) AS UNSIGNED)) 
-            FROM employees 
+    // Format: EMP-YYYYMMDD-NNNN → préfixe(4) + date(8) + tiret(1) = 13 caractères
+    $sql = "SELECT MAX(CAST(SUBSTRING(mitarbeiter_nummer, 14) AS UNSIGNED))
+            FROM employees
             WHERE mitarbeiter_nummer LIKE ?";
     $stmt = $pdo->prepare($sql);
     $likePattern = $prefix . $date . '-%';
@@ -127,10 +132,10 @@ function generatePassword($length = 12) {
 }
 
 // Génération du username
-$fullname = $vorname . ' ' . $nachname;
-$firstPart = strtok($vorname, ' ');
+$fullname     = $vorname . ' ' . $nachname;
+$firstPart    = strtok($vorname, ' ');
 $baseUsername = strtolower($firstPart . '.' . $nachname);
-$username = $baseUsername;
+$username     = $baseUsername;
 $plainPassword = generatePassword();
 
 // Vérifier l'unicité du username
@@ -146,11 +151,11 @@ while (true) {
 $pdo->beginTransaction();
 
 try {
-    // ---------- UIDs à générer ----------
+    // ---------- UIDs ----------
     $userUid     = generateUid();
     $employeeUid = generateUid();
 
-    // 1. User anlegen
+    // ---------- 1. USER ----------
     $allowedRoles = ['employee', 'manager', 'admin', 'technician'];
     $role = in_array($employeeData['role'] ?? '', $allowedRoles, true)
         ? $employeeData['role']
@@ -168,11 +173,11 @@ try {
     ]);
     $benutzer_id = $pdo->lastInsertId();
 
-    // 2. Mitarbeiternummer generieren
+    // ---------- 2. Mitarbeiternummer ----------
     $mitarbeiter_nummer = generateEmployeeNumber($pdo);
 
-    // 3. Employee anlegen
-$sql = "
+    // ---------- 3. EMPLOYEE ----------
+    $sql = "
 INSERT INTO employees (
     uid,
     benutzer_id,
@@ -226,7 +231,7 @@ INSERT INTO employees (
     ];
     executeWithCheck($pdo, $sql, $params);
 
-    // 4. Adresse (primär) — référencée par $employeeUid
+    // ---------- 4. ADRESSE ----------
     $addr = $employeeData['adresse'] ?? null;
     if ($addr && !empty($addr['strasse']) && !empty($addr['hausnummer'])) {
         $sql = "INSERT INTO employees_addresses (
@@ -236,13 +241,13 @@ INSERT INTO employees (
             $employeeUid,
             $addr['strasse'],
             $addr['hausnummer'],
-            $addr['plz'] ?? null,
+            $addr['plz']   ?? null,
             $addr['stadt'] ?? null,
-            $addr['land'] ?? 'Deutschland'
+            $addr['land']  ?? 'Deutschland'
         ]);
     }
 
-    // 5. Bankverbindungen
+    // ---------- 5. BANKVERBINDUNGEN ----------
     if (!empty($employeeData['bank_accounts']) && is_array($employeeData['bank_accounts'])) {
         $sql = "INSERT INTO employee_bank_accounts (
                     mitarbeiter_uid, kontoinhaber, iban, bic, bankname, ist_aktiv
@@ -253,7 +258,7 @@ INSERT INTO employees (
                     $employeeUid,
                     $account['kontoinhaber'] ?? null,
                     $account['iban'],
-                    $account['bic'] ?? null,
+                    $account['bic']      ?? null,
                     $account['bankname'] ?? null,
                     !empty($account['ist_aktiv']) ? 1 : 0
                 ]);
@@ -261,7 +266,7 @@ INSERT INTO employees (
         }
     }
 
-    // 6. Qualifikationen
+    // ---------- 6. QUALIFIKATIONEN ----------
     if (!empty($employeeData['qualifications']) && is_array($employeeData['qualifications'])) {
         $sql = "INSERT INTO employee_qualifications (
                     mitarbeiter_uid, qualifikationstyp, bezeichnung, institution,
@@ -275,7 +280,7 @@ INSERT INTO employees (
                     $qual['bezeichnung'],
                     $qual['institution'] ?? null,
                     !empty($qual['abschlussdatum']) ? $qual['abschlussdatum'] : null,
-                    !empty($qual['gueltig_bis']) ? $qual['gueltig_bis'] : null,
+                    !empty($qual['gueltig_bis'])    ? $qual['gueltig_bis']    : null,
                     $qual['note'] ?? null,
                     $qual['datei_pfad'] ?? null
                 ]);
@@ -283,9 +288,10 @@ INSERT INTO employees (
         }
     }
 
-    // 7. Dokumente (avec upload) — dossier basé sur $employeeUid
+    // ---------- 7. DOKUMENTE (avec upload) ----------
+    // Dossier physique : /uploads/employees/{uid}/  (à la racine du site)
     if (!empty($employeeData['documents']) && is_array($employeeData['documents'])) {
-        $uploadDir = __DIR__ . '/uploads/employees/' . $employeeUid . '/';
+        $uploadDir = dirname(__DIR__) . '/uploads/employees/' . $employeeUid . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
@@ -296,14 +302,16 @@ INSERT INTO employees (
         foreach ($employeeData['documents'] as $index => $doc) {
             if (empty($doc['name']) || empty($doc['typ'])) continue;
 
-            $fileKey = 'document_' . $index;
+            $fileKey  = 'document_' . $index;
             $filePath = '';
             if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
                 $file = $_FILES[$fileKey];
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                 $newName = uniqid() . '.' . $ext;
                 $targetPath = $uploadDir . $newName;
+
                 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                    // Chemin public
                     $filePath = '/uploads/employees/' . $employeeUid . '/' . $newName;
                 }
             }
@@ -318,10 +326,10 @@ INSERT INTO employees (
         }
     }
 
-    // 8. Versicherung
-    $versicherung_typ = $employeeData['versicherung_typ'] ?? null;
+    // ---------- 8. VERSICHERUNG ----------
+    $versicherung_typ          = $employeeData['versicherung_typ']          ?? null;
     $versicherung_gesellschaft = $employeeData['versicherung_gesellschaft'] ?? null;
-    $versicherung_nummer = $employeeData['versicherung_nummer'] ?? null;
+    $versicherung_nummer       = $employeeData['versicherung_nummer']       ?? null;
     if ($versicherung_gesellschaft || $versicherung_nummer) {
         $sql = "INSERT INTO mitarbeiter_versicherungen (
                     mitarbeiter_uid, versicherungstyp, versicherungsgesellschaft, versicherungsnummer,
@@ -332,36 +340,62 @@ INSERT INTO employees (
             $versicherung_typ ?? 'Krankenversicherung',
             $versicherung_gesellschaft,
             $versicherung_nummer,
-            !empty($employeeData['versicherung_gueltig_ab']) ? $employeeData['versicherung_gueltig_ab'] : null,
+            !empty($employeeData['versicherung_gueltig_ab'])  ? $employeeData['versicherung_gueltig_ab']  : null,
             !empty($employeeData['versicherung_gueltig_bis']) ? $employeeData['versicherung_gueltig_bis'] : null,
-            !empty($employeeData['versicherung_beitrag']) ? $employeeData['versicherung_beitrag'] : null
+            !empty($employeeData['versicherung_beitrag'])     ? $employeeData['versicherung_beitrag']     : null
         ]);
     }
 
-    // 9. Foto speichern — dossier basé sur $employeeUid
+    // ---------- 9. FOTO ----------
+    // Chemin physique : /uploads/employees/{uid}/profil.{ext}
+    // Chemin public   : /uploads/employees/{uid}/profil.{ext}
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
-        $photoDir = __DIR__ . '/uploads/employees/' . $employeeUid . '/';
-        if (!is_dir($photoDir)) mkdir($photoDir, 0777, true);
-        $ext = pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION);
-        $photoName = 'profile.' . $ext;
+        $photoDir = dirname(__DIR__) . '/uploads/employees/' . $employeeUid . '/';
+        if (!is_dir($photoDir)) {
+            mkdir($photoDir, 0777, true);
+        }
+
+        $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
+        $allowedExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if (!in_array($ext, $allowedExt, true)) {
+            throw new Exception("Ungültiges Bildformat: {$ext}");
+        }
+
+        $photoName  = 'profil.' . $ext;
         $targetPath = $photoDir . $photoName;
+
         if (move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath)) {
+            $photoPublicPath = '/uploads/employees/' . $employeeUid . '/' . $photoName;
+
             $sql = "UPDATE employees SET foto_pfad = ? WHERE uid = ?";
             executeWithCheck($pdo, $sql, [
-                '/uploads/employees/' . $employeeUid . '/' . $photoName,
+                $photoPublicPath,
                 $employeeUid
             ]);
+
+            file_put_contents(
+                __DIR__ . '/debug.log',
+                date('Y-m-d H:i:s') . " PHOTO OK: {$targetPath} → {$photoPublicPath}\n",
+                FILE_APPEND
+            );
+        } else {
+            file_put_contents(
+                __DIR__ . '/debug.log',
+                date('Y-m-d H:i:s') . " PHOTO FAIL: " . json_encode(error_get_last()) . "\n",
+                FILE_APPEND
+            );
         }
     }
 
+    // ---------- COMMIT ----------
     $pdo->commit();
 
-    // ----- E‑Mail senden -----
-    $mailSent = false;
+    // ---------- E‑Mail senden ----------
+    $mailSent  = false;
     $mailError = null;
-    $subject = 'Ihre Zugangsdaten für das Mitarbeiterportal';
-    $htmlBody = buildCredentialsEmail($vorname, $nachname, $username, $plainPassword);
-    $textBody = "Guten Tag $vorname $nachname,\n\nIhr Benutzername: $username\nIhr Passwort: $plainPassword\n\nBitte ändern Sie es nach dem ersten Login.";
+    $subject   = 'Ihre Zugangsdaten für das Mitarbeiterportal';
+    $htmlBody  = buildCredentialsEmail($vorname, $nachname, $username, $plainPassword);
+    $textBody  = "Guten Tag $vorname $nachname,\n\nIhr Benutzername: $username\nIhr Passwort: $plainPassword\n\nBitte ändern Sie es nach dem ersten Login.";
 
     if ($usePHPMailer && !empty($config)) {
         try {
@@ -390,7 +424,7 @@ INSERT INTO employees (
     }
 
     if (!$mailSent) {
-        $headers = "From: service@alpha-med-care.com\r\n";
+        $headers  = "From: service@alpha-med-care.com\r\n";
         $headers .= "Reply-To: service@alpha-med-care.com\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
         $mailSent = @mail($email, $subject, $htmlBody, $headers);
@@ -400,12 +434,16 @@ INSERT INTO employees (
         }
     }
 
-    file_put_contents(__DIR__ . '/debug.log', "Mail sent: " . ($mailSent ? 'yes' : 'no') . "\n", FILE_APPEND);
+    file_put_contents(
+        __DIR__ . '/debug.log',
+        date('Y-m-d H:i:s') . " Mail sent: " . ($mailSent ? 'yes' : 'no') . "\n",
+        FILE_APPEND
+    );
 
     echo json_encode([
         'success'             => true,
         'message'             => 'Mitarbeiter angelegt, E‑Mail versendet',
-        'employee_uid'        => $employeeUid,  // ← référence principale
+        'employee_uid'        => $employeeUid,
         'user_uid'            => $userUid,
         'benutzer_id'         => $benutzer_id,
         'mitarbeiter_nummer'  => $mitarbeiter_nummer,
@@ -415,19 +453,24 @@ INSERT INTO employees (
     ]);
 
 } catch (PDOException $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     file_put_contents(__DIR__ . '/debug.log', "PDO EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Datenbankfehler: ' . $e->getMessage()]);
+
 } catch (Throwable $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     file_put_contents(__DIR__ . '/debug.log', "GENERAL EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Allgemeiner Fehler: ' . $e->getMessage()]);
 }
 
 // ============================================================
-// Funktion für die HTML-E-Mail (inchangée)
+// Funktion für die HTML-E-Mail
 // ============================================================
 function buildCredentialsEmail($vorname, $nachname, $username, $password) {
     return <<<HTML

@@ -116,8 +116,7 @@
         >
           <template #title>
             <span style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-              <span style="font-size: 0.9rem;">Team</span>
-              <v-chip size="x-small" color="primary" density="compact" class="ml-1">NEW</v-chip>
+              <span style="font-size: 0.9rem;">Alle Mitarbeiter</span>
             </span>
           </template>
         </v-list-item>

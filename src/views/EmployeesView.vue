@@ -135,11 +135,11 @@
         <template #item.photo="{ item }">
           <v-avatar size="42" color="grey-lighten-3">
             <img
-              v-if="item.photo"
+              v-if="item.photo && !failedImages.has(item.employee_uid)"
               :src="item.photo"
               :alt="`${item.vorname} ${item.nachname}`"
-              style="width:100%; height:100%; object-fit:cover;"
-              @error="(e) => e.target.style.display = 'none'"
+              class="employee-photo"
+              @error="onImageError(item, $event)"
             />
             <v-icon v-else>mdi-account</v-icon>
           </v-avatar>
@@ -222,6 +222,7 @@ const loading            = ref(false)
 const search             = ref('')
 const selectedDepartment = ref(null)
 const selectedPosition   = ref(null)
+const failedImages       = ref(new Set())
 
 // Snackbar
 const snackbar      = ref(false)
@@ -229,17 +230,25 @@ const snackbarText  = ref('')
 const snackbarColor = ref('success')
 
 // =======================
+// API BASE URL
+// =======================
+// Récupère l'URL de base depuis les variables d'environnement Vite
+// Fallback : chaîne vide (utilise le proxy Vite en dev)
+const API_BASE = import.meta.env.VITE_API_BASE || ''
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
+
+// =======================
 // TABLE HEADERS
 // =======================
 const headers = [
-  { title: 'Foto',     key: 'photo',              sortable: false },
+  { title: 'Foto',        key: 'photo',              sortable: false },
   { title: 'Mitarbeiter', key: 'name' },
-  { title: 'Nummer',   key: 'mitarbeiter_nummer' },
-  { title: 'Abteilung', key: 'abteilung' },
-  { title: 'Position', key: 'position' },
-  { title: 'Telefon',  key: 'telefon' },
-  { title: 'Status',   key: 'status' },
-  { title: 'Aktionen', key: 'actions',            sortable: false }
+  { title: 'Nummer',      key: 'mitarbeiter_nummer' },
+  { title: 'Abteilung',   key: 'abteilung' },
+  { title: 'Position',    key: 'position' },
+  { title: 'Telefon',     key: 'telefon' },
+  { title: 'Status',      key: 'status' },
+  { title: 'Aktionen',    key: 'actions',            sortable: false }
 ]
 
 // =======================
@@ -249,25 +258,63 @@ const loadEmployees = async () => {
   loading.value = true
 
   try {
-    const response = await axios.get('/api/employees_list.php')
+    const response = await axios.get(`${API_BASE}/api/employees_list.php`)
 
     if (!response.data.success) {
       throw new Error(response.data.error || 'Unbekannter Fehler')
     }
 
-    // Normaliser le champ photo
-    employees.value = (response.data.employees || []).map(emp => ({
-      ...emp,
-      photo: emp.photo || emp.foto_pfad || null
-    }))
+    // ============================================================
+    // NORMALISATION DES PHOTOS
+    // Le backend renvoie déjà une URL absolue, mais on double-sécurise
+    // ============================================================
+    employees.value = (response.data.employees || []).map(emp => {
+      const raw = emp.photo || emp.foto_pfad || null
+
+      let photoUrl = null
+      if (raw) {
+        if (raw.startsWith('http')) {
+          photoUrl = raw
+        } else if (BACKEND_URL) {
+          photoUrl = `${BACKEND_URL}${raw}`
+        } else {
+          photoUrl = raw
+        }
+      }
+
+      return {
+        ...emp,
+        photo: photoUrl
+      }
+    })
+
+    // Réinitialiser les images échouées
+    failedImages.value = new Set()
+
   } catch (error) {
-    console.error(error)
+    console.error('[loadEmployees]', error)
     snackbarText.value  = 'Fehler beim Laden der Mitarbeiter'
     snackbarColor.value = 'error'
     snackbar.value      = true
   } finally {
     loading.value = false
   }
+}
+
+// =======================
+// GESTION ERREUR IMAGE
+// =======================
+const onImageError = (item, event) => {
+  const uid = item.employee_uid || item.uid
+  console.warn('[Image error]', {
+    uid,
+    src: event.target.src,
+    employee: `${item.vorname} ${item.nachname}`
+  })
+  // Marque l'image comme échouée pour afficher l'icône par défaut
+  const newSet = new Set(failedImages.value)
+  newSet.add(uid)
+  failedImages.value = newSet
 }
 
 // =======================
@@ -375,5 +422,15 @@ onMounted(() => {
 
 .v-data-table {
   border-radius: 18px;
+}
+
+/* =====================================================
+   PHOTO EMPLOYÉ
+===================================================== */
+.employee-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 </style>

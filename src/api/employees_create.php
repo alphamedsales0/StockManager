@@ -1,9 +1,9 @@
 <?php
 // employees_create.php
 // Crée un nouvel employé avec toutes ses données
-// Dernière mise à jour : 2025-09-10
+// Dernière mise à jour : 2025-09-13
 // ✅ Structure : employees.uid référencé par les tables enfants
-// ✅ Uploads : /uploads/employees/{uid}/profil.{ext}  + documents
+// ✅ Uploads : /DOCUMENT_ROOT/uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -154,6 +154,7 @@ try {
     // ---------- UIDs ----------
     $userUid     = generateUid();
     $employeeUid = generateUid();
+    $photoPublicPath = null;
 
     // ---------- 1. USER ----------
     $allowedRoles = ['employee', 'manager', 'admin', 'technician'];
@@ -289,9 +290,9 @@ INSERT INTO employees (
     }
 
     // ---------- 7. DOKUMENTE (avec upload) ----------
-    // Dossier physique : /uploads/employees/{uid}/  (à la racine du site)
+    // ⚠️ Dossier physique : /DOCUMENT_ROOT/uploads/employees/{uid}/
     if (!empty($employeeData['documents']) && is_array($employeeData['documents'])) {
-        $uploadDir = dirname(__DIR__) . '/uploads/employees/' . $employeeUid . '/';
+        $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/employees/' . $employeeUid . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
@@ -346,45 +347,100 @@ INSERT INTO employees (
         ]);
     }
 
-    // ---------- 9. FOTO ----------
-    // Chemin physique : /uploads/employees/{uid}/profil.{ext}
-    // Chemin public   : /uploads/employees/{uid}/profil.{ext}
+       // ---------- 9. FOTO ----------
+    // ⚠️ Dossier physique : /DOCUMENT_ROOT/uploads/employees/{uid}/
+    // ⚠️ URL publique      : /uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
+        // ---------- 9. FOTO ----------
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
-        $photoDir = dirname(__DIR__) . '/uploads/employees/' . $employeeUid . '/';
+        $file = $_FILES['photo'];
+
+        // Validation MIME réelle
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $allowedMimes = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/webp' => 'webp',
+            'image/gif'  => 'gif',
+        ];
+
+        if (!isset($allowedMimes[$mime])) {
+            throw new Exception('Ungültiges Bildformat (nur JPG, PNG, WebP, GIF).');
+        }
+        $ext = $allowedMimes[$mime];
+
+        if ($file['size'] > 5 * 1024 * 1024) {
+            throw new Exception('Datei zu groß (max. 5 MB).');
+        }
+
+        $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+        if (empty($docRoot)) {
+            throw new Exception('DOCUMENT_ROOT nicht definiert.');
+        }
+
+        // ====================================================
+        // 1. Créer /uploads/ s'il n'existe pas
+        // ====================================================
+        $uploadsDir = $docRoot . '/uploads/';
+        if (!is_dir($uploadsDir)) {
+            if (!mkdir($uploadsDir, 0755, true)) {
+                throw new Exception('Basisverzeichnis /uploads/ konnte nicht erstellt werden.');
+            }
+        }
+
+        // ====================================================
+        // 2. Créer /uploads/employees/ s'il n'existe pas
+        // ====================================================
+        $employeesDir = $uploadsDir . 'employees/';
+        if (!is_dir($employeesDir)) {
+            if (!mkdir($employeesDir, 0755, true)) {
+                throw new Exception('Verzeichnis /uploads/employees/ konnte nicht erstellt werden. Prüfe die Rechte von /uploads/.');
+            }
+        }
+
+        if (!is_writable($employeesDir)) {
+            throw new Exception('/uploads/employees/ ist nicht beschreibbar.');
+        }
+
+        // ====================================================
+        // 3. Créer /uploads/employees/{uid}/ s'il n'existe pas
+        // ====================================================
+        $photoDir = $employeesDir . $employeeUid . '/';
         if (!is_dir($photoDir)) {
-            mkdir($photoDir, 0777, true);
+            if (!mkdir($photoDir, 0755, true)) {
+                throw new Exception('Verzeichnis /uploads/employees/{uid}/ konnte nicht erstellt werden.');
+            }
         }
 
-        $ext = strtolower(pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION));
-        $allowedExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-        if (!in_array($ext, $allowedExt, true)) {
-            throw new Exception("Ungültiges Bildformat: {$ext}");
+        if (!is_writable($photoDir)) {
+            throw new Exception('Verzeichnis /uploads/employees/{uid}/ ist nicht beschreibbar.');
         }
 
-        $photoName  = 'profil.' . $ext;
+        // ====================================================
+        // 4. Déplacer le fichier
+        // ====================================================
+        $photoName  = 'profil_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         $targetPath = $photoDir . $photoName;
 
-        if (move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath)) {
-            $photoPublicPath = '/uploads/employees/' . $employeeUid . '/' . $photoName;
-
-            $sql = "UPDATE employees SET foto_pfad = ? WHERE uid = ?";
-            executeWithCheck($pdo, $sql, [
-                $photoPublicPath,
-                $employeeUid
-            ]);
-
-            file_put_contents(
-                __DIR__ . '/debug.log',
-                date('Y-m-d H:i:s') . " PHOTO OK: {$targetPath} → {$photoPublicPath}\n",
-                FILE_APPEND
-            );
-        } else {
-            file_put_contents(
-                __DIR__ . '/debug.log',
-                date('Y-m-d H:i:s') . " PHOTO FAIL: " . json_encode(error_get_last()) . "\n",
-                FILE_APPEND
-            );
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            throw new Exception('Fehler beim Speichern des Fotos. Prüfe die Schreibrechte.');
         }
+
+        $photoPublicPath = '/uploads/employees/' . $employeeUid . '/' . $photoName;
+
+        $sql = "UPDATE employees SET foto_pfad = ? WHERE uid = ?";
+        executeWithCheck($pdo, $sql, [
+            $photoPublicPath,
+            $employeeUid
+        ]);
+
+        file_put_contents(
+            __DIR__ . '/debug.log',
+            date('Y-m-d H:i:s') . " PHOTO OK: {$targetPath} → {$photoPublicPath}\n",
+            FILE_APPEND
+        );
     }
 
     // ---------- COMMIT ----------
@@ -449,7 +505,10 @@ INSERT INTO employees (
         'mitarbeiter_nummer'  => $mitarbeiter_nummer,
         'username'            => $username,
         'mail_sent'           => $mailSent,
-        'mail_error'          => $mailError
+        'mail_error'          => $mailError,
+        'data' => [
+            'photo_url' => $photoPublicPath
+        ]
     ]);
 
 } catch (PDOException $e) {

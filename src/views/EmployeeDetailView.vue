@@ -44,28 +44,6 @@
 
     <template v-else-if="employee">
 
-      <!-- PAGE HEADER -->
-      <div class="page-heading mb-2">
-        <div>
-          <div class="text-overline text-primary font-weight-bold">MITARBEITER</div>
-          <h1 class="page-title">Mitarbeiterprofil</h1>
-          <div class="text-body-2 text-medium-emphasis">
-            Übersicht und Stammdaten des Mitarbeiters
-          </div>
-        </div>
-
-        <v-btn
-          color="primary"
-          size="large"
-          variant="flat"
-          prepend-icon="mdi-pencil-outline"
-          class="edit-button"
-          @click="goToEdit"
-        >
-          Bearbeiten
-        </v-btn>
-      </div>
-
       <!-- =========================
            HERO
       ========================== -->
@@ -75,6 +53,30 @@
         <div class="hero-glow"></div>
 
         <v-card-text class="hero-content pa-4 pa-md-5">
+
+          <!-- EN-TÊTE INTÉGRÉ AU HERO -->
+          <div class="hero-header">
+            <div>
+              <div class="text-overline hero-overline font-weight-bold">MITARBEITER</div>
+              <h1 class="hero-title">Mitarbeiterprofil</h1>
+              <div class="hero-subtitle">
+                Übersicht und Stammdaten des Mitarbeiters
+              </div>
+            </div>
+
+            <v-btn
+              size="large"
+              variant="flat"
+              prepend-icon="mdi-pencil-outline"
+              class="edit-button-hero"
+              @click="goToEdit"
+            >
+              Bearbeiten
+            </v-btn>
+          </div>
+
+          <v-divider class="hero-divider" />
+
           <v-row align="center" class="ma-0">
 
             <!-- PHOTO / HIERARCHY -->
@@ -283,14 +285,30 @@
 
                 <v-divider class="my-3" />
 
-                <div class="bank-details">
-                  <div>
-                    <span>IBAN</span>
-                    <strong>{{ bank.iban }}</strong>
+                <!-- DETAILS AU FORMAT "CONTACT ROW" -->
+                <div class="contact-fields">
+                  <div class="contact-row">
+                    <div class="contact-icon">
+                      <v-icon size="16">mdi-account-outline</v-icon>
+                    </div>
+                    <div class="contact-label">Kontoinhaber</div>
+                    <div class="contact-value">{{ bank.kontoinhaber || '—' }}</div>
                   </div>
-                  <div v-if="bank.bic">
-                    <span>BIC</span>
-                    <strong>{{ bank.bic }}</strong>
+
+                  <div class="contact-row">
+                    <div class="contact-icon">
+                      <v-icon size="16">mdi-identifier</v-icon>
+                    </div>
+                    <div class="contact-label">IBAN</div>
+                    <div class="contact-value">{{ bank.iban }}</div>
+                  </div>
+
+                  <div v-if="bank.bic" class="contact-row">
+                    <div class="contact-icon">
+                      <v-icon size="16">mdi-bank-outline</v-icon>
+                    </div>
+                    <div class="contact-label">BIC</div>
+                    <div class="contact-value">{{ bank.bic }}</div>
                   </div>
                 </div>
               </div>
@@ -649,10 +667,6 @@ onMounted(loadEmployee)
   row-gap: 4px !important;
 }
 
-.page-heading {
-  margin-bottom: 8px !important;
-}
-
 .hero-card {
   margin-bottom: 6px !important;
 }
@@ -665,35 +679,60 @@ onMounted(loadEmployee)
 
 
 /* ============================================================
-   PAGE HEADING
+   HERO HEADER (titre + bouton intégrés)
 ============================================================ */
 
-.page-heading {
+.hero-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
-.page-title {
-  margin: 0;
-  font-size: clamp(1.55rem, 3vw, 2rem);
+.hero-overline {
+  color: rgba(255, 255, 255, 0.7) !important;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem !important;
+}
+
+.hero-title {
+  margin: 2px 0 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 750;
-  letter-spacing: -0.035em;
-  color: var(--text-main);
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.15;
 }
 
-.edit-button {
-  min-width: 140px;
+.hero-subtitle {
+  margin-top: 4px;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.hero-divider {
+  margin: 14px 0 18px;
+  opacity: 0.18;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Bouton Bearbeiten adapté au fond sombre */
+.edit-button-hero {
+  min-width: 150px;
   border-radius: 8px;
   text-transform: none;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--sidebar-1), var(--sidebar-3)) !important;
-  box-shadow: 0 6px 16px rgba(12, 72, 129, 0.22) !important;
+  color: #172033 !important;
+  background: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.edit-button:hover {
-  box-shadow: 0 8px 22px rgba(12, 72, 129, 0.32) !important;
+.edit-button-hero:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35) !important;
+  background: #f5f7fa !important;
 }
 
 
@@ -1063,6 +1102,13 @@ onMounted(loadEmployee)
   white-space: nowrap;
 }
 
+/* Valeurs longues (IBAN, etc.) : autoriser le retour à la ligne */
+.bank-card .contact-value {
+  white-space: normal;
+  word-break: break-all;
+  font-variant-numeric: tabular-nums;
+}
+
 
 /* ============================================================
    ADDRESS
@@ -1163,28 +1209,6 @@ onMounted(loadEmployee)
   margin-top: 1px;
   color: var(--text-muted);
   font-size: 0.74rem;
-}
-
-.bank-details {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-}
-
-.bank-details span {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.bank-details strong {
-  display: block;
-  margin-top: 2px;
-  color: #263244;
-  font-size: 0.82rem;
-  word-break: break-all;
 }
 
 
@@ -1386,13 +1410,14 @@ onMounted(loadEmployee)
     row-gap: 4px !important;
   }
 
-  .page-heading {
-    align-items: flex-start;
+  /* Header Hero en colonne sur mobile */
+  .hero-header {
     flex-direction: column;
+    align-items: stretch;
     gap: 10px;
   }
 
-  .edit-button {
+  .edit-button-hero {
     width: 100%;
   }
 
@@ -1463,7 +1488,6 @@ onMounted(loadEmployee)
   .bottom-actions .v-btn {
     width: 100%;
   }
-
 }
 
 </style>

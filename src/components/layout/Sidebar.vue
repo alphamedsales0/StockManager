@@ -138,6 +138,20 @@
           :active="activeTab === 'roles'"
           @click="navigateTo('roles')"
         />
+        <!-- NEU: Position -->
+        <v-list-item
+          prepend-icon="mdi-briefcase-outline"
+          title="Position"
+          :active="activeTab === 'positions'"
+          @click="navigateTo('positions')"
+        />
+        <!-- NEU: Abteilung -->
+        <v-list-item
+          prepend-icon="mdi-office-building-outline"
+          title="Abteilung"
+          :active="activeTab === 'departments'"
+          @click="navigateTo('departments')"
+        />
       </v-list-group>
 
       <!-- BESTELLUNGEN – für alle sichtbar -->
@@ -195,7 +209,7 @@ const permissionStore = usePermissionStore()
 const protectedTabs = [
   'products-list', 'add-product', 'categories', 'article-types', 'brands',
   'customers-list', 'add-customer',
-  'employees-list', 'add-employee', 'employee-profile', 'roles',
+  'employees-list', 'add-employee', 'employee-profile', 'roles', 'positions', 'departments',
   'orders-list', 'add-order',
   'stats'
 ]
@@ -215,6 +229,8 @@ const activeTab = computed(() => {
   if (path === '/employees/add') return 'add-employee'
   if (path.startsWith('/employees/')) return 'employee-profile'
   if (path === '/roles') return 'roles'
+  if (path === '/positions') return 'positions'
+  if (path === '/departments') return 'departments'
   if (path === '/orders') return 'orders-list'
   if (path === '/orders/add') return 'add-order'
   if (path === '/stats') return 'stats'
@@ -237,6 +253,8 @@ const navigateTo = (tab) => {
     'add-employee': '/employees/add',
     'employee-profile': '/employees/1',
     roles: '/roles',
+    positions: '/positions',
+    departments: '/departments',
     'orders-list': '/orders',
     'add-order': '/orders/add',
     stats: '/stats',

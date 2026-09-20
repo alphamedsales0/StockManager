@@ -11,10 +11,10 @@
         label="Steuer‑ID"
         variant="outlined"
         prepend-inner-icon="mdi-identifier"
-        :rules="[rules.number]"
+        :rules="[rules.alphanumeric]"
         autocomplete="tax-id"
       />
-      
+            
 
       <!-- 👇 NOUVEAUX CHAMPS : Steuerklasse & Konfession -->
       <v-row>
@@ -45,7 +45,7 @@
         label="Sozialversicherungsnummer"
         variant="outlined"
         prepend-inner-icon="mdi-card-account-details"
-        :rules="[rules.number]"
+        :rules="[rules.alphanumeric]"
         autocomplete="social-security-number"
       />
 

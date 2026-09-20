@@ -5,27 +5,61 @@
       Berufliche Daten
     </v-card-title>
     <v-card-text>
-      <!-- Position -->
-      <v-text-field
+      <!-- Position (Combobox dynamique depuis la BDD) -->
+      <v-combobox
         v-model="employee.position"
         label="Position"
         variant="outlined"
         prepend-inner-icon="mdi-account-tie"
         autocomplete="job-title"
-      />
-      <!-- Abteilung -->
-      <v-text-field
+        :items="positions"
+        item-title="name"
+        item-value="name"
+        :loading="loadingPositions"
+        :rules="[rules.required]"
+        clearable
+        no-filter
+        @update:model-value="onPositionChange"
+      >
+        <template #no-data>
+          <v-list-item>
+            <span class="text-caption">
+              Keine Position gefunden. Drücken Sie <strong>Enter</strong>, um eine neue anzulegen.
+            </span>
+          </v-list-item>
+        </template>
+      </v-combobox>
+
+      <!-- Abteilung (Combobox dynamique depuis la BDD) -->
+      <v-combobox
         v-model="employee.abteilung"
         label="Abteilung"
         variant="outlined"
         prepend-inner-icon="mdi-office-building"
         autocomplete="organization"
-      />
+        :items="departments"
+        item-title="name"
+        item-value="name"
+        :loading="loadingDepartments"
+        :rules="[rules.required]"
+        clearable
+        no-filter
+        @update:model-value="onDepartmentChange"
+      >
+        <template #no-data>
+          <v-list-item>
+            <span class="text-caption">
+              Keine Abteilung gefunden. Drücken Sie <strong>Enter</strong>, um eine neue anzulegen.
+            </span>
+          </v-list-item>
+        </template>
+      </v-combobox>
 
-      <!-- Rolle : maintenant avec display_name -->
+      <!-- Rolle : sélection stricte depuis la BDD, aucune valeur par défaut -->
       <v-select
         v-model="employee.role"
         label="Rolle"
+        placeholder="Rolle auswählen"
         variant="outlined"
         prepend-inner-icon="mdi-account-tie"
         :items="roles"
@@ -33,6 +67,9 @@
         :rules="[rules.required]"
         item-title="title"
         item-value="value"
+        clearable
+        hide-no-data
+        no-data-text="Keine Rollen verfügbar"
       />
 
       <!-- Vorgesetzte/r -->
@@ -94,6 +131,7 @@
           />
         </v-col>
       </v-row>
+
       <!-- Gehalt -->
       <v-text-field
         v-model="employee.gehalt"
@@ -119,7 +157,9 @@ const store = useEmployeeStore()
 const employee = store.employee
 const rules = useValidationRules()
 
-// --- Liste des utilisateurs ---
+// ============================================================
+// UTILISATEURS (Vorgesetzte/r)
+// ============================================================
 const users = ref([])
 const loadingUsers = ref(false)
 
@@ -131,15 +171,19 @@ const loadUsers = async () => {
       users.value = response.data.users
     } else {
       console.error('Erreur chargement utilisateurs:', response.data.error)
+      users.value = []
     }
   } catch (error) {
     console.error('Network error:', error)
+    users.value = []
   } finally {
     loadingUsers.value = false
   }
 }
 
-// --- Liste des rôles (corrigée) ---
+// ============================================================
+// RÔLES (uniquement depuis la BDD, aucun fallback hardcodé)
+// ============================================================
 const roles = ref([])
 const loadingRoles = ref(false)
 
@@ -148,36 +192,163 @@ const fetchRoles = async () => {
   try {
     const response = await axios.get('https://alpha-med-care.com/api/get_roles.php')
     if (response.data.success) {
-      // On mappe pour avoir un objet { title: display_name, value: name }
-      // Si display_name manque, on prend name, sinon id en dernier recours
       roles.value = response.data.roles.map(r => ({
         title: r.display_name || r.name || `Rolle #${r.id}`,
         value: r.name || String(r.id)
       }))
     } else {
-      console.warn('Rollen konnten nicht geladen werden, verwende Fallback')
-      roles.value = [
-        { title: 'Admin', value: 'admin' },
-        { title: 'Manager', value: 'manager' },
-        { title: 'Employee', value: 'employee' },
-        { title: 'Technician', value: 'technician' }
-      ]
+      console.warn('Rollen konnten nicht geladen werden')
+      roles.value = []
     }
   } catch (error) {
     console.error('Fehler beim Laden der Rollen:', error)
-    roles.value = [
-      { title: 'Admin', value: 'admin' },
-      { title: 'Manager', value: 'manager' },
-      { title: 'Employee', value: 'employee' },
-      { title: 'Technician', value: 'technician' }
-    ]
+    roles.value = []   // ✅ Aucun fallback → l'utilisateur doit choisir en BDD
   } finally {
     loadingRoles.value = false
   }
 }
 
+// ============================================================
+// POSITIONS (chargement + création à la volée)
+// ============================================================
+const positions = ref([])
+const loadingPositions = ref(false)
+
+const loadPositions = async () => {
+  loadingPositions.value = true
+  try {
+    const res = await axios.get('/api/get_positions_stock.php')
+    if (res.data.success) {
+      positions.value = res.data.items // [{ id, name }]
+    } else {
+      console.warn('Positions konnten nicht geladen werden')
+      positions.value = []
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Positions:', error)
+    positions.value = []
+  } finally {
+    loadingPositions.value = false
+  }
+}
+
+const onPositionChange = async (val) => {
+  // Normalisation : le combobox peut renvoyer un objet ou un string
+  let name = val
+  if (typeof val === 'object' && val !== null) {
+    name = val.name ?? val.title ?? ''
+  }
+  if (typeof name !== 'string') return
+
+  const trimmed = name.trim()
+  if (trimmed === '') return
+
+  // Vérifie si elle existe déjà (comparaison insensible à la casse)
+  const exists = positions.value.some(
+    p => p.name?.toLowerCase() === trimmed.toLowerCase()
+  )
+  if (exists) {
+    const existing = positions.value.find(
+      p => p.name?.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (existing) employee.position = existing.name
+    return
+  }
+
+  // Sinon → création en BDD
+  try {
+    const res = await axios.post('/api/add_position_stock.php', { name: trimmed })
+    if (res.data.success) {
+      positions.value.push(res.data.item) // { id, name }
+      employee.position = res.data.item.name
+      console.log('✅ Position angelegt:', res.data.item.name)
+    } else {
+      console.warn('Position konnte nicht angelegt werden:', res.data.message)
+    }
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.warn('Position existiert bereits')
+      // On recharge la liste pour être synchro
+      await loadPositions()
+      employee.position = trimmed
+    } else {
+      console.error('Fehler beim Anlegen der Position:', error)
+    }
+  }
+}
+
+// ============================================================
+// ABTEILUNGEN (chargement + création à la volée)
+// ============================================================
+const departments = ref([])
+const loadingDepartments = ref(false)
+
+const loadDepartments = async () => {
+  loadingDepartments.value = true
+  try {
+    const res = await axios.get('/api/get_departments_stock.php')
+    if (res.data.success) {
+      departments.value = res.data.items // [{ id, name }]
+    } else {
+      console.warn('Abteilungen konnten nicht geladen werden')
+      departments.value = []
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden der Abteilungen:', error)
+    departments.value = []
+  } finally {
+    loadingDepartments.value = false
+  }
+}
+
+const onDepartmentChange = async (val) => {
+  let name = val
+  if (typeof val === 'object' && val !== null) {
+    name = val.name ?? val.title ?? ''
+  }
+  if (typeof name !== 'string') return
+
+  const trimmed = name.trim()
+  if (trimmed === '') return
+
+  const exists = departments.value.some(
+    d => d.name?.toLowerCase() === trimmed.toLowerCase()
+  )
+  if (exists) {
+    const existing = departments.value.find(
+      d => d.name?.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (existing) employee.abteilung = existing.name
+    return
+  }
+
+  try {
+    const res = await axios.post('/api/add_department_stock.php', { name: trimmed })
+    if (res.data.success) {
+      departments.value.push(res.data.item)
+      employee.abteilung = res.data.item.name
+      console.log('✅ Abteilung angelegt:', res.data.item.name)
+    } else {
+      console.warn('Abteilung konnte nicht angelegt werden:', res.data.message)
+    }
+  } catch (error) {
+    if (error.response?.status === 409) {
+      console.warn('Abteilung existiert bereits')
+      await loadDepartments()
+      employee.abteilung = trimmed
+    } else {
+      console.error('Fehler beim Anlegen der Abteilung:', error)
+    }
+  }
+}
+
+// ============================================================
+// LIFECYCLE
+// ============================================================
 onMounted(() => {
   loadUsers()
   fetchRoles()
+  loadPositions()
+  loadDepartments()
 })
 </script>

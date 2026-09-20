@@ -96,7 +96,22 @@ const routes = [
     name: 'RolesManagement',
     component: () => import('../views/RolesManagement.vue'),
     meta: { requiresAuth: true }
-  }
+  },
+    // ---------- POSITION ----------
+  {
+    path: '/positions',
+    name: 'Positions',
+    component: () => import('../components/employees/Positions.vue'),
+    meta: { requiresAuth: true }
+  },
+
+  // ---------- ABTEILUNG ----------
+  {
+    path: '/departments',
+    name: 'Departments',
+    component: () => import('../components/employees/Departments.vue'),
+    meta: { requiresAuth: true }
+  },
 ]
 
 const router = createRouter({

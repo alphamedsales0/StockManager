@@ -131,61 +131,70 @@
         items-per-page="10"
       >
 
-        <!-- AVATAR -->
-        <template #item.photo="{ item }">
-          <v-avatar size="42" color="grey-lighten-3">
-            <img
-              v-if="item.photo && !failedImages.has(item.employee_uid)"
-              :src="item.photo"
-              :alt="`${item.vorname} ${item.nachname}`"
-              class="employee-photo"
-              @error="onImageError(item, $event)"
-            />
-            <v-icon v-else>mdi-account</v-icon>
-          </v-avatar>
-        </template>
+        <!-- LIGNE PERSONNALISÉE (clic sur toute la ligne) -->
+        <template #item="{ item, columns }">
+          <tr class="clickable-row" @click="openDetail(item)">
+            <td
+              v-for="col in columns"
+              :key="col.key"
+              :class="{ 'text-center': col.key === 'actions' }"
+            >
 
-        <!-- NAME -->
-        <template #item.name="{ item }">
-          <div>
-            <div class="font-weight-bold">
-              {{ item.vorname }} {{ item.nachname }}
-            </div>
-            <div class="text-caption text-medium-emphasis">
-              {{ item.email }}
-            </div>
-          </div>
-        </template>
+              <!-- PHOTO -->
+              <template v-if="col.key === 'photo'">
+                <v-avatar size="42" color="grey-lighten-3">
+                  <img
+                    v-if="item.photo && !failedImages.has(item.employee_uid)"
+                    :src="item.photo"
+                    :alt="`${item.vorname} ${item.nachname}`"
+                    class="employee-photo"
+                    @error="onImageError(item, $event)"
+                  />
+                  <v-icon v-else>mdi-account</v-icon>
+                </v-avatar>
+              </template>
 
-        <!-- STATUS -->
-        <template #item.status="{ item }">
-          <v-chip
-            :color="item.is_active ? 'success' : 'error'"
-            size="small"
-          >
-            {{ item.is_active ? 'Aktiv' : 'Inaktiv' }}
-          </v-chip>
-        </template>
+              <!-- NAME -->
+              <template v-else-if="col.key === 'name'">
+                <div>
+                  <div class="font-weight-bold">
+                    {{ item.vorname }} {{ item.nachname }}
+                  </div>
+                  <div class="text-caption text-medium-emphasis">
+                    {{ item.email }}
+                  </div>
+                </div>
+              </template>
 
-        <!-- ACTIONS -->
-        <template #item.actions="{ item }">
-          <v-btn
-            icon
-            variant="text"
-            color="primary"
-            @click="openDetail(item)"
-          >
-            <v-icon>mdi-eye</v-icon>
-          </v-btn>
+              <!-- STATUS -->
+              <template v-else-if="col.key === 'status'">
+                <v-chip
+                  :color="item.is_active ? 'success' : 'error'"
+                  size="small"
+                >
+                  {{ item.is_active ? 'Aktiv' : 'Inaktiv' }}
+                </v-chip>
+              </template>
 
-          <v-btn
-            icon
-            variant="text"
-            color="warning"
-            @click="editEmployee(item)"
-          >
-            <v-icon>mdi-pencil</v-icon>
-          </v-btn>
+              <!-- ACTIONS -->
+              <template v-else-if="col.key === 'actions'">
+                <v-btn
+                  icon
+                  variant="text"
+                  color="warning"
+                  @click.stop="editEmployee(item)"
+                >
+                  <v-icon>mdi-pencil</v-icon>
+                </v-btn>
+              </template>
+
+              <!-- AUTRES COLONNES (nummer, abteilung, position, telefon) -->
+              <template v-else>
+                {{ item[col.key] }}
+              </template>
+
+            </td>
+          </tr>
         </template>
 
       </v-data-table>
@@ -232,9 +241,7 @@ const snackbarColor = ref('success')
 // =======================
 // API BASE URL
 // =======================
-// Récupère l'URL de base depuis les variables d'environnement Vite
-// Fallback : chaîne vide (utilise le proxy Vite en dev)
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const API_BASE    = import.meta.env.VITE_API_BASE || ''
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
 
 // =======================
@@ -264,10 +271,6 @@ const loadEmployees = async () => {
       throw new Error(response.data.error || 'Unbekannter Fehler')
     }
 
-    // ============================================================
-    // NORMALISATION DES PHOTOS
-    // Le backend renvoie déjà une URL absolue, mais on double-sécurise
-    // ============================================================
     employees.value = (response.data.employees || []).map(emp => {
       const raw = emp.photo || emp.foto_pfad || null
 
@@ -288,7 +291,6 @@ const loadEmployees = async () => {
       }
     })
 
-    // Réinitialiser les images échouées
     failedImages.value = new Set()
 
   } catch (error) {
@@ -311,7 +313,6 @@ const onImageError = (item, event) => {
     src: event.target.src,
     employee: `${item.vorname} ${item.nachname}`
   })
-  // Marque l'image comme échouée pour afficher l'icône par défaut
   const newSet = new Set(failedImages.value)
   newSet.add(uid)
   failedImages.value = newSet
@@ -432,5 +433,17 @@ onMounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* =====================================================
+   LIGNE CLIQUABLE
+===================================================== */
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickable-row:hover {
+  background-color: rgba(var(--v-theme-primary), 0.06);
 }
 </style>

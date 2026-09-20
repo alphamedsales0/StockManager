@@ -22,8 +22,8 @@ export const useEmployeeStore = defineStore('employee', () => {
     wochenarbeitszeit: null,
     steuerklasse: '1',
     konfession: 'keine',
-    role: 'employee',
-    vorgesetzter: '',                // <-- NOUVEAU
+    role: '',                        // ✅ keine Vorauswahl mehr
+    vorgesetzter: '',
     versicherung_typ: 'Krankenversicherung',
     versicherung_gesellschaft: '',
     versicherung_nummer: '',
@@ -66,8 +66,8 @@ export const useEmployeeStore = defineStore('employee', () => {
       wochenarbeitszeit: null,
       steuerklasse: '1',
       konfession: 'keine',
-      role: 'employee',
-      vorgesetzter: '',              
+      role: '',                      // ✅ reset sans valeur par défaut
+      vorgesetzter: '',
       versicherung_typ: 'Krankenversicherung',
       versicherung_gesellschaft: '',
       versicherung_nummer: '',

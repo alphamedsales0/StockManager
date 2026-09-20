@@ -1,9 +1,10 @@
 <?php
 // employees_create.php
 // Crée un nouvel employé avec toutes ses données
-// Dernière mise à jour : 2025-09-13
+// Dernière mise à jour : 2025-09-18
 // ✅ Structure : employees.uid référencé par les tables enfants
 // ✅ Uploads : /DOCUMENT_ROOT/uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
+// ✅ Nettoyage : steuer_id et sozialversicherungsnummer (suppression des espaces)
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -131,6 +132,31 @@ function generatePassword($length = 12) {
     return $password;
 }
 
+/**
+ * Nettoie une valeur : supprime les espaces (y compris insécables) et les tirets optionnels.
+ * Utile pour Steuer-ID et Sozialversicherungsnummer qui peuvent être saisis avec des séparateurs.
+ */
+function cleanIdentifier($value) {
+    if (empty($value)) {
+        return null;
+    }
+    // Supprime les espaces normaux, insécables, tabulations et tirets
+    return preg_replace('/[\s\x{00A0}\-]+/u', '', trim($value));
+}
+
+// ============================================================
+// NETTOYAGE DES IDENTIFIANTS (avant insertion en base)
+// ============================================================
+$steuerIdClean            = cleanIdentifier($employeeData['steuer_id'] ?? null);
+$sozialversicherungClean  = cleanIdentifier($employeeData['sozialversicherungsnummer'] ?? null);
+
+file_put_contents(
+    __DIR__ . '/debug.log',
+    date('Y-m-d H:i:s') .
+    " CLEANED: steuer_id='{$steuerIdClean}' sozialversicherungsnummer='{$sozialversicherungClean}'\n",
+    FILE_APPEND
+);
+
 // Génération du username
 $fullname     = $vorname . ' ' . $nachname;
 $firstPart    = strtok($vorname, ' ');
@@ -178,6 +204,7 @@ try {
     $mitarbeiter_nummer = generateEmployeeNumber($pdo);
 
     // ---------- 3. EMPLOYEE ----------
+    // ⚠️ Utilisation de $steuerIdClean et $sozialversicherungClean (valeurs nettoyées)
     $sql = "
 INSERT INTO employees (
     uid,
@@ -203,8 +230,8 @@ INSERT INTO employees (
     vorgesetzter,
     aktualisiert_am
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
     ?, NOW()
 )";
     $params = [
@@ -222,8 +249,8 @@ INSERT INTO employees (
         empty($employeeData['gehalt']) ? null : $employeeData['gehalt'],
         empty($employeeData['notfall_kontakt_name']) ? null : $employeeData['notfall_kontakt_name'],
         empty($employeeData['notfall_kontakt_telefon']) ? null : $employeeData['notfall_kontakt_telefon'],
-        empty($employeeData['steuer_id']) ? null : $employeeData['steuer_id'],
-        empty($employeeData['sozialversicherungsnummer']) ? null : $employeeData['sozialversicherungsnummer'],
+        $steuerIdClean,              // ✅ valeur nettoyée (sans espaces)
+        $sozialversicherungClean,    // ✅ valeur nettoyée (sans espaces)
         empty($employeeData['vertragsart']) ? null : $employeeData['vertragsart'],
         empty($employeeData['wochenarbeitszeit']) ? null : $employeeData['wochenarbeitszeit'],
         empty($employeeData['steuerklasse']) ? '1' : $employeeData['steuerklasse'],
@@ -258,7 +285,8 @@ INSERT INTO employees (
                 executeWithCheck($pdo, $sql, [
                     $employeeUid,
                     $account['kontoinhaber'] ?? null,
-                    $account['iban'],
+                    // Nettoyage de l'IBAN (suppression des espaces)
+                    preg_replace('/\s+/', '', strtoupper($account['iban'])),
                     $account['bic']      ?? null,
                     $account['bankname'] ?? null,
                     !empty($account['ist_aktiv']) ? 1 : 0
@@ -347,10 +375,9 @@ INSERT INTO employees (
         ]);
     }
 
-       // ---------- 9. FOTO ----------
+    // ---------- 9. FOTO ----------
     // ⚠️ Dossier physique : /DOCUMENT_ROOT/uploads/employees/{uid}/
     // ⚠️ URL publique      : /uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
-        // ---------- 9. FOTO ----------
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['photo'];
 

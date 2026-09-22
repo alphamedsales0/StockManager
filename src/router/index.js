@@ -16,17 +16,37 @@ const routes = [
     name: 'EditProduct',
     component: () => import('../components/products/EditProduct.vue')
   },
-  { 
-    path: '/customers', 
-    component: () => import('../views/Customers.vue')
+
+  // ---------- KUNDEN MANAGEMENT ----------
+  // ⚠️ ORDRE IMPORTANT : /add et /edit AVANT /:id
+  {
+    path: '/customers',
+    name: 'Kunden',
+    component: () => import('../views/KundenView.vue'),
+    meta: { requiresAuth: true }
   },
+  {
+    path: '/customers/add',
+    name: 'KundeCreate',
+    component: () => import('../components/kunden/KundeCreate.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/customers/edit/:id(\\d+)',        // ✅ AVANT /:id
+    name: 'EditKunde',
+    component: () => import('../components/kunden/EditKunde.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/customers/:id(\\d+)',             // ✅ APRÈS /edit
+    name: 'KundeDetail',
+    component: () => import('../views/KundeDetailView.vue'),
+    meta: { requiresAuth: true }
+  },
+
   { 
     path: '/quotes', 
     component: () => import('../views/Quotes.vue')
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/',
   },
   {
     path: '/ticket/:id',
@@ -78,17 +98,15 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    // ✅ UUID v4 : 36 caractères (hex + tirets)
-    path: '/employees/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-    name: 'EmployeeDetail',
-    component: () => import('../views/EmployeeDetailView.vue'),
+    path: '/employees/edit/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',   // ✅ AVANT /:uid
+    name: 'EditEmployee',
+    component: () => import('../components/employees/EditEmployee.vue'),
     meta: { requiresAuth: true }
   },
   {
-    // ✅ UUID v4 pour la route d'édition
-    path: '/employees/edit/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-    name: 'EditEmployee',
-    component: () => import('../components/employees/EditEmployee.vue'),
+    path: '/employees/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',       // ✅ APRÈS /edit
+    name: 'EmployeeDetail',
+    component: () => import('../views/EmployeeDetailView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -97,25 +115,28 @@ const routes = [
     component: () => import('../views/RolesManagement.vue'),
     meta: { requiresAuth: true }
   },
-    // ---------- POSITION ----------
   {
     path: '/positions',
     name: 'Positions',
     component: () => import('../components/employees/Positions.vue'),
     meta: { requiresAuth: true }
   },
-
-  // ---------- ABTEILUNG ----------
   {
     path: '/departments',
     name: 'Departments',
     component: () => import('../components/employees/Departments.vue'),
     meta: { requiresAuth: true }
   },
+
+  // ⚠️⚠️⚠️ CATCH-ALL TOUJOURS EN DERNIER ⚠️⚠️⚠️
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/',
+  },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 

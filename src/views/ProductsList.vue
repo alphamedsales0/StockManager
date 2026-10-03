@@ -6,11 +6,39 @@
         <div class="d-flex flex-wrap align-center justify-space-between gap-2">
           <div>
             <h1 class="text-h4 font-weight-bold gradient-text">Unsere Produkte</h1>
-            <p class="text-caption text-medium-emphasis mt-1">Fitnessgeräte & Zubehör</p>
+            <p class="text-caption text-medium-emphasis mt-1">
+              Fitnessgeräte & Zubehör
+              <span v-if="lastUpdate" class="ml-2">
+                • Zuletzt aktualisiert: {{ lastUpdate }}
+              </span>
+            </p>
           </div>
-          <v-btn color="primary" variant="elevated" prepend-icon="mdi-plus" size="small" rounded="lg" @click="addProduct">
-            Neu
-          </v-btn>
+
+          <div class="d-flex align-center gap-2">
+            <!-- ✅ Bouton Actualiser -->
+            <v-btn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-refresh"
+              size="small"
+              rounded="lg"
+              :loading="loading"
+              @click="refreshProducts"
+            >
+              Aktualisieren
+            </v-btn>
+
+            <v-btn
+              color="primary"
+              variant="elevated"
+              prepend-icon="mdi-plus"
+              size="small"
+              rounded="lg"
+              @click="addProduct"
+            >
+              Neu
+            </v-btn>
+          </div>
         </div>
       </v-col>
     </v-row>
@@ -79,7 +107,15 @@
 
     <!-- Chargement -->
     <v-row v-if="loading" class="compact-grid">
-      <v-col v-for="n in itemsPerPage" :key="n" :cols="6" :sm="4" :md="3" :lg="12/5" class="pa-1 pa-sm-2">
+      <v-col
+        v-for="n in itemsPerPage"
+        :key="n"
+        :cols="6"
+        :sm="4"
+        :md="3"
+        :lg="12/5"
+        class="pa-1 pa-sm-2"
+      >
         <v-skeleton-loader type="image, article, actions" class="rounded-lg" />
       </v-col>
     </v-row>
@@ -95,8 +131,12 @@
         :lg="12/5"
         class="pa-1 pa-sm-2"
       >
-        <v-card class="product-card" elevation="2">
-          <div class="card-image" @click="editProduct(product.id)">
+        <v-card
+          class="product-card"
+          :class="{ 'is-gebraucht': product.isUsed }"
+          elevation="2"
+        >
+          <div class="card-image" @click="viewProduct(product.id)">
             <div class="image-container">
               <v-img
                 :src="getImageUrl(product)"
@@ -118,20 +158,53 @@
               <!-- Badges -->
               <div class="absolute-badges">
                 <div class="badges-container">
-                  <v-chip v-if="product.isNew" color="success" size="small" class="new-badge">
+                  <!-- Badge Gebraucht (prioritaire) -->
+                  <v-chip
+                    v-if="product.isUsed"
+                    color="deep-orange"
+                    size="small"
+                    class="gebraucht-badge"
+                  >
+                    <v-icon small left>mdi-recycle-variant</v-icon>
+                    Gebraucht
+                  </v-chip>
+
+                  <!-- Autres badges -->
+                  <v-chip
+                    v-if="product.isNew && !product.isUsed"
+                    color="success"
+                    size="small"
+                    class="new-badge"
+                  >
                     <v-icon small left>mdi-new-box</v-icon>
                     Neu
                   </v-chip>
-                  <v-chip v-if="product.bestSeller" color="warning" size="small" class="best-badge">
+
+                  <v-chip
+                    v-if="product.bestSeller"
+                    color="warning"
+                    size="small"
+                    class="best-badge"
+                  >
                     <v-icon small left>mdi-trophy</v-icon>
                     Bestseller
+                  </v-chip>
+
+                  <v-chip
+                    v-if="product.isOffer"
+                    color="error"
+                    size="small"
+                    class="offer-badge"
+                  >
+                    <v-icon small left>mdi-sale</v-icon>
+                    Angebot
                   </v-chip>
                 </div>
               </div>
             </div>
           </div>
 
-          <v-card-title class="product-title" @click="editProduct(product.id)">
+          <v-card-title class="product-title" @click="viewProduct(product.id)">
             {{ truncate(product.name, 40) }}
           </v-card-title>
 
@@ -142,9 +215,19 @@
             </span>
           </v-card-subtitle>
 
+          <!-- Badge Zustand (si gebraucht) -->
+          <div v-if="product.isUsed && product.condition" class="zustand-badge">
+            <v-icon small color="deep-orange">mdi-information-outline</v-icon>
+            Zustand: <strong>{{ formatZustand(product.condition) }}</strong>
+          </div>
+
           <v-card-text class="product-features">
             <div v-if="product.features && product.features.length">
-              <div v-for="feature in product.features.slice(0, 3)" :key="feature" class="feature">
+              <div
+                v-for="feature in product.features.slice(0, 3)"
+                :key="feature"
+                class="feature"
+              >
                 <v-icon small color="primary">mdi-check</v-icon>
                 <span>{{ feature }}</span>
               </div>
@@ -166,9 +249,17 @@
           </v-card-text>
 
           <v-card-actions class="product-actions">
-            <div class="price">{{ formatPrice(product.price) }}</div>
+            <div class="price-block">
+              <!-- Prix barré (si gebraucht) -->
+              <div v-if="product.isUsed && product.usedPriceNet" class="old-price">
+                {{ formatPrice(product.price) }}
+              </div>
+              <!-- Prix actuel -->
+              <div class="price" :class="{ 'price-gebraucht': product.isUsed }">
+                {{ formatPrice(prixAffiche(product)) }}
+              </div>
+            </div>
             <v-spacer />
-            <!-- Bouton Bearbeiten -->
             <v-btn color="primary" @click.stop="editProduct(product.id)">
               <v-icon>mdi-pencil</v-icon>
               <span class="ml-1">Bearbeiten</span>
@@ -183,10 +274,28 @@
       <v-col cols="12" class="d-flex flex-wrap justify-center align-center ga-2">
         <div class="d-flex align-center">
           <span class="text-caption me-1">Zeilen:</span>
-          <v-select v-model="itemsPerPage" :items="[8,12,16,24,32]" variant="outlined" density="compact" style="width:70px" hide-details rounded="lg" />
+          <v-select
+            v-model="itemsPerPage"
+            :items="[8,12,16,24,32]"
+            variant="outlined"
+            density="compact"
+            style="width:70px"
+            hide-details
+            rounded="lg"
+          />
         </div>
-        <v-pagination v-model="currentPage" :length="totalPages" :total-visible="5" size="small" rounded="circle" color="primary" variant="tonal" />
-        <span class="text-caption text-medium-emphasis">{{ (currentPage-1)*itemsPerPage+1 }}–{{ Math.min(currentPage*itemsPerPage, filteredProducts.length) }}</span>
+        <v-pagination
+          v-model="currentPage"
+          :length="totalPages"
+          :total-visible="5"
+          size="small"
+          rounded="circle"
+          color="primary"
+          variant="tonal"
+        />
+        <span class="text-caption text-medium-emphasis">
+          {{ (currentPage - 1) * itemsPerPage + 1 }}–{{ Math.min(currentPage * itemsPerPage, filteredProducts.length) }}
+        </span>
       </v-col>
     </v-row>
 
@@ -208,7 +317,13 @@
       </v-col>
     </v-row>
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="2000" location="top" variant="tonal">
+    <v-snackbar
+      v-model="snackbar.show"
+      :color="snackbar.color"
+      timeout="2000"
+      location="top"
+      variant="tonal"
+    >
       {{ snackbar.text }}
     </v-snackbar>
   </v-container>
@@ -220,12 +335,15 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
+// ============================================================
 // État
+// ============================================================
 const products = ref([])
 const loading = ref(false)
 const error = ref(null)
+const lastUpdate = ref('')
 
-// Filtres UI
+// Filtres
 const search = ref('')
 const selectedCategory = ref(null)
 const stockFilter = ref(null)
@@ -237,8 +355,12 @@ const itemsPerPage = ref(12)
 const snackbar = ref({ show: false, text: '', color: 'success' })
 const imageErrors = ref({})
 
+// ============================================================
 // API
+// ============================================================
 const API_BASE = '/api'
+const IMAGE_BASE_URL = 'https://alpha-med-care.com'
+const placeholderImage = 'https://placehold.co/400x300?text=Kein+Bild'
 
 async function loadProducts() {
   loading.value = true
@@ -260,36 +382,83 @@ async function loadProducts() {
   }
 }
 
-// Helper images
-const placeholderImage = 'https://placehold.co/400x300?text=Kein+Bild'
+// ============================================================
+// Refresh manuel (sans recharger la page)
+// ============================================================
+async function refreshProducts() {
+  await loadProducts()
+  lastUpdate.value = new Date().toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+  snackbar.value = {
+    show: true,
+    text: '✅ Produkte aktualisiert',
+    color: 'success'
+  }
+}
 
+// ============================================================
+// Helpers images
+// ============================================================
 function getImageUrl(product) {
   if (imageErrors.value[product.id]) return placeholderImage
+
   const image = product.main_image || product.image
   if (!image) return placeholderImage
-  if (image.startsWith('http://') || image.startsWith('https://')) return image
-  if (image.startsWith('/')) return `https://alpha-med-care.com${image}`
-  return image
+
+  if (/^https?:\/\//i.test(image)) return image
+  if (image.startsWith('/')) return `${IMAGE_BASE_URL}${image}`
+  return `${IMAGE_BASE_URL}/images/${image}`
 }
 
 function handleImageError(product) {
   imageErrors.value[product.id] = true
 }
 
+// ============================================================
+// Helpers prix
+// ============================================================
 function formatPrice(price) {
   if (!price && price !== 0) return 'Preis auf Anfrage'
-  return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(price)
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(price)
 }
 
-// ------------------------------------------------------------
-// Filtres – avec mapping pour "Zubehör" -> "rehabilitation_accessory"
-// ------------------------------------------------------------
+// Retourne le prix à afficher (gebraucht si dispo, sinon normal)
+function prixAffiche(product) {
+  if (product.isUsed && product.usedPriceNet) {
+    return parseFloat(product.usedPriceNet)
+  }
+  return parseFloat(product.price) || 0
+}
+
+// Traduit les codes Zustand en allemand lisible
+function formatZustand(zustand) {
+  const map = {
+    'like_new':   'Wie neu',
+    'very_good':  'Sehr gut',
+    'good':       'Gut',
+    'acceptable': 'Akzeptabel',
+    'neu':        'Neu',
+    'wie-neu':    'Wie neu',
+    'sehr-gut':   'Sehr gut',
+    'gut':        'Gut',
+    'akzeptabel': 'Akzeptabel',
+    'defekt':     'Defekt'
+  }
+  return map[zustand] || zustand
+}
+
+// ============================================================
+// Filtres – catégories dynamiques
+// ============================================================
 const categoryOptions = computed(() => {
-  // Récupérer toutes les catégories distinctes existantes (valeurs)
   const cats = new Set(products.value.map(p => p.category).filter(Boolean))
-  // Ajouter la valeur "rehabilitation_accessory" si elle n'existe pas encore
   cats.add('rehabilitation_accessory')
-  // Construire les options avec title et value
   return Array.from(cats).sort().map(cat => {
     if (cat === 'rehabilitation_accessory') {
       return { title: 'Zubehör', value: 'accessories' }
@@ -300,13 +469,17 @@ const categoryOptions = computed(() => {
 
 const stockOptions = [
   { title: 'Auf Lager', value: true },
-  { title: 'Nicht lagernd', value: false },
+  { title: 'Nicht lagernd', value: false }
 ]
 
 const filteredByCategoryAndStock = computed(() => {
   let result = products.value
-  if (selectedCategory.value) result = result.filter(p => p.category === selectedCategory.value)
-  if (stockFilter.value !== null) result = result.filter(p => p.inStock === stockFilter.value)
+  if (selectedCategory.value) {
+    result = result.filter(p => p.category === selectedCategory.value)
+  }
+  if (stockFilter.value !== null && stockFilter.value !== undefined) {
+    result = result.filter(p => p.inStock === stockFilter.value)
+  }
   return result
 })
 
@@ -320,16 +493,24 @@ const filteredProducts = computed(() => {
   )
 })
 
-const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage.value))
+const totalPages = computed(() =>
+  Math.ceil(filteredProducts.value.length / itemsPerPage.value)
+)
+
 const paginatedProducts = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value
   return filteredProducts.value.slice(start, start + itemsPerPage.value)
 })
 
 const onFilterChange = () => { currentPage.value = 1 }
+
 watch(stockFilter, () => { currentPage.value = 1 })
 
-const hasActiveFilters = computed(() => !!selectedCategory.value || stockFilter.value !== null || !!search.value)
+const hasActiveFilters = computed(() =>
+  !!selectedCategory.value ||
+  (stockFilter.value !== null && stockFilter.value !== undefined) ||
+  !!search.value
+)
 
 function resetFilters() {
   search.value = ''
@@ -338,42 +519,95 @@ function resetFilters() {
   onFilterChange()
 }
 
+// ============================================================
 // Navigation
-function viewProduct(id) {
-  router.push(`/product/${id}`)
-}
+// ============================================================
+
 function addProduct() {
   router.push('/products/add')
 }
+
+// Clic sur la carte → vue lecture seule
+function viewProduct(id) {
+  router.push(`/products/view/${id}`)
+}
+
+// Bouton "Bearbeiten" → édition
 function editProduct(id) {
   router.push(`/products/edit/${id}`)
 }
 
-const truncate = (str, len) => str?.length > len ? str.slice(0, len) + '…' : str
+// ============================================================
+// Utils
+// ============================================================
+const truncate = (str, len) =>
+  str?.length > len ? str.slice(0, len) + '…' : str
 
+// ============================================================
+// Init
+// ============================================================
 loadProducts()
 </script>
 
 <style scoped>
-/* Tous les styles inchangés */
-.products-container { max-width: 1800px; margin: 0 auto; }
-.gradient-text { background: linear-gradient(135deg, #1976D2, #42A5F5); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.filter-card { background: rgba(255,255,255,0.95); border: 1px solid rgba(0,0,0,0.05); }
-.compact-grid { margin: -4px -4px 0 -4px; }
-.compact-grid > [class*="col-"] { padding: 4px !important; }
+/* ============================================================
+   GLOBAL
+   ============================================================ */
+.products-container {
+  max-width: 1800px;
+  margin: 0 auto;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #1976D2, #42A5F5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.filter-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.compact-grid {
+  margin: -4px -4px 0 -4px;
+}
+.compact-grid > [class*="col-"] {
+  padding: 4px !important;
+}
+
+/* ============================================================
+   CARTE PRODUIT
+   ============================================================ */
 .product-card {
   height: 100%;
-  transition: transform 0.3s;
+  transition: transform 0.3s, box-shadow 0.3s;
   display: flex;
   flex-direction: column;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
+  position: relative;
 }
 .product-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
+
+/* Bordure orange si gebraucht */
+.product-card.is-gebraucht {
+  border-color: #ff9800;
+  border-width: 2px;
+}
+
+/* ============================================================
+   IMAGE
+   ============================================================ */
 .card-image {
   position: relative;
   overflow: hidden;
@@ -414,18 +648,35 @@ loadProducts()
   gap: 5px;
   pointer-events: auto;
 }
+
+/* Badges couleurs */
 .new-badge {
   background-color: #4CAF50 !important;
   color: white !important;
   font-weight: bold;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 .best-badge {
   background-color: #FF9800 !important;
   color: white !important;
   font-weight: bold;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+.offer-badge {
+  background-color: #e53935 !important;
+  color: white !important;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(229, 57, 53, 0.3);
+}
+
+/* Badge Gebraucht (prioritaire) */
+.gebraucht-badge {
+  background-color: #ff9800 !important;
+  color: white !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(255, 152, 0, 0.4);
+}
+
 .image-placeholder {
   width: 100%;
   height: 100%;
@@ -444,6 +695,10 @@ loadProducts()
   padding: 0 8px;
   word-break: break-word;
 }
+
+/* ============================================================
+   TITRE / MARQUE
+   ============================================================ */
 .product-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -465,6 +720,29 @@ loadProducts()
   font-style: italic;
   margin-left: 5px;
 }
+
+/* ============================================================
+   ZUSTAND (Gebraucht)
+   ============================================================ */
+.zustand-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  background: #fff3e0;
+  border-left: 3px solid #ff9800;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #e65100;
+}
+.zustand-badge strong {
+  color: #bf360c;
+}
+
+/* ============================================================
+   FEATURES
+   ============================================================ */
 .product-features {
   padding: 8px 16px;
   flex-grow: 1;
@@ -482,29 +760,94 @@ loadProducts()
   flex-shrink: 0;
   margin-top: 2px;
 }
+
+/* ============================================================
+   PRIX
+   ============================================================ */
 .product-actions {
   padding: 8px 16px 16px;
+  display: flex;
+  align-items: center;
+}
+
+.price-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.old-price {
+  font-size: 0.85rem;
+  color: #999;
+  text-decoration: line-through;
+  margin-bottom: 2px;
 }
 .price {
   font-size: 1.3rem;
   font-weight: 700;
   color: #1976d2;
 }
-@media (max-width: 600px) {
-  .compact-grid { margin: -2px -2px 0 -2px; }
-  .compact-grid > [class*="col-"] { padding: 2px !important; }
-  .product-title { font-size: 1rem; min-height: 44px; padding: 12px 12px 6px; }
-  .product-brand { padding: 0 12px 6px; }
-  .product-features { padding: 6px 12px; }
-  .feature { font-size: 0.8rem; }
-  .price { font-size: 1.1rem; }
-  .card-image { min-height: 180px; }
-  .product-image { max-height: 180px; }
-  .image-container { padding: 12px; }
-  .product-actions .v-btn span { display: inline; }
+.price-gebraucht {
+  color: #ff9800 !important;
 }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 600px) {
+  .compact-grid {
+    margin: -2px -2px 0 -2px;
+  }
+  .compact-grid > [class*="col-"] {
+    padding: 2px !important;
+  }
+  .product-title {
+    font-size: 1rem;
+    min-height: 44px;
+    padding: 12px 12px 6px;
+  }
+  .product-brand {
+    padding: 0 12px 6px;
+  }
+  .product-features {
+    padding: 6px 12px;
+  }
+  .feature {
+    font-size: 0.8rem;
+  }
+  .price {
+    font-size: 1.1rem;
+  }
+  .card-image {
+    min-height: 180px;
+  }
+  .product-image {
+    max-height: 180px;
+  }
+  .image-container {
+    padding: 12px;
+  }
+  .product-actions .v-btn span {
+    display: inline;
+  }
+  .zustand-badge {
+    margin: 0 12px 6px;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+  .old-price {
+    font-size: 0.75rem;
+  }
+  .price-gebraucht {
+    font-size: 1.1rem;
+  }
+}
+
 @media (min-width: 960px) {
-  .card-image { min-height: 220px; }
-  .product-image { max-height: 220px; }
+  .card-image {
+    min-height: 220px;
+  }
+  .product-image {
+    max-height: 220px;
+  }
 }
 </style>

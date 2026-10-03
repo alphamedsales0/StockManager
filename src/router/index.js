@@ -9,8 +9,16 @@ const routes = [
   },
   { 
     path: '/products', 
-    component: () => import('../views/Products.vue')
+    component: () => import('../views/ProductsList.vue')
   },
+
+  {
+    path: '/products/view/:id',
+    name: 'ProductView',
+    component: () => import('../views/stock/ProductView.vue'),
+    meta: { requiresAuth: true }
+  },
+
   {
     path: '/products/edit/:id',
     name: 'EditProduct',

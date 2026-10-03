@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/database_connect.php';
 require_once __DIR__ . '/marken_helper.php';
+$dbh = $pdo;
 
 $data = json_decode(file_get_contents('php://input'), true);
 $name = markeNormalize($data['name'] ?? '');
@@ -20,8 +21,7 @@ if ($name === '') {
 }
 
 try {
-    // Vérifie doublon insensible à la casse
-    $stmt = $pdo->prepare("SELECT id, schluessel, name FROM marken WHERE LOWER(name) = LOWER(?) LIMIT 1");
+    $stmt = $dbh->prepare("SELECT id, schluessel, name FROM marken WHERE LOWER(name) = LOWER(?) LIMIT 1");
     $stmt->execute([$name]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($existing) {
@@ -33,23 +33,22 @@ try {
         exit;
     }
 
-    // Utilise le helper pour générer un schluessel propre
     $schluessel = markeMakeSchluessel($name);
 
-    $check = $pdo->prepare("SELECT id FROM marken WHERE schluessel = ? LIMIT 1");
+    $check = $dbh->prepare("SELECT id FROM marken WHERE schluessel = ? LIMIT 1");
     $check->execute([$schluessel]);
     if ($check->fetch()) {
         $schluessel .= '-' . time();
     }
 
-    $stmt = $pdo->prepare("INSERT INTO marken (schluessel, name) VALUES (?, ?)");
+    $stmt = $dbh->prepare("INSERT INTO marken (schluessel, name) VALUES (?, ?)");
     $stmt->execute([$schluessel, $name]);
 
     echo json_encode([
         'success' => true,
         'message' => 'Marke erstellt.',
         'item'    => [
-            'id'         => (int)$pdo->lastInsertId(),
+            'id'         => (int)$dbh->lastInsertId(),
             'name'       => $name,
             'schluessel' => $schluessel
         ]

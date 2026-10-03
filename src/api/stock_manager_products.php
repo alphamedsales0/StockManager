@@ -14,21 +14,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 }
 header('Content-Type: application/json; charset=utf-8');
 
-require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/database_connect.php';
 require_once __DIR__ . '/marken_helper.php';
 
+$dbh = $pdo;
 // ============================================================
-// Helpers globaux
+// Helpers
 // ============================================================
 function makeSlug(string $s): string {
     $s = str_replace(['ä','ö','ü','Ä','Ö','Ü','ß'], ['ae','oe','ue','Ae','Oe','Ue','ss'], $s);
     $s = strtolower(trim($s));
     $s = preg_replace('/[^a-z0-9]+/', '-', $s);
     return trim($s, '-');
-}
-function boolOrNull(array $arr, array $keys) {
-    foreach ($keys as $k) if (array_key_exists($k, $arr)) return !empty($arr[$k]) ? 1 : 0;
-    return null;
 }
 function buildSpezifikationenJson(array $specifics, array $excludeKeys): ?string {
     $rest = [];
@@ -50,6 +47,22 @@ function intOrNull($v) {
 function normalizeValue($v) {
     if (is_array($v)) return isset($v['name']) ? (string)$v['name'] : '';
     return (string)$v;
+}
+
+/**
+ * Ajoute une entrée dans artikel_verlauf
+ */
+function addVerlauf(PDO $dbh, int $artikelId, string $aktion, ?string $feld = null, ?string $alter = null, ?string $neuer = null, ?string $beschreibung = null): void {
+    try {
+        $stmt = $dbh->prepare("
+            INSERT INTO artikel_verlauf (artikel_id, benutzer, aktion, feld, alter_wert, neuer_wert, beschreibung)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $benutzer = $_SERVER['PHP_AUTH_USER'] ?? ($_SERVER['REMOTE_USER'] ?? 'System');
+        $stmt->execute([$artikelId, $benutzer, $aktion, $feld, $alter, $neuer, $beschreibung]);
+    } catch (Exception $e) {
+        error_log('addVerlauf failed: ' . $e->getMessage());
+    }
 }
 
 // ============================================================
@@ -99,21 +112,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dbh->beginTransaction();
 
         // ============================================================
-        // ✅ OPTION B — Marque garantie
+        // 1. Marque garantie
         // ============================================================
         $markeCanonique = markeEnsureExists($dbh, $article['brand']);
         if ($markeCanonique === null) {
-            throw new Exception("Marke ist erforderlich.");
+            throw new Exception('Marke ist erforderlich.');
         }
 
-        // ---------- Specs JSON ----------
+        // ============================================================
+        // 2. Specs JSON
+        // ============================================================
         $flatBoolKeys = ['spez_hat_ekg','spez_hat_bluetooth','spez_hat_wifi',
                          'spez_hat_touchscreen','spez_ist_klappbar','spez_hat_rueckenlehne'];
         $flatTextKeys = ['spez_display_typ','spez_widerstandstyp'];
         $spezJson = buildSpezifikationenJson($specifics, array_merge($flatBoolKeys, $flatTextKeys));
 
         // ============================================================
-        // 1. INSERT artikel
+        // 3. INSERT artikel
         // ============================================================
         $sql = "INSERT INTO artikel (
                     bezeichnung, slug, marke,
@@ -154,7 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':waehrung'          => !empty($article['currency']) ? $article['currency'] : 'EUR',
             ':hauptbild'         => $article['main_image'],
 
-            // ✅ NOT NULL DEFAULT 2
             ':garantie_jahre'    => intOrNull($article['warranty_years'] ?? null) ?? 2,
 
             ':belastbarkeit'     => $article['weight_capacity'] ?? null,
@@ -184,7 +198,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $articleId = (int)$dbh->lastInsertId();
 
         // ============================================================
-        // 2. Images galerie
+        // 4. Log de création
+        // ============================================================
+        addVerlauf(
+            $dbh,
+            $articleId,
+            'create',
+            null,
+            null,
+            null,
+            "Produkt erstellt: {$article['name']} (Art.-Nr. {$article['article_number']})"
+        );
+
+        // ============================================================
+        // 5. Images
         // ============================================================
         if (!empty($images)) {
             $ins = $dbh->prepare("INSERT INTO artikel_bilder
@@ -208,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // ============================================================
-        // 3. versandregeln (⚠️ 3 colonnes NOT NULL)
+        // 6. versandregeln
         // ============================================================
         if (!empty($shipping)) {
             $ins = $dbh->prepare("INSERT INTO versandregeln
@@ -216,19 +243,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   VALUES (?, ?, ?, ?, ?)");
             $ins->execute([
                 $articleId,
-
-                // versandkosten : NULL autorisé
                 numOrNull($shipping['shipping_cost'] ?? null),
-
-                // ✅ NOT NULL DEFAULT 50.00
                 numOrNull($shipping['free_shipping_threshold'] ?? null) ?? 50.00,
-
-                // ✅ NOT NULL DEFAULT 'Standard'
-                !empty($shipping['shipping_method'])
-                    ? trim($shipping['shipping_method'])
-                    : 'Standard',
-
-                // ✅ NOT NULL DEFAULT 3
+                !empty($shipping['shipping_method']) ? trim($shipping['shipping_method']) : 'Standard',
                 intOrNull($shipping['estimated_delivery_days'] ?? null) ?? 3,
             ]);
         }

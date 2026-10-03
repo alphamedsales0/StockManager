@@ -1,4 +1,3 @@
-<!-- components/ticket/InternalNotes.vue -->
 <template>
   <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
     <v-card-title class="section-header gradient-bg">
@@ -19,10 +18,14 @@
           <div class="text-grey text-center py-2">Keine internen Notizen</div>
         </v-list-item>
       </v-list>
-      <v-textarea v-model="newNote" label="Neue interne Notiz" rows="3" variant="outlined" class="mt-3" />
-      <v-btn color="secondary" block @click="addNote" :disabled="!newNote.trim()" class="mt-2">
-        Notiz speichern
-      </v-btn>
+
+      <!-- ✅ Bloc d'ajout : masqué si readOnly -->
+      <template v-if="!readOnly">
+        <v-textarea v-model="newNote" label="Neue interne Notiz" rows="3" variant="outlined" class="mt-3" />
+        <v-btn color="secondary" block @click="addNote" :disabled="!newNote.trim()" class="mt-2">
+          Notiz speichern
+        </v-btn>
+      </template>
     </v-card-text>
   </v-card>
 </template>
@@ -34,6 +37,7 @@ const props = defineProps({
   ticket: Object,
   notes: Array,
   darkMode: Boolean,
+  readOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['addNote'])

@@ -11,21 +11,21 @@ require_once __DIR__ . '/database_connect.php';
 
 try {
     // ----------------------------------------------
-    // 1. PRODUKTE (articles)
+    // 1. PRODUKTE (table `artikel`)
     // ----------------------------------------------
-    $stmt = $pdo->query("SELECT COUNT(*) FROM articles");
+    $stmt = $pdo->query("SELECT COUNT(*) FROM artikel");
     $totalProducts = (int)$stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM articles WHERE in_stock = 1");
+    $stmt = $pdo->query("SELECT COUNT(*) FROM artikel WHERE auf_lager = 1");
     $inStockCount = (int)$stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT SUM(price) FROM articles WHERE in_stock = 1");
+    $stmt = $pdo->query("SELECT SUM(preis) FROM artikel WHERE auf_lager = 1");
     $totalStockValue = (float)($stmt->fetchColumn() ?? 0);
 
     $averageProductValue = ($inStockCount > 0) ? round($totalStockValue / $inStockCount, 2) : 0;
 
     // ----------------------------------------------
-    // 2. KUNDEN (kunden)
+    // 2. KUNDEN (kunden) — inchangé
     // ----------------------------------------------
     $stmt = $pdo->query("SELECT COUNT(*) FROM kunden");
     $totalCustomers = (int)$stmt->fetchColumn();
@@ -41,7 +41,7 @@ try {
     $activeCustomers = (int)$stmt->fetchColumn();
 
     // ----------------------------------------------
-    // 3. ANGEBOTE (angebot_requests)
+    // 3. ANGEBOTE (angebot_requests) — inchangé
     // ----------------------------------------------
     $stmt = $pdo->query("SELECT COUNT(*) FROM angebot_requests");
     $totalQuotes = (int)$stmt->fetchColumn();
@@ -50,7 +50,7 @@ try {
     $pendingQuotes = (int)$stmt->fetchColumn();
 
     // ----------------------------------------------
-    // 4. BESTELLUNGEN (orders) – optional
+    // 4. BESTELLUNGEN (orders) — inchangé
     // ----------------------------------------------
     $totalOrders = 0;
     $pendingOrders = 0;

@@ -15,6 +15,10 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 require_once __DIR__ . '/database_connect.php';
+require_once __DIR__ . '/permission_helper.php';
+
+// ✅ Contrôle d'accès : Admin + Office uniquement
+requireTicketWriteAccess();
 
 if (!isset($pdo) || !$pdo) {
     http_response_code(500);
@@ -36,11 +40,13 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     exit;
 }
 
-$ticketId    = $input['ticket_id'] ?? null;
-$assigneeId  = $input['assignee_id'] ?? null;      // falls ID gesendet wird
-$assigneeName = $input['assignee_name'] ?? null;   // falls Name direkt gesendet wird
-$source      = $input['source'] ?? 'form';
-$changedBy   = $input['changed_by'] ?? 'Admin';
+$ticketId     = $input['ticket_id'] ?? null;
+$assigneeId   = $input['assignee_id'] ?? null;
+$assigneeName = $input['assignee_name'] ?? null;
+$source       = $input['source'] ?? 'form';
+
+// ✅ Le nom de l'utilisateur vient de la session
+$changedBy    = currentUserName();
 
 if (!$ticketId) {
     http_response_code(400);
@@ -51,7 +57,7 @@ if (!$ticketId) {
 try {
     $table = ($source === 'angebot') ? 'angebot_requests' : 'form_submissions';
 
-    // 1. Name ermitteln: entweder direkt übergeben oder aus users-Tabelle
+    // 1. Nom ermitteln
     $finalAssigneeName = null;
     if ($assigneeName) {
         $finalAssigneeName = $assigneeName;
@@ -65,16 +71,20 @@ try {
         }
     }
 
-    // 2. Update durchführen
+    // 2. Update
     $stmt = $pdo->prepare("UPDATE $table SET assigned_to = :assignee, last_updated_by = :changedBy, updated_at = NOW() WHERE id = :id");
     $stmt->execute([':assignee' => $finalAssigneeName, ':changedBy' => $changedBy, ':id' => $ticketId]);
 
-    // 3. Kommentar für Timeline (Fremdschlüssel-Constraint muss entfernt sein!)
+    // 3. Kommentar für Timeline
     $commentText = "Bearbeiter zugewiesen: " . ($finalAssigneeName ?: 'Niemand');
     $stmtComment = $pdo->prepare("INSERT INTO comments (ticket_id, source, author, text, type) VALUES (?, ?, ?, ?, 'status')");
     $stmtComment->execute([$ticketId, $source, $changedBy, $commentText]);
 
-    echo json_encode(['success' => true, 'assignee_name' => $finalAssigneeName]);
+    echo json_encode([
+        'success' => true,
+        'assignee_name' => $finalAssigneeName,
+        'changed_by' => $changedBy
+    ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

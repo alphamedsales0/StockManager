@@ -1,5 +1,6 @@
 // composables/useComments.js
 import { ref } from 'vue'
+import { apiUrl } from '@/config/api'
 
 export function useComments() {
   const activities = ref([])
@@ -7,7 +8,10 @@ export function useComments() {
   const loadComments = async (ticketId) => {
     if (!ticketId) return
     try {
-      const response = await fetch(`/api/get_comments.php?ticket_id=${ticketId}`)
+      const response = await fetch(
+        apiUrl(`/get_comments.php?ticket_id=${ticketId}`),
+        { credentials: 'include' }
+      )
       const data = await response.json()
       if (data.success) {
         activities.value = data.comments.map(c => ({
@@ -27,8 +31,9 @@ export function useComments() {
 
   const addComment = async (ticketId, text, author, source) => {
     try {
-      const response = await fetch('/api/add_comment.php', {
+      const response = await fetch(apiUrl('/add_comment.php'), {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticket_id: ticketId,
@@ -40,7 +45,6 @@ export function useComments() {
       })
       const data = await response.json()
       if (data.success) {
-        // Neuen Kommentar in activities einfügen (neuesten zuerst)
         activities.value.unshift({
           id: data.comment_id || Date.now(),
           type: 'comment',

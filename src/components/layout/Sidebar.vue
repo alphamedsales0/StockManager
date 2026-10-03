@@ -6,7 +6,7 @@
     class="elevation-3"
     :width="uiStore.rail ? 56 : 280"
   >
-    <!-- HEADER (unverändert) -->
+    <!-- HEADER -->
     <div class="sidebar-header" :class="{ 'rail-mode': uiStore.rail }">
       <div
         class="d-flex align-center"
@@ -32,15 +32,17 @@
     <v-divider class="my-2" />
 
     <v-list nav density="compact" class="pa-1">
-      <!-- DASHBOARD – immer erlaubt -->
+
+      <!-- DASHBOARD — Admin + Office -->
       <v-list-item
+        v-if="permissionStore.can('dashboard')"
         prepend-icon="mdi-view-dashboard-outline"
         title="Dashboard"
         :active="activeTab === 'dashboard'"
         @click="navigateTo('dashboard')"
       />
 
-      <!-- TICKETS – immer erlaubt -->
+      <!-- TICKETS — tous les rôles -->
       <v-list-item
         prepend-icon="mdi-ticket-outline"
         title="Tickets"
@@ -48,36 +50,46 @@
         @click="navigateTo('tickets')"
       />
 
-      <!-- PRODUKTE – für alle sichtbar, aber nur Admin darf navigieren -->
-      <v-list-group value="products">
+      <!-- PRODUKTE — Admin + Office + Technician (lecture seule pour Technician) -->
+      <v-list-group v-if="permissionStore.can('products')" value="products">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Produkte" prepend-icon="mdi-package-variant" />
         </template>
+
+        <!-- Toujours visible -->
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Produkte"
           :active="activeTab === 'products-list'"
           @click="navigateTo('products-list')"
         />
+
+        <!-- Admin / Office uniquement -->
         <v-list-item
+          v-if="permissionStore.can('products-write')"
           prepend-icon="mdi-plus-box-outline"
           title="Neues Produkt"
           :active="activeTab === 'add-product'"
           @click="navigateTo('add-product')"
         />
+
+        <!-- Admin / Office uniquement -->
         <v-list-item
+          v-if="permissionStore.can('products-categories')"
           prepend-icon="mdi-tag-outline"
           title="Kategorien"
           :active="activeTab === 'categories'"
           @click="navigateTo('categories')"
         />
         <v-list-item
+          v-if="permissionStore.can('products-categories')"
           prepend-icon="mdi-format-list-checks"
           title="Artikeltypen"
           :active="activeTab === 'article-types'"
           @click="navigateTo('article-types')"
         />
         <v-list-item
+          v-if="permissionStore.can('products-categories')"
           prepend-icon="mdi-tag"
           title="Marken"
           :active="activeTab === 'brands'"
@@ -85,18 +97,21 @@
         />
       </v-list-group>
 
-      <!-- KUNDEN – für alle sichtbar -->
-      <v-list-group value="customers">
+      <!-- KUNDEN — Admin + Office (écriture) + Technician (lecture) -->
+      <v-list-group v-if="permissionStore.can('customers')" value="customers">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Kunden" prepend-icon="mdi-account-group-outline" />
         </template>
+
         <v-list-item
           prepend-icon="mdi-format-list-bulleted"
           title="Alle Kunden"
           :active="activeTab === 'customers-list'"
           @click="navigateTo('customers-list')"
         />
+
         <v-list-item
+          v-if="permissionStore.can('customers-write')"
           prepend-icon="mdi-account-plus-outline"
           title="Neuer Kunde"
           :active="activeTab === 'add-customer'"
@@ -104,8 +119,8 @@
         />
       </v-list-group>
 
-      <!-- MITARBEITER – für alle sichtbar -->
-      <v-list-group value="employees">
+      <!-- MITARBEITER — Admin uniquement -->
+      <v-list-group v-if="permissionStore.can('employees')" value="employees">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Mitarbeiter" prepend-icon="mdi-account-tie-outline" />
         </template>
@@ -132,14 +147,12 @@
           :active="activeTab === 'roles'"
           @click="navigateTo('roles')"
         />
-        <!-- NEU: Position -->
         <v-list-item
           prepend-icon="mdi-briefcase-outline"
           title="Position"
           :active="activeTab === 'positions'"
           @click="navigateTo('positions')"
         />
-        <!-- NEU: Abteilung -->
         <v-list-item
           prepend-icon="mdi-office-building-outline"
           title="Abteilung"
@@ -148,8 +161,8 @@
         />
       </v-list-group>
 
-      <!-- BESTELLUNGEN – für alle sichtbar -->
-      <v-list-group value="orders">
+      <!-- BESTELLUNGEN — Admin + Office -->
+      <v-list-group v-if="permissionStore.can('orders')" value="orders">
         <template #activator="{ props }">
           <v-list-item v-bind="props" title="Bestellungen" prepend-icon="mdi-cart-outline" />
         </template>
@@ -167,17 +180,18 @@
         />
       </v-list-group>
 
-      <v-divider class="my-2" />
+      <v-divider v-if="permissionStore.can('stats')" class="my-2" />
 
-      <!-- STATISTIKEN – für alle sichtbar -->
+      <!-- STATISTIKEN — Admin uniquement -->
       <v-list-item
+        v-if="permissionStore.can('stats')"
         prepend-icon="mdi-chart-line"
         title="Statistiken"
         :active="activeTab === 'stats'"
         @click="navigateTo('stats')"
       />
 
-      <!-- HILFE – immer erlaubt -->
+      <!-- HILFE — tous les rôles -->
       <v-list-item
         prepend-icon="mdi-help-circle-outline"
         title="Hilfe"
@@ -199,26 +213,24 @@ const route = useRoute()
 const uiStore = useUiStore()
 const permissionStore = usePermissionStore()
 
-// Liste der geschützten Tabs (nur Admin)
-const protectedTabs = [
-  'products-list', 'add-product', 'categories', 'article-types', 'brands',
-  'customers-list', 'add-customer',
-  'employees-list', 'add-employee', 'roles', 'positions', 'departments',
-  'orders-list', 'add-order',
-  'stats'
-]
-
+// ============================================================
+// ONGLET ACTIF
+// ============================================================
 const activeTab = computed(() => {
   const path = route.path
-  if (path === '/') return 'dashboard'
+  if (path === '/' || path === '/dashboard') return 'dashboard'
   if (path === '/tickets') return 'tickets'
   if (path === '/products') return 'products-list'
   if (path === '/products/add') return 'add-product'
+  if (path.startsWith('/products/view/')) return 'products-list'
+  if (path.startsWith('/products/edit/')) return 'products-list'
   if (path === '/categories') return 'categories'
   if (path === '/article-types') return 'article-types'
   if (path === '/brands') return 'brands'
   if (path === '/customers') return 'customers-list'
   if (path === '/customers/add') return 'add-customer'
+  if (path.startsWith('/customers/edit/')) return 'customers-list'
+  if (path.match(/^\/customers\/\d+$/)) return 'customers-list'
   if (path === '/employees') return 'employees-list'
   if (path === '/employees/add') return 'add-employee'
   if (path.startsWith('/employees/')) return 'employees-list'
@@ -232,6 +244,9 @@ const activeTab = computed(() => {
   return 'dashboard'
 })
 
+// ============================================================
+// NAVIGATION
+// ============================================================
 const navigateTo = (tab) => {
   const routes = {
     dashboard: '/',
@@ -256,15 +271,46 @@ const navigateTo = (tab) => {
 
   const target = routes[tab] || '/'
 
-  if (protectedTabs.includes(tab)) {
-    // Geschützter Tab – prüfe Berechtigung
-    permissionStore.checkPermission('Admin', () => {
-      router.push(target)
-    })
-  } else {
-    // Ungeschützte Tabs (dashboard, tickets, help) – immer erlaubt
+  // Routes publiques (toujours autorisées)
+  const publicTabs = ['tickets', 'help']
+  if (publicTabs.includes(tab)) {
     router.push(target)
+    return
   }
+
+  // Routes protégées
+  const key = getParentKey(tab)
+  if (permissionStore.can(key)) {
+    router.push(target)
+  } else {
+    permissionStore.showAccessDenied()
+  }
+}
+
+// ============================================================
+// Retourne la clé de permission d'un onglet
+// ============================================================
+const getParentKey = (tab) => {
+  if (tab === 'dashboard') return 'dashboard'
+
+  if (tab === 'products-list') return 'products'
+  if (tab === 'add-product') return 'products-write'
+  if (tab === 'categories') return 'products-categories'
+  if (tab === 'article-types') return 'products-categories'
+  if (tab === 'brands') return 'products-categories'
+
+  if (tab === 'customers-list') return 'customers'
+  if (tab === 'add-customer') return 'customers-write'
+
+  if (['employees-list', 'add-employee', 'roles', 'positions', 'departments'].includes(tab)) {
+    return 'employees'
+  }
+
+  if (tab === 'orders-list' || tab === 'add-order') return 'orders'
+  if (tab === 'stats') return 'stats'
+  if (tab === 'help') return 'help'
+
+  return tab
 }
 </script>
 

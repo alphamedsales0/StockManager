@@ -1,5 +1,8 @@
 <?php
-header('Content-Type: application/json');
+// api/add_department_stock.php
+require_once __DIR__ . '/permission_helper.php';
+applyCors();
+header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');

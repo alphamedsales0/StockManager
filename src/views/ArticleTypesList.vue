@@ -220,10 +220,10 @@
     </v-snackbar>
   </v-container>
 </template>
-
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import axios from 'axios'
+import { apiUrl } from '@/config/api'
 
 const articleTypes = ref([])
 const totalItems = ref(0)
@@ -270,7 +270,9 @@ const loadItems = async (options) => {
       sortOrder: options.sortBy?.length ? options.sortBy[0].order : 'desc'
     })
 
-    const response = await fetch(`/api/article_types_pagination.php?${params.toString()}`)
+    const response = await fetch(apiUrl(`/article_types_pagination.php?${params.toString()}`), {
+      credentials: 'include'
+    })
     const data = await response.json()
 
     if (data.success) {
@@ -302,7 +304,6 @@ watch(search, () => {
 
 watch(itemsPerPage, () => {
   page.value = 1
-  // loadItems wird durch update:options automatisch ausgelöst
 })
 
 // ------------------------------------------------------
@@ -337,13 +338,16 @@ const saveType = async () => {
 
   saving.value = true
   try {
-    const url = editing.value ? '/api/update_article_type.php' : '/api/add_article_type.php'
+    const url = editing.value
+      ? apiUrl('/update_article_type.php')
+      : apiUrl('/add_article_type.php')
     const method = editing.value ? 'put' : 'post'
     const response = await axios({
       method,
       url,
       data: form.value,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
 
     if (response.data.success) {
@@ -378,9 +382,10 @@ const deleteType = async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: '/api/delete_article_type.php',
+      url: apiUrl('/delete_article_type.php'),
       data: { id: selectedItem.value.id },
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
 
     if (response.data.success) {

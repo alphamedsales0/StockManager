@@ -18,18 +18,22 @@
           <div class="text-grey text-center py-2">Keine Zeit erfasst</div>
         </v-list-item>
       </v-list>
-      <v-divider class="my-3" />
-      <v-row>
-        <v-col cols="5">
-          <v-text-field v-model="newHours" type="number" label="Stunden" step="0.5" variant="outlined" density="compact" />
-        </v-col>
-        <v-col cols="7">
-          <v-text-field v-model="newDesc" label="Beschreibung" variant="outlined" density="compact" />
-        </v-col>
-        <v-col cols="12">
-          <v-btn color="primary" block @click="addTime" :disabled="!newHours">Zeit hinzufügen</v-btn>
-        </v-col>
-      </v-row>
+
+      <!-- ✅ Bloc d'ajout : masqué si readOnly -->
+      <template v-if="!readOnly">
+        <v-divider class="my-3" />
+        <v-row>
+          <v-col cols="5">
+            <v-text-field v-model="newHours" type="number" label="Stunden" step="0.5" variant="outlined" density="compact" />
+          </v-col>
+          <v-col cols="7">
+            <v-text-field v-model="newDesc" label="Beschreibung" variant="outlined" density="compact" />
+          </v-col>
+          <v-col cols="12">
+            <v-btn color="primary" block @click="addTime" :disabled="!newHours">Zeit hinzufügen</v-btn>
+          </v-col>
+        </v-row>
+      </template>
     </v-card-text>
   </v-card>
 </template>
@@ -41,6 +45,7 @@ const props = defineProps({
   ticket: Object,
   timeEntries: Array,
   darkMode: Boolean,
+  readOnly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['addTime'])
 
@@ -67,10 +72,6 @@ const addTime = () => {
   font-weight: 600;
   color: #0f172a;
 }
-.dark-mode .item-label {
-  color: #94a3b8;
-}
-.dark-mode .item-value {
-  color: #e2e8f0;
-}
+.dark-mode .item-label { color: #94a3b8; }
+.dark-mode .item-value { color: #e2e8f0; }
 </style>

@@ -33,21 +33,24 @@
         </transition-group>
       </div>
 
-      <!-- Bouton "Voir plus / moins" (visible seulement si > 5 activités) -->
+      <!-- Bouton "Voir plus / moins" -->
       <div v-if="totalCount > 5" class="d-flex justify-center mt-4">
         <v-btn variant="text" color="primary" @click="toggleShowAll" :prepend-icon="showAll ? 'mdi-chevron-up' : 'mdi-chevron-down'">
           {{ showAll ? 'Weniger anzeigen' : `Alle ${totalCount} anzeigen` }}
         </v-btn>
       </div>
 
-      <v-divider class="my-6" />
-      <div class="text-subtitle-1 font-weight-bold mb-4">Neuen Kommentar hinzufügen</div>
-      <v-textarea v-model="newComment" label="Kommentar eingeben..." rows="4" variant="outlined" auto-grow />
-      <div class="d-flex justify-end mt-4">
-        <v-btn color="primary" size="large" :disabled="!newComment.trim()" @click="addComment">
-          <v-icon start>mdi-send</v-icon> Kommentar speichern
-        </v-btn>
-      </div>
+      <!-- ✅ Bloc d'ajout de commentaire : masqué si readOnly -->
+      <template v-if="!readOnly">
+        <v-divider class="my-6" />
+        <div class="text-subtitle-1 font-weight-bold mb-4">Neuen Kommentar hinzufügen</div>
+        <v-textarea v-model="newComment" label="Kommentar eingeben..." rows="4" variant="outlined" auto-grow />
+        <div class="d-flex justify-end mt-4">
+          <v-btn color="primary" size="large" :disabled="!newComment.trim()" @click="addComment">
+            <v-icon start>mdi-send</v-icon> Kommentar speichern
+          </v-btn>
+        </div>
+      </template>
     </v-card-text>
   </v-card>
 </template>
@@ -59,6 +62,7 @@ const props = defineProps({
   ticket: Object,
   activities: Array,
   darkMode: Boolean,
+  readOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['addComment'])
@@ -66,10 +70,8 @@ const emit = defineEmits(['addComment'])
 const newComment = ref('')
 const showAll = ref(false)
 
-// Total des activités
 const totalCount = computed(() => props.activities.length)
 
-// Activités affichées : soit les 5 premières (les plus récentes), soit tout si showAll
 const displayedActivities = computed(() => {
   if (showAll.value || totalCount.value <= 5) {
     return props.activities
@@ -77,19 +79,16 @@ const displayedActivities = computed(() => {
   return props.activities.slice(0, 5)
 })
 
-// Basculer l'affichage complet / limité
 const toggleShowAll = () => {
   showAll.value = !showAll.value
 }
 
-// Ajouter un commentaire
 const addComment = () => {
   if (!newComment.value.trim()) return
   emit('addComment', newComment.value)
   newComment.value = ''
 }
 
-// Formater la date
 const formatDateTime = (date) => {
   if (!date) return '-'
   return new Date(date).toLocaleString('de-DE', {
@@ -97,7 +96,6 @@ const formatDateTime = (date) => {
   })
 }
 
-// Initiales de l'auteur
 const getInitials = (name) => {
   return name?.split(' ').map(word => word.charAt(0)).join('').slice(0, 2).toUpperCase()
 }

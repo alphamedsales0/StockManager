@@ -1,11 +1,12 @@
-// api/auth_stock.js
+// src/api/auth_stock.js
 import axios from 'axios'
+import { apiUrl } from '@/config/api'
 
-const API_URL = 'https://alpha-med-care.com/api/auth_stock.php'
+const AUTH_URL = apiUrl('/auth_stock.php')
 
 export const getCurrentUser = async () => {
   try {
-    const response = await axios.get(`${API_URL}?action=user`, {
+    const response = await axios.get(`${AUTH_URL}?action=user`, {
       withCredentials: true
     })
     return response.data
@@ -18,7 +19,7 @@ export const getCurrentUser = async () => {
 export const login = async (email, password) => {
   try {
     const response = await axios.post(
-      `${API_URL}?action=login`,
+      `${AUTH_URL}?action=login`,
       { email, password },
       { withCredentials: true }
     )
@@ -32,7 +33,7 @@ export const login = async (email, password) => {
 export const logout = async () => {
   try {
     const response = await axios.post(
-      `${API_URL}?action=logout`,
+      `${AUTH_URL}?action=logout`,
       {},
       { withCredentials: true }
     )

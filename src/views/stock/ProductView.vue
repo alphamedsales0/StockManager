@@ -32,7 +32,7 @@
             </v-chip>
           </div>
           <p class="text-caption text-grey-darken-1 mt-1 mb-0">
-            Nur Ansicht – zum Bearbeiten klicken Sie auf "Bearbeiten"
+            {{ canEdit ? 'Nur Ansicht – zum Bearbeiten klicken Sie auf "Bearbeiten"' : 'Nur Ansicht – Sie haben keine Bearbeitungsrechte' }}
           </p>
         </div>
 
@@ -49,13 +49,36 @@
           <v-btn variant="outlined" size="small" prepend-icon="mdi-printer" @click="exportPdf">
             PDF
           </v-btn>
-          <v-btn variant="outlined" size="small" color="blue" prepend-icon="mdi-content-copy" @click="duplicateProduct">
+
+          <!-- ✅ Boutons réservés aux rôles avec products-write -->
+          <v-btn
+            v-if="canEdit"
+            variant="outlined"
+            size="small"
+            color="blue"
+            prepend-icon="mdi-content-copy"
+            @click="duplicateProduct"
+          >
             Duplizieren
           </v-btn>
-          <v-btn variant="outlined" size="small" color="error" prepend-icon="mdi-delete" @click="confirmDelete">
+          <v-btn
+            v-if="canEdit"
+            variant="outlined"
+            size="small"
+            color="error"
+            prepend-icon="mdi-delete"
+            @click="confirmDelete"
+          >
             Löschen
           </v-btn>
-          <v-btn color="primary" variant="elevated" size="small" prepend-icon="mdi-pencil" @click="editProduct">
+          <v-btn
+            v-if="canEdit"
+            color="primary"
+            variant="elevated"
+            size="small"
+            prepend-icon="mdi-pencil"
+            @click="editProduct"
+          >
             Bearbeiten
           </v-btn>
         </div>
@@ -419,7 +442,12 @@
       <!-- Actions bas de page -->
       <div class="d-flex justify-end ga-2 mt-4 no-print">
         <v-btn variant="outlined" @click="cancel">Zurück zur Liste</v-btn>
-        <v-btn color="primary" @click="editProduct" prepend-icon="mdi-pencil">
+        <v-btn
+          v-if="canEdit"
+          color="primary"
+          @click="editProduct"
+          prepend-icon="mdi-pencil"
+        >
           Produkt bearbeiten
         </v-btn>
       </div>
@@ -485,15 +513,22 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import { usePermissionStore } from '@/stores/permission'
+import { apiUrl, imageUrl, SHOP_BASE_URL } from '@/config/api'
 
 const route = useRoute()
 const router = useRouter()
+const permissionStore = usePermissionStore()
+
+// ============================================================
+// PERMISSIONS
+// ============================================================
+const canEdit = computed(() => permissionStore.can('products-write'))
+const canDeleteTicket = computed(() => permissionStore.can('tickets-delete'))
 
 // ============================================================
 // CONFIG
 // ============================================================
-const IMAGE_BASE_URL = 'https://alpha-med-care.com'
-const SHOP_BASE_URL = 'https://alpha-med-care.com'
 const placeholder = 'https://placehold.co/400x300?text=Kein+Bild'
 
 // ============================================================
@@ -531,11 +566,7 @@ const duplicating = ref(false)
 // ============================================================
 // HELPERS
 // ============================================================
-const buildImageUrl = (path) => {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return IMAGE_BASE_URL + '/' + String(path).replace(/^\/+/, '')
-}
+const buildImageUrl = (path) => imageUrl(path)
 
 const formatPrice = (v) => {
   if (v === null || v === undefined || isNaN(v)) return '—'
@@ -684,7 +715,9 @@ const loadProduct = async () => {
   loading.value = true
   error.value = null
   try {
-    const res = await axios.get(`/api/get_product_details_stock.php?id=${productId.value}`)
+    const res = await axios.get(apiUrl(`/get_product_details_stock.php?id=${productId.value}`), {
+      withCredentials: true
+    })
     if (!res.data.success) throw new Error(res.data.error || 'Fehler beim Laden')
 
     const a = res.data.product.article
@@ -752,7 +785,9 @@ const selectFarbe = (farbe) => {
 const loadHistory = async () => {
   loadingHistory.value = true
   try {
-    const res = await axios.get(`/api/get_product_history.php?id=${productId.value}`)
+    const res = await axios.get(apiUrl(`/get_product_history.php?id=${productId.value}`), {
+      withCredentials: true
+    })
     if (res.data.success) {
       history.value = res.data.items || []
     }
@@ -767,7 +802,14 @@ const loadHistory = async () => {
 // ACTIONS
 // ============================================================
 const cancel = () => router.push('/products')
-const editProduct = () => router.push(`/products/edit/${productId.value}`)
+
+const editProduct = () => {
+  if (!canEdit.value) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  router.push(`/products/edit/${productId.value}`)
+}
 
 const viewInShop = () => {
   if (shopUrl.value) {
@@ -799,12 +841,20 @@ const shareProduct = async () => {
 
 const exportPdf = () => { window.print() }
 
-const confirmDelete = () => { deleteDialog.value = true }
+const confirmDelete = () => {
+  if (!canEdit.value) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  deleteDialog.value = true
+}
 
 const deleteProduct = async () => {
   deleting.value = true
   try {
-    const r = await axios.post('/api/delete_product.php', { product_id: productId.value })
+    const r = await axios.post(apiUrl('/delete_product.php'), { product_id: productId.value }, {
+      withCredentials: true
+    })
     if (r.data?.success === true) {
       snackbar.value = { show: true, text: '🗑️ Produkt gelöscht', color: 'success' }
       deleteDialog.value = false
@@ -820,12 +870,20 @@ const deleteProduct = async () => {
   }
 }
 
-const duplicateProduct = () => { duplicateDialog.value = true }
+const duplicateProduct = () => {
+  if (!canEdit.value) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  duplicateDialog.value = true
+}
 
 const doDuplicate = async () => {
   duplicating.value = true
   try {
-    const r = await axios.post('/api/duplicate_product.php', { product_id: productId.value })
+    const r = await axios.post(apiUrl('/duplicate_product.php'), { product_id: productId.value }, {
+      withCredentials: true
+    })
     if (r.data?.success === true) {
       snackbar.value = { show: true, text: '✅ Kopie erstellt', color: 'success' }
       duplicateDialog.value = false
@@ -854,7 +912,6 @@ watch(activeTab, (val) => {
 // ============================================================
 onMounted(loadProduct)
 </script>
-
 <style scoped>
 .product-view-container {
   padding: 16px;
@@ -1123,7 +1180,7 @@ onMounted(loadProduct)
 }
 
 /* ============================================================
-   PRINT (Export PDF)
+   PRINT
    ============================================================ */
 @media print {
   .no-print { display: none !important; }

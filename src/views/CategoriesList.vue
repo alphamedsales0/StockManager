@@ -196,7 +196,11 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import axios from 'axios'
+import { apiUrl } from '@/config/api'
 
+// ------------------------------------------------------
+// État
+// ------------------------------------------------------
 const categories = ref([])
 const totalItems = ref(0)
 const loading = ref(false)
@@ -206,24 +210,33 @@ const page = ref(1)
 
 const headers = [
   { title: 'ID', key: 'id', sortable: true },
-  { title: 'Bezeichnung', key: 'name', sortable: true },
-  { title: 'Schlüssel', key: 'value', sortable: true },
-  { title: 'Route', key: 'route', sortable: false },
+  { title: 'Name', key: 'name', sortable: true },
+  { title: 'Technischer Wert', key: 'value', sortable: true },
   { title: 'Aktionen', key: 'actions', sortable: false, align: 'end' }
 ]
 
 const itemsPerPageOptions = [
-  { title: '5', value: 5 }, { title: '10', value: 10 },
-  { title: '25', value: 25 }, { title: '50', value: 50 }
+  { title: '5', value: 5 },
+  { title: '10', value: 10 },
+  { title: '25', value: 25 },
+  { title: '50', value: 50 }
 ]
 
 const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value))
 
-let currentOptions = { page: 1, itemsPerPage: 10, sortBy: [{ key: 'id', order: 'desc' }] }
+let currentOptions = {
+  page: 1,
+  itemsPerPage: 10,
+  sortBy: [{ key: 'id', order: 'desc' }]
+}
 
+// ------------------------------------------------------
+// Chargement des données
+// ------------------------------------------------------
 const loadItems = async (options) => {
   currentOptions = options
   loading.value = true
+
   try {
     const params = new URLSearchParams({
       page: options.page,
@@ -232,55 +245,95 @@ const loadItems = async (options) => {
       sortBy: options.sortBy?.length ? options.sortBy[0].key : 'id',
       sortOrder: options.sortBy?.length ? options.sortBy[0].order : 'desc'
     })
-    const response = await fetch(`/api/get_categories_pagination.php?${params.toString()}`)
+
+    const response = await fetch(apiUrl(`/get_categories_pagination.php?${params.toString()}`), {
+      credentials: 'include'
+    })
     const data = await response.json()
+
     if (data.success) {
       categories.value = data.items
       totalItems.value = data.total
     } else {
       showSnackbar('Fehler: ' + (data.message || 'Unbekannt'), 'error')
     }
-  } catch (err) {
+  } catch (error) {
     showSnackbar('Netzwerkfehler beim Laden', 'error')
-    console.error(err)
+    console.error(error)
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => loadItems(currentOptions))
+// ------------------------------------------------------
+// Montage
+// ------------------------------------------------------
+onMounted(() => {
+  loadItems(currentOptions)
+})
 
-watch(search, () => { currentOptions.page = 1; page.value = 1; loadItems(currentOptions) })
-watch(itemsPerPage, () => { page.value = 1 })
+// ------------------------------------------------------
+// Recherche & Seitenanzahl
+// ------------------------------------------------------
+watch(search, () => {
+  currentOptions.page = 1
+  page.value = 1
+  loadItems(currentOptions)
+})
 
+watch(itemsPerPage, () => {
+  page.value = 1
+})
+
+// ------------------------------------------------------
+// Dialog Ajouter / Éditer
+// ------------------------------------------------------
 const dialog = ref(false)
 const editing = ref(false)
 const saving = ref(false)
-const form = ref({ id: null, name: '', value: '', route: '' })
+const form = ref({ id: null, name: '', value: '' })
 const formRef = ref(null)
 
 const openAddDialog = () => {
   editing.value = false
-  form.value = { id: null, name: '', value: '', route: '' }
+  form.value = { id: null, name: '', value: '' }
   dialog.value = true
   formRef.value?.resetValidation()
 }
 
 const openEditDialog = (item) => {
   editing.value = true
-  form.value = { id: item.id, name: item.name, value: item.value, route: item.route || '' }
+  form.value = { id: item.id, name: item.name, value: item.value }
   dialog.value = true
   formRef.value?.resetValidation()
 }
 
+// ------------------------------------------------------
+// Sauvegarder
+// ------------------------------------------------------
 const saveCategory = async () => {
-  const { valid } = (await formRef.value?.validate()) || { valid: false }
+  const { valid } = await formRef.value?.validate() || { valid: false }
   if (!valid) return
+
   saving.value = true
   try {
-    const url = editing.value ? '/api/update_category.php' : '/api/add_category.php'
-    const method = editing.value ? 'put' : 'post'
-    const response = await axios({ method, url, data: form.value, headers: { 'Content-Type': 'application/json' } })
+    let url, method
+    if (editing.value) {
+      url = apiUrl('/update_category.php')
+      method = 'put'
+    } else {
+      url = apiUrl('/add_category.php')
+      method = 'post'
+    }
+
+    const response = await axios({
+      method,
+      url,
+      data: form.value,
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
+    })
+
     if (response.data.success) {
       showSnackbar('Kategorie erfolgreich gespeichert', 'success')
       dialog.value = false
@@ -288,13 +341,17 @@ const saveCategory = async () => {
     } else {
       showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
     }
-  } catch (err) {
-    showSnackbar(err.response?.data?.message || 'Fehler beim Speichern', 'error')
+  } catch (error) {
+    console.error(error)
+    showSnackbar(error.response?.data?.message || 'Fehler beim Speichern', 'error')
   } finally {
     saving.value = false
   }
 }
 
+// ------------------------------------------------------
+// Supprimer
+// ------------------------------------------------------
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const selectedItem = ref(null)
@@ -309,10 +366,12 @@ const deleteCategory = async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: '/api/delete_category.php',
+      url: apiUrl('/delete_category.php'),
       data: { id: selectedItem.value.id },
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
+
     if (response.data.success) {
       showSnackbar('Kategorie gelöscht', 'success')
       deleteDialog.value = false
@@ -320,15 +379,22 @@ const deleteCategory = async () => {
     } else {
       showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
     }
-  } catch (err) {
+  } catch (error) {
+    console.error(error)
     showSnackbar('Fehler beim Löschen', 'error')
   } finally {
     deleting.value = false
   }
 }
 
+// ------------------------------------------------------
+// Snackbar
+// ------------------------------------------------------
 const snackbar = ref({ show: false, text: '', color: 'success' })
-const showSnackbar = (text, color = 'success') => { snackbar.value = { show: true, text, color } }
+
+const showSnackbar = (text, color = 'success') => {
+  snackbar.value = { show: true, text, color }
+}
 </script>
 
 <style scoped>

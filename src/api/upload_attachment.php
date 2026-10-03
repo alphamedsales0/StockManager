@@ -1,12 +1,17 @@
 <?php
 // upload_attachment.php
-ob_clean(); // Vorherigen Puffer löschen
+ob_clean();
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 
 require_once __DIR__ . '/database_connect.php';
+require_once __DIR__ . '/permission_helper.php';
+
+// ✅ Contrôle d'accès : Admin + Office uniquement
+requireTicketWriteAccess();
 
 $ticketId = $_POST['ticket_id'] ?? null;
 if (!$ticketId) {
@@ -18,18 +23,21 @@ if (!$ticketId) {
 $uploadDir = __DIR__ . '/uploads/';
 if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
+// ✅ Récupérer le nom depuis la session (au lieu du client)
+$uploadedBy = currentUserName();
+
 $uploadedFiles = [];
 foreach ($_FILES['files']['tmp_name'] as $index => $tmpName) {
     $originalName = $_FILES['files']['name'][$index];
     $size = $_FILES['files']['size'][$index];
     $mime = $_FILES['files']['type'][$index];
-    
+
     $safeName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
     $targetPath = $uploadDir . $safeName;
-    
+
     if (move_uploaded_file($tmpName, $targetPath)) {
         $stmt = $pdo->prepare("INSERT INTO attachments (ticket_id, file_name, file_path, file_size, mime_type, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$ticketId, $originalName, $targetPath, $size, $mime, $_POST['uploaded_by'] ?? 'Admin']);
+        $stmt->execute([$ticketId, $originalName, $targetPath, $size, $mime, $uploadedBy]);
         $uploadedFiles[] = ['name' => $originalName, 'path' => $targetPath];
     }
 }

@@ -238,6 +238,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import axios from 'axios'
 import { useValidationRules } from '../composables/useValidationRules'
+import { apiUrl } from '@/config/api'
 
 const rules = useValidationRules()
 
@@ -294,9 +295,6 @@ const showSnackbar = (text, color = 'success') => {
   snackbar.value = { show: true, text, color }
 }
 
-// API-Basis – avec URL absolue pour éviter CORS en dev
-const API_BASE = 'https://alpha-med-care.com/api'
-
 // ----- Berechnete Werte für Filter & Paginierung -----
 const filteredRoles = computed(() => {
   if (!searchQuery.value.trim()) {
@@ -336,7 +334,7 @@ const fetchRoles = async () => {
   loadingRoles.value = true
   error.value = null
   try {
-    const res = await axios.get(`${API_BASE}/get_roles.php`)
+    const res = await axios.get(apiUrl('/get_roles.php'), { withCredentials: true })
     if (res.data.success && Array.isArray(res.data.roles)) {
       roles.value = res.data.roles
       if (currentPage.value > totalPages.value && totalPages.value > 0) {
@@ -364,7 +362,9 @@ const addRole = async () => {
   processingText.value = 'Rolle wird angelegt...'
 
   try {
-    const res = await axios.post(`${API_BASE}/create_role.php`, newRole.value)
+    const res = await axios.post(apiUrl('/create_role.php'), newRole.value, {
+      withCredentials: true
+    })
     if (res.data.success) {
       newRole.value = { name: '', display_name: '', description: '' }
       addForm.value?.reset()
@@ -412,7 +412,9 @@ const updateRole = async () => {
   processing.value = true
   processingText.value = 'Rolle wird aktualisiert...'
   try {
-    const res = await axios.post(`${API_BASE}/update_role.php`, editRole.value)
+    const res = await axios.post(apiUrl('/update_role.php'), editRole.value, {
+      withCredentials: true
+    })
     if (res.data.success) {
       editDialog.value = false
       editForm.value?.reset()
@@ -448,7 +450,9 @@ const deleteRoleConfirm = async () => {
   processing.value = true
   processingText.value = 'Rolle wird gelöscht...'
   try {
-    const res = await axios.post(`${API_BASE}/delete_role.php`, { id: deleteRole.value.id })
+    const res = await axios.post(apiUrl('/delete_role.php'), { id: deleteRole.value.id }, {
+      withCredentials: true
+    })
     if (res.data.success) {
       deleteDialog.value = false
       showSnackbar('✅ Rolle erfolgreich gelöscht!', 'success')

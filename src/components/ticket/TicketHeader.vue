@@ -11,10 +11,23 @@
         </div>
       </div>
     </div>
+
     <v-spacer />
-    <v-btn icon variant="outlined" color="white" rounded="circle" @click="goBack" class="mr-3" size="small">
-      <v-icon>mdi-home</v-icon>
+
+    <!-- ✅ Bouton "Zurück" avec icône flèche -->
+    <v-btn
+      icon
+      variant="outlined"
+      color="white"
+      rounded="circle"
+      @click="goBack"
+      class="mr-3"
+      size="small"
+      title="Zurück zur Ticket-Liste"
+    >
+      <v-icon>mdi-arrow-left</v-icon>
     </v-btn>
+
     <v-chip :color="priorityColor" class="priority-chip mr-2" size="small" variant="flat">
       <v-icon start size="14">mdi-alert</v-icon>
       {{ priorityLabel }}
@@ -23,6 +36,20 @@
       <v-icon start size="18">{{ statusIcon }}</v-icon>
       {{ translateStatus(ticket.status) }}
     </v-chip>
+
+    <!-- ✅ Bouton "Ticket löschen" — Admin uniquement -->
+    <v-btn
+      v-if="canDeleteTicket"
+      icon
+      variant="text"
+      color="error"
+      class="mr-2"
+      title="Ticket löschen"
+      @click="confirmDelete"
+    >
+      <v-icon>mdi-delete-forever</v-icon>
+    </v-btn>
+
     <v-btn icon variant="text" @click="exportToPDF" class="mr-2" title="PDF exportieren">
       <v-icon>mdi-file-pdf-box</v-icon>
     </v-btn>
@@ -34,7 +61,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { usePermissionStore } from '@/stores/permission'
 
 const props = defineProps({
   ticket: Object,
@@ -43,11 +70,19 @@ const props = defineProps({
   entryDateFormatted: String,
 })
 
-const emit = defineEmits(['toggleDarkMode', 'goBack'])
-const router = useRouter()
+const emit = defineEmits(['toggleDarkMode', 'goBack', 'deleteTicket'])
 
+const permissionStore = usePermissionStore()
+
+// ✅ Vérifie la permission de suppression
+const canDeleteTicket = computed(() => permissionStore.can('tickets-delete'))
+
+// ✅ Le parent (TicketDetail.vue) décide où aller
 const goBack = () => emit('goBack')
 const toggleDarkMode = () => emit('toggleDarkMode')
+
+// ✅ Émet l'événement pour ouvrir le dialog dans le parent
+const confirmDelete = () => emit('deleteTicket')
 
 const priorityLabel = computed(() => {
   const urgency = props.ticket?.form_data?.urgency

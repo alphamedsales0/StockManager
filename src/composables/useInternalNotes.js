@@ -1,12 +1,16 @@
 // composables/useInternalNotes.js
 import { ref } from 'vue'
+import { apiUrl } from '@/config/api'
 
 export function useInternalNotes() {
   const internalNotes = ref([])
 
   const loadInternalNotes = async (ticketId) => {
     try {
-      const response = await fetch(`/api/get_internal_notes.php?ticket_id=${ticketId}`)
+      const response = await fetch(
+        apiUrl(`/get_internal_notes.php?ticket_id=${ticketId}`),
+        { credentials: 'include' }
+      )
       const data = await response.json()
       if (data.success) internalNotes.value = data.notes
     } catch (err) {
@@ -15,8 +19,9 @@ export function useInternalNotes() {
   }
 
   const addInternalNote = async (ticketId, note, author) => {
-    const response = await fetch('/api/add_internal_note.php', {
+    const response = await fetch(apiUrl('/add_internal_note.php'), {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ticket_id: ticketId,

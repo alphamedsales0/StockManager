@@ -11,7 +11,6 @@
 
       <v-divider></v-divider>
 
-      <!-- Filter- und Suchleiste -->
       <v-card-text class="pt-4">
         <v-row align="center">
           <v-col cols="12" sm="3">
@@ -60,7 +59,6 @@
 
       <v-divider></v-divider>
 
-      <!-- Tabelle -->
       <v-card-text class="pa-0">
         <v-progress-linear v-if="loading" indeterminate color="primary"></v-progress-linear>
         <v-table v-else density="compact" class="table-earnings">
@@ -91,17 +89,27 @@
                 </v-chip>
               </td>
               <td class="text-center">
-                <!-- Aktion nur für Admins sichtbar -->
                 <v-btn
-                  v-if="authStore.user?.role === 'Admin'"
                   icon
                   variant="text"
                   size="small"
+                  color="primary"
                   @click.stop="viewDetails(item)"
+                  title="Ansehen"
                 >
                   <v-icon>mdi-eye</v-icon>
                 </v-btn>
-                <span v-else class="text-grey">—</span>
+                <v-btn
+                  v-if="canDeleteTicket"
+                  icon
+                  variant="text"
+                  size="small"
+                  color="error"
+                  @click.stop="confirmDelete(item)"
+                  title="Löschen"
+                >
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
               </td>
             </tr>
             <tr v-if="tickets.length === 0 && !loading">
@@ -111,7 +119,6 @@
         </v-table>
       </v-card-text>
 
-      <!-- Paginierung -->
       <v-divider></v-divider>
       <v-card-actions class="justify-center">
         <v-pagination
@@ -122,18 +129,51 @@
         ></v-pagination>
       </v-card-actions>
     </v-card>
+
+    <!-- Dialog de confirmation de suppression -->
+    <v-dialog v-model="deleteDialog" max-width="500" persistent>
+      <v-card>
+        <v-card-title class="text-h6 bg-error text-white">
+          <v-icon start color="white">mdi-alert</v-icon>
+          Ticket wirklich löschen?
+        </v-card-title>
+        <v-card-text class="pt-4">
+          Möchten Sie das Ticket
+          <strong>{{ selectedTicket?.refNr }}</strong>
+          ({{ selectedTicket?.name }}) endgültig löschen?
+          <br><br>
+          <v-alert type="warning" variant="tonal" density="compact">
+            <strong>Achtung :</strong> Alle Kommentare, internen Notizen, Anhänge und Zeiteinträge zu diesem Ticket werden ebenfalls gelöscht.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog = false" :disabled="deleting">Abbrechen</v-btn>
+          <v-btn color="error" @click="handleDelete" :loading="deleting">Ja, löschen</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" location="top end">
+      {{ snackbar.text }}
+      <template v-slot:actions>
+        <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false" />
+      </template>
+    </v-snackbar>
   </v-container>
 </template>
-
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePermissionStore } from '../stores/permission'
+import { apiUrl } from '@/config/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
+
+const canDeleteTicket = computed(() => permissionStore.can('tickets-delete'))
 
 // Refs
 const tickets = ref([])
@@ -143,6 +183,14 @@ const filterFormType = ref(null)
 const searchQuery = ref('')
 const page = ref(1)
 const totalPages = ref(1)
+
+// État suppression
+const deleteDialog = ref(false)
+const deleting = ref(false)
+const selectedTicket = ref(null)
+
+// Snackbar
+const snackbar = ref({ show: false, text: '', color: 'success' })
 
 // Filteroptionen
 const statusFilterOptions = [
@@ -174,7 +222,7 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
-// Tickets laden (mit Filtern, Suche und Paginierung)
+// Tickets laden
 const loadTickets = async () => {
   loading.value = true
   try {
@@ -185,7 +233,9 @@ const loadTickets = async () => {
     params.append('page', page.value)
     params.append('limit', 20)
 
-    const response = await fetch(`/api/get_all_ticket.php?${params.toString()}`)
+    const response = await fetch(apiUrl(`/get_all_ticket.php?${params.toString()}`), {
+      credentials: 'include'
+    })
     const data = await response.json()
     if (data.success) {
       tickets.value = data.tickets
@@ -200,13 +250,13 @@ const loadTickets = async () => {
   }
 }
 
-// Bei Filter‑ oder Suchänderung: Seite zurücksetzen und neu laden
+// Bei Filter- oder Suchänderung
 const applyFilters = () => {
   page.value = 1
   loadTickets()
 }
 
-// Debounce für die Sucheingabe (500 ms)
+// Debounce für die Sucheingabe
 let searchTimeout = null
 const onSearchInput = () => {
   clearTimeout(searchTimeout)
@@ -215,18 +265,65 @@ const onSearchInput = () => {
   }, 500)
 }
 
-// Löschen der Suche
 const clearSearch = () => {
   searchQuery.value = ''
   applyFilters()
 }
 
-// Navigation zur Detailseite – nur für Admins
+// Navigation vers le détail — accessible à TOUS les rôles
 const viewDetails = (ticket) => {
-  // Prüfe Berechtigung mit zentralem Permission-Store
-  permissionStore.checkPermission('Admin', () => {
-    router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
-  })
+  router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
+}
+
+// Ouvrir le dialog de suppression
+const confirmDelete = (ticket) => {
+  if (!canDeleteTicket.value) {
+    snackbar.value = {
+      show: true,
+      text: '⚠️ Nur Administratoren können Tickets löschen.',
+      color: 'warning'
+    }
+    return
+  }
+  selectedTicket.value = ticket
+  deleteDialog.value = true
+}
+
+// Effectuer la suppression
+const handleDelete = async () => {
+  if (!canDeleteTicket.value || !selectedTicket.value) return
+
+  deleting.value = true
+  try {
+    const response = await fetch(apiUrl('/delete_ticket.php'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        ticket_id: selectedTicket.value.id,
+        source: selectedTicket.value.source || 'form'
+      })
+    })
+    const data = await response.json()
+
+    if (data.success) {
+      snackbar.value = { show: true, text: '🗑️ Ticket gelöscht', color: 'success' }
+      deleteDialog.value = false
+      await loadTickets()
+    } else {
+      throw new Error(data.error || 'Löschen fehlgeschlagen')
+    }
+  } catch (error) {
+    console.error('Delete ticket failed:', error)
+    snackbar.value = {
+      show: true,
+      text: `❌ Fehler: ${error.message || 'Unbekannter Fehler'}`,
+      color: 'error'
+    }
+    deleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const goBack = () => {
@@ -234,7 +331,6 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  // Auth-Store initialisieren, falls noch kein Benutzer gesetzt ist
   if (!authStore.user) {
     authStore.initialize().then(() => {
       loadTickets()
@@ -249,11 +345,6 @@ onMounted(() => {
 
 <style scoped>
 .table-earnings th,
-.table-earnings td {
-  padding: 8px 12px !important;
-  font-size: 0.85rem;
-}
-tbody tr:hover {
-  background-color: #f5f5f5;
-}
+.table-earnings td { padding: 8px 12px !important; font-size: 0.85rem; }
+tbody tr:hover { background-color: #f5f5f5; }
 </style>

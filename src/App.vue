@@ -1,29 +1,27 @@
+<!-- src/App.vue -->
 <template>
   <v-app>
     <Sidebar v-if="authStore.isLoggedIn" />
     <AppHeader v-if="authStore.isLoggedIn" />
-    
+
     <v-main>
       <router-view />
     </v-main>
-    
+
     <NotificationsPanel v-if="authStore.isLoggedIn" />
     <AppFooter v-if="authStore.isLoggedIn && showFooter" />
 
-    <!-- Globales Berechtigungs-Modal - modernisiert -->
+    <!-- Dialog "Zugriff verweigert" -->
     <v-dialog v-model="permissionStore.showPermissionDialog" max-width="420" persistent>
       <v-card class="permission-dialog" rounded="lg" elevation="12">
         <v-card-item class="pa-6">
           <div class="d-flex flex-column align-center text-center">
-            <!-- Icon mit Kreis-Hintergrund -->
             <v-avatar size="72" color="error" class="mb-4">
               <v-icon size="40" color="white">mdi-lock</v-icon>
             </v-avatar>
-            
             <v-card-title class="text-h5 font-weight-bold mb-2">
               Zugriff verweigert
             </v-card-title>
-            
             <v-card-text class="text-body-1 text-medium-emphasis">
               Sie haben keine Berechtigung, auf diese Funktion zuzugreifen.
               <br>
@@ -31,9 +29,9 @@
             </v-card-text>
           </div>
         </v-card-item>
-        
+
         <v-divider></v-divider>
-        
+
         <v-card-actions class="pa-4 justify-center">
           <v-btn
             color="primary"
@@ -67,7 +65,7 @@ const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
 
 const showFooter = computed(() => {
-  const hideOnRoutes = ['login']
+  const hideOnRoutes = ['Login', 'login']
   return !hideOnRoutes.includes(route.name)
 })
 
@@ -87,17 +85,12 @@ html, body {
   margin-left: 0 !important;
 }
 
-/* Modernes Dialog-Design */
 .permission-dialog {
   background: white;
   border-radius: 16px !important;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2) !important;
 }
-.permission-dialog .v-card-item {
-  padding-bottom: 8px !important;
-}
-.permission-dialog .v-card-actions {
-  background: #f8f9fa;
-}
+.permission-dialog .v-card-item { padding-bottom: 8px !important; }
+.permission-dialog .v-card-actions { background: #f8f9fa; }
 </style>

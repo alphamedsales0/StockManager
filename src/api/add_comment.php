@@ -1,9 +1,11 @@
 <?php
-// add_comment.php
-header('Content-Type: application/json');
+// add_ticket_comment.php
+require_once __DIR__ . '/permission_helper.php';
+applyCors();
+header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -11,6 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/database_connect.php';
+require_once __DIR__ . '/permission_helper.php';
+
+// ✅ Contrôle d'accès : Admin + Office uniquement
+requireTicketWriteAccess();
 
 if (!isset($pdo) || !$pdo) {
     http_response_code(500);
@@ -27,9 +33,11 @@ if (!$input) {
 
 $ticketId = (int)($input['ticket_id'] ?? 0);
 $text     = trim($input['text'] ?? '');
-$author   = trim($input['author'] ?? 'Admin');
 $source   = trim($input['source'] ?? 'form');
 $type     = trim($input['type'] ?? 'comment');
+
+// ✅ Le nom vient de la session
+$author   = currentUserName();
 
 if (!$ticketId || empty($text)) {
     http_response_code(400);
@@ -38,7 +46,6 @@ if (!$ticketId || empty($text)) {
 }
 
 try {
-    // INSERT mit allen Spalten – wenn source nicht existiert, schlägt es fehl (wir fangen den Fehler ab)
     $stmt = $pdo->prepare("
         INSERT INTO comments (ticket_id, source, author, text, type, created_at)
         VALUES (:ticket_id, :source, :author, :text, :type, NOW())
@@ -56,11 +63,11 @@ try {
     echo json_encode([
         'success'    => true,
         'comment_id' => $newId,
+        'author'     => $author,
         'message'    => 'Kommentar gespeichert'
     ]);
 } catch (PDOException $e) {
-    // Fehler protokollieren (z.B. wenn Spalte 'source' fehlt)
-    error_log('add_comment.php PDO Error: ' . $e->getMessage());
+    error_log('add_ticket_comment.php PDO Error: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'DB Error: ' . $e->getMessage()]);
 }

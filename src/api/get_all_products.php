@@ -13,8 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/database_connect.php';
 require_once __DIR__ . '/bild_helper.php';
+
+ $dbh = $pdo; // Utilisation de la connexion PDO existante
 
 try {
     // ============================================================

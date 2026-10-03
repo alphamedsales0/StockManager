@@ -15,6 +15,10 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 require_once __DIR__ . '/database_connect.php';
+require_once __DIR__ . '/permission_helper.php';
+
+// ✅ Contrôle d'accès : Admin + Office uniquement
+requireTicketWriteAccess();
 
 // PHPMailer einbinden (falls vorhanden)
 $usePHPMailer = false;
@@ -54,7 +58,9 @@ if (json_last_error() !== JSON_ERROR_NONE) {
 $ticketId        = $input['ticket_id'] ?? null;
 $newStatus       = $input['status'] ?? null;
 $notifyCustomer  = $input['notify_customer'] ?? false;
-$changedBy       = $input['changed_by'] ?? 'Admin';
+
+// ✅ Le nom vient de la session, pas du client
+$changedBy       = currentUserName();
 
 if (!$ticketId || !$newStatus) {
     http_response_code(400);
@@ -66,7 +72,6 @@ $response = ['success' => false];
 
 try {
     // ----- 1) QUELLE ANHAND DER ID SICHER ERMITTELN -----
-    // Zuerst in form_submissions prüfen
     $stmt = $pdo->prepare("SELECT 1 FROM form_submissions WHERE id = ?");
     $stmt->execute([$ticketId]);
     $found = $stmt->fetchColumn();
@@ -119,12 +124,11 @@ try {
 
     $response['success'] = true;
 
-    // ----- E-MAIL-BENACHRICHTIGUNG (nur bei Änderung und gewünscht) -----
+    // ----- E-MAIL-BENACHRICHTIGUNG -----
     if ($notifyCustomer && $oldStatus !== $newStatus) {
         $customerEmail = null;
         $customerName = 'Kunde';
 
-        // E-Mail-Adresse und Name aus der Datenbank holen (basierend auf $source)
         if ($source === 'angebot') {
             $stmt = $pdo->prepare("SELECT email, firstname, lastname FROM angebot_requests WHERE id = ?");
             $stmt->execute([$ticketId]);
@@ -134,7 +138,7 @@ try {
                 $customerName = trim($row['firstname'] . ' ' . $row['lastname']);
                 if (empty($customerName)) $customerName = 'Kunde';
             }
-        } else { // form
+        } else {
             $stmt = $pdo->prepare("SELECT customer_data FROM form_submissions WHERE id = ?");
             $stmt->execute([$ticketId]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -151,7 +155,6 @@ try {
             $ticketRef = ($source === 'angebot') ? 'Angebot' : 'Ticket';
             $subject = "Ihr $ticketRef (Ref-Nr.: $referenceNumber) wurde auf '$statusText' gesetzt";
 
-            // HTML- und Text-E-Mail erstellen
             $htmlBody = buildHtmlEmail($customerName, $referenceNumber, $statusText, $source, $ticketRef);
             $textBody = "Guten Tag $customerName,\n\n";
             $textBody .= "der Status Ihres $ticketRef (Ref-Nr.: $referenceNumber) wurde geändert zu: $statusText.\n\n";
@@ -162,7 +165,6 @@ try {
             $mailSent = false;
             $mailError = null;
 
-            // Versand mit PHPMailer (falls verfügbar)
             if ($usePHPMailer && !empty($config)) {
                 try {
                     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
@@ -191,7 +193,6 @@ try {
                 }
             }
 
-            // Fallback mit mail()
             if (!$mailSent) {
                 $headers = "From: service@alpha-med-care.com\r\n";
                 $headers .= "Reply-To: service@alpha-med-care.com\r\n";
@@ -239,7 +240,7 @@ function translateStatus($status) {
  * Erstellt eine moderne HTML-E-Mail mit Inline-CSS
  */
 function buildHtmlEmail($customerName, $referenceNumber, $statusText, $source, $ticketRef) {
-    $statusColor = '#ff9800'; // orange für pending
+    $statusColor = '#ff9800';
     if ($statusText === 'In Prüfung')   $statusColor = '#2196f3';
     if ($statusText === 'Abgeschlossen') $statusColor = '#4caf50';
     if ($statusText === 'Storniert')     $statusColor = '#f44336';

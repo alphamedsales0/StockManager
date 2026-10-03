@@ -706,11 +706,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import GuideDrawer from '../../components/dashboard/GuideDrawer.vue'
-
-// ============================================================
-// CONFIG
-// ============================================================
-const IMAGE_BASE_URL = 'https://alpha-med-care.com'
+import { apiUrl, imageUrl } from '@/config/api'
 
 // ============================================================
 // ROUTER & STATE
@@ -729,7 +725,6 @@ const guideDrawer = ref(false)
 const deleteDialog = ref(false)
 const deleting = ref(false)
 
-// Dialog marque
 const brandDialog = ref(false)
 const brandSaving = ref(false)
 const newBrandName = ref('')
@@ -782,7 +777,7 @@ const allImages = ref([])
 const categories = ref([])
 const articleTypes = ref([])
 const brands = ref([])
-const farbenListe = ref([])   // ✅ couleurs de la table `farben`
+const farbenListe = ref([])
 
 const conditionOptions = [
   { name: 'Wie neu', value: 'like_new' },
@@ -815,11 +810,7 @@ const formatPrice = (v) => {
   }).format(v)
 }
 
-const buildImageUrl = (path) => {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return IMAGE_BASE_URL + '/' + String(path).replace(/^\/+/, '')
-}
+const buildImageUrl = (path) => imageUrl(path)
 
 const typeMap = {
   'haupt':   'main',
@@ -834,7 +825,7 @@ const typeMap = {
 // ============================================================
 const loadBrands = async () => {
   try {
-    const res = await axios.get('/api/get_brands_stock.php')
+    const res = await axios.get(apiUrl('/get_brands_stock.php'), { withCredentials: true })
     if (res.data.success) brands.value = res.data.items
   } catch (e) {
     console.error('Fehler beim Laden der Marken:', e)
@@ -852,10 +843,11 @@ const saveBrand = async () => {
 
   brandSaving.value = true
   try {
-    const res = await axios.post('/api/add_brand_stock.php', { name })
+    const res = await axios.post(apiUrl('/add_brand_stock.php'), { name }, {
+      withCredentials: true
+    })
     if (res.data.success) {
       const item = res.data.item
-      // Éviter les doublons dans la liste locale
       if (!brands.value.some(b => b.name?.toLowerCase() === item.name.toLowerCase())) {
         brands.value.push(item)
       }
@@ -878,7 +870,7 @@ const saveBrand = async () => {
 // ============================================================
 const loadFarben = async () => {
   try {
-    const res = await axios.get('/api/get_farben.php')
+    const res = await axios.get(apiUrl('/get_farben.php'), { withCredentials: true })
     if (res.data.success) farbenListe.value = res.data.items || []
   } catch (e) {
     console.error('Fehler beim Laden der Farben:', e)
@@ -891,8 +883,8 @@ const loadFarben = async () => {
 const loadOptions = async () => {
   try {
     const [catRes, typeRes] = await Promise.all([
-      axios.get('/api/get_categories.php?roots=1'),
-      axios.get('/api/get_article_types.php')
+      axios.get(apiUrl('/get_categories.php?roots=1'), { withCredentials: true }),
+      axios.get(apiUrl('/get_article_types.php'), { withCredentials: true })
     ])
 
     let cats = catRes.data
@@ -916,7 +908,9 @@ const loadOptions = async () => {
 const loadProduct = async () => {
   loading.value = true
   try {
-    const res = await axios.get(`/api/get_product_details_stock.php?id=${productId.value}`)
+    const res = await axios.get(apiUrl(`/get_product_details_stock.php?id=${productId.value}`), {
+      withCredentials: true
+    })
     if (!res.data.success) throw new Error(res.data.error || 'Fehler beim Laden')
 
     const a = res.data.product.article
@@ -930,7 +924,7 @@ const loadProduct = async () => {
     product.price            = a.price ?? null
     product.offer_price      = a.offer_price ?? null
     product.currency         = a.currency || 'EUR'
-    product.color            = a.color || ''       // ✅ schluessel (ex: "weiss")
+    product.color            = a.color || ''
     product.warranty_years   = a.warranty_years ?? null
     product.weight_capacity  = a.weight_capacity ?? ''
     product.power_supply     = a.power_supply || ''
@@ -1005,12 +999,8 @@ const loadProduct = async () => {
 // ============================================================
 const addImage = () => {
   allImages.value.push({
-    id: null,
-    url: '',
-    type: 'gallery',
-    method: 'url',
-    file: null,
-    fileName: ''
+    id: null, url: '', type: 'gallery',
+    method: 'url', file: null, fileName: ''
   })
 }
 
@@ -1020,12 +1010,8 @@ const removeImage = (idx) => {
     const next = allImages.value.find((im, i) => i !== idx && im.url)
     if (next) next.type = 'main'
     else allImages.value.push({
-      id: null,
-      url: '',
-      type: 'main',
-      method: 'url',
-      file: null,
-      fileName: ''
+      id: null, url: '', type: 'main',
+      method: 'url', file: null, fileName: ''
     })
   }
   allImages.value.splice(idx, 1)
@@ -1097,8 +1083,9 @@ const submit = async () => {
       const fd = new FormData()
       fd.append('image', img.file)
       try {
-        const r = await axios.post('/api/upload_image.php', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const r = await axios.post(apiUrl('/upload_image.php'), fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          withCredentials: true
         })
         if (r.data.success) {
           img.url = r.data.url
@@ -1125,13 +1112,13 @@ const submit = async () => {
     return
   }
 
-  product.main_image = mainImageObj.url.replace(IMAGE_BASE_URL, '')
+  product.main_image = mainImageObj.url.replace(import.meta.env.VITE_IMAGE_BASE_URL || 'https://alpha-med-care.com', '')
 
   const galleryImages = allImages.value
     .filter(i => i.type !== 'main')
     .map((i, idx) => ({
       id: i.id || null,
-      url: i.url.replace(IMAGE_BASE_URL, ''),
+      url: i.url.replace(import.meta.env.VITE_IMAGE_BASE_URL || 'https://alpha-med-care.com', ''),
       image_order: idx + 1,
       type: i.type || 'gallery',
       article_name: product.name
@@ -1163,8 +1150,9 @@ const submit = async () => {
 
   submitting.value = true
   try {
-    const response = await axios.post('/api/update_product.php', payload, {
-      headers: { 'Content-Type': 'application/json' }
+    const response = await axios.post(apiUrl('/update_product.php'), payload, {
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
     if (response.data.success) {
       showSnackbar('✅ Produkt erfolgreich aktualisiert!', 'success')
@@ -1194,7 +1182,9 @@ const confirmDelete = () => { deleteDialog.value = true }
 const deleteProduct = async () => {
   deleting.value = true
   try {
-    const r = await axios.post('/api/delete_product.php', { product_id: productId.value })
+    const r = await axios.post(apiUrl('/delete_product.php'), { product_id: productId.value }, {
+      withCredentials: true
+    })
     if (r.data?.success === true) {
       showSnackbar('🗑️ Produkt erfolgreich gelöscht.', 'success')
       deleteDialog.value = false
@@ -1222,7 +1212,7 @@ const deleteProduct = async () => {
 onMounted(() => {
   loadOptions()
   loadBrands()
-  loadFarben()      // ✅
+  loadFarben()
   loadProduct()
 })
 </script>

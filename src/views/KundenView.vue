@@ -1,5 +1,6 @@
 <template>
   <v-container fluid class="pa-6">
+    <!-- Header -->
     <v-card class="mb-6 rounded-xl" elevation="3">
       <v-card-title class="d-flex align-center justify-space-between pa-6">
         <div class="d-flex align-center">
@@ -11,17 +12,29 @@
             <p class="text-body-2 text-medium-emphasis mb-0">Kundenverwaltung</p>
           </div>
         </div>
-        <v-btn color="primary" variant="flat" size="large" prepend-icon="mdi-account-plus" @click="router.push('/customers/add')">
+
+        <!-- ✅ Bouton "Neuer Kunde" uniquement si permissions -->
+        <v-btn
+          v-if="permissionStore.can('customers-create')"
+          color="primary"
+          variant="flat"
+          size="large"
+          prepend-icon="mdi-account-plus"
+          @click="router.push('/customers/add')"
+        >
           Neuer Kunde
         </v-btn>
       </v-card-title>
     </v-card>
 
+    <!-- Statistiques -->
     <v-row class="mb-6">
       <v-col cols="12" sm="4">
         <v-card class="rounded-xl" elevation="2">
           <v-card-text class="d-flex align-center">
-            <v-avatar color="primary" size="48" class="mr-4"><v-icon>mdi-account-multiple</v-icon></v-avatar>
+            <v-avatar color="primary" size="48" class="mr-4">
+              <v-icon>mdi-account-multiple</v-icon>
+            </v-avatar>
             <div>
               <div class="text-caption">Gesamt Kunden</div>
               <div class="text-h5 font-weight-bold">{{ kunden.length }}</div>
@@ -32,7 +45,9 @@
       <v-col cols="12" sm="4">
         <v-card class="rounded-xl" elevation="2">
           <v-card-text class="d-flex align-center">
-            <v-avatar color="success" size="48" class="mr-4"><v-icon>mdi-account-check</v-icon></v-avatar>
+            <v-avatar color="success" size="48" class="mr-4">
+              <v-icon>mdi-account-check</v-icon>
+            </v-avatar>
             <div>
               <div class="text-caption">Verifiziert</div>
               <div class="text-h5 font-weight-bold">{{ verifiedCount }}</div>
@@ -43,7 +58,9 @@
       <v-col cols="12" sm="4">
         <v-card class="rounded-xl" elevation="2">
           <v-card-text class="d-flex align-center">
-            <v-avatar color="warning" size="48" class="mr-4"><v-icon>mdi-domain</v-icon></v-avatar>
+            <v-avatar color="warning" size="48" class="mr-4">
+              <v-icon>mdi-domain</v-icon>
+            </v-avatar>
             <div>
               <div class="text-caption">Gewerbekunden</div>
               <div class="text-h5 font-weight-bold">{{ gewerbeCount }}</div>
@@ -53,6 +70,7 @@
       </v-col>
     </v-row>
 
+    <!-- Filtres -->
     <v-card class="mb-6 rounded-xl" elevation="2">
       <v-card-text>
         <v-row align="center">
@@ -89,47 +107,99 @@
             />
           </v-col>
           <v-col cols="12" md="1" class="text-center">
-            <v-btn icon variant="text" @click="loadKunden"><v-icon>mdi-refresh</v-icon></v-btn>
+            <v-btn icon variant="text" @click="loadKunden">
+              <v-icon>mdi-refresh</v-icon>
+            </v-btn>
           </v-col>
         </v-row>
       </v-card-text>
     </v-card>
 
+    <!-- Tableau -->
     <v-card class="rounded-xl" elevation="3">
-      <v-data-table :headers="headers" :items="filteredKunden" :loading="loading" items-per-page="10">
+      <v-data-table
+        :headers="headers"
+        :items="filteredKunden"
+        :loading="loading"
+        items-per-page="10"
+      >
         <template #item="{ item, columns }">
           <tr class="clickable-row" @click="openDetail(item)">
-            <td v-for="col in columns" :key="col.key" :class="{ 'text-center': col.key === 'actions' }">
+            <td
+              v-for="col in columns"
+              :key="col.key"
+              :class="{ 'text-center': col.key === 'actions' }"
+            >
               <template v-if="col.key === 'photo'">
                 <v-avatar size="42" color="grey-lighten-3">
                   <img v-if="item.profilbild" :src="item.profilbild" class="kunde-photo" />
                   <v-icon v-else>mdi-account</v-icon>
                 </v-avatar>
               </template>
+
               <template v-else-if="col.key === 'name'">
                 <div>
                   <div class="font-weight-bold">{{ displayName(item) }}</div>
                   <div class="text-caption text-medium-emphasis">{{ item.email }}</div>
                 </div>
               </template>
+
               <template v-else-if="col.key === 'type'">
-                <v-chip :color="item.person_type === 'Gewerbekunde' ? 'warning' : 'primary'" size="small">
+                <v-chip
+                  :color="item.person_type === 'Gewerbekunde' ? 'warning' : 'primary'"
+                  size="small"
+                >
                   {{ item.person_type }}
                 </v-chip>
               </template>
+
               <template v-else-if="col.key === 'status'">
-                <v-chip :color="item.email_verifiziert ? 'success' : 'grey'" size="small">
+                <v-chip
+                  :color="item.email_verifiziert ? 'success' : 'grey'"
+                  size="small"
+                >
                   {{ item.email_verifiziert ? 'Verifiziert' : 'Offen' }}
                 </v-chip>
               </template>
+
+              <!-- ✅ Colonne Actions : boutons uniquement si permission -->
               <template v-else-if="col.key === 'actions'">
-                <v-btn icon variant="text" color="warning" @click.stop="editKunde(item)">
+                <!-- Voir (toujours dispo) -->
+                <v-btn
+                  icon
+                  variant="text"
+                  color="primary"
+                  @click.stop="openDetail(item)"
+                  title="Ansehen"
+                >
+                  <v-icon>mdi-eye</v-icon>
+                </v-btn>
+
+                <!-- Modifier (uniquement avec permission) -->
+                <v-btn
+                  v-if="permissionStore.can('customers-create')"
+                  icon
+                  variant="text"
+                  color="warning"
+                  @click.stop="editKunde(item)"
+                  title="Bearbeiten"
+                >
                   <v-icon>mdi-pencil</v-icon>
                 </v-btn>
-                <v-btn icon variant="text" color="error" @click.stop="deleteKunde(item)">
+
+                <!-- Supprimer (uniquement avec permission) -->
+                <v-btn
+                  v-if="permissionStore.can('customers-create')"
+                  icon
+                  variant="text"
+                  color="error"
+                  @click.stop="deleteKunde(item)"
+                  title="Löschen"
+                >
                   <v-icon>mdi-delete</v-icon>
                 </v-btn>
               </template>
+
               <template v-else>
                 {{ item[col.key] }}
               </template>
@@ -146,6 +216,7 @@
       </template>
     </v-snackbar>
 
+    <!-- Dialog suppression -->
     <v-dialog v-model="deleteDialog" max-width="400">
       <v-card>
         <v-card-title class="text-h6 bg-error text-white">
@@ -153,11 +224,15 @@
           Löschen bestätigen
         </v-card-title>
         <v-card-text class="pt-4">
-          Möchten Sie den Kunden <strong class="text-error">{{ selectedItem?.kundennummer }}</strong> wirklich löschen?
+          Möchten Sie den Kunden
+          <strong class="text-error">{{ selectedItem?.kundennummer }}</strong>
+          wirklich löschen?
         </v-card-text>
         <v-card-actions class="pa-4">
-          <v-btn variant="text" @click="deleteDialog=false">Abbrechen</v-btn>
-          <v-btn color="error" @click="confirmDelete" :loading="deleting" class="text-none">Löschen</v-btn>
+          <v-btn variant="text" @click="deleteDialog = false">Abbrechen</v-btn>
+          <v-btn color="error" @click="confirmDelete" :loading="deleting" class="text-none">
+            Löschen
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -168,10 +243,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { usePermissionStore } from '@/stores/permission'   // ✅ NOUVEAU
 
 const router = useRouter()
+const permissionStore = usePermissionStore()   // ✅ NOUVEAU
 
-// ✅ Variable d'environnement (même système que profile.js / auth.js)
+// ✅ Variable d'environnement
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 const kunden = ref([])
@@ -241,9 +318,21 @@ const verifiedCount = computed(() => kunden.value.filter(k => k.email_verifizier
 const gewerbeCount = computed(() => kunden.value.filter(k => k.person_type === 'Gewerbekunde').length)
 
 const openDetail = (item) => router.push(`/customers/${item.id}`)
-const editKunde = (item) => router.push(`/customers/edit/${item.id}`)
+
+const editKunde = (item) => {
+  // ✅ Double sécurité : vérifie la permission avant de naviguer
+  if (!permissionStore.can('customers-create')) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  router.push(`/customers/edit/${item.id}`)
+}
 
 const deleteKunde = (item) => {
+  if (!permissionStore.can('customers-create')) {
+    permissionStore.showAccessDenied()
+    return
+  }
   selectedItem.value = item
   deleteDialog.value = true
 }

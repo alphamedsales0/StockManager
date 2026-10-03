@@ -197,6 +197,7 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import axios from 'axios'
+import { apiUrl } from '@/config/api'
 
 const brands = ref([])
 const totalItems = ref(0)
@@ -233,7 +234,9 @@ const loadItems = async (options) => {
       sortBy: options.sortBy?.length ? options.sortBy[0].key : 'id',
       sortOrder: options.sortBy?.length ? options.sortBy[0].order : 'desc'
     })
-    const response = await fetch(`https://alpha-med-care.com/api/brands_pagination_stock.php?${params.toString()}`)
+    const response = await fetch(apiUrl(`/brands_pagination_stock.php?${params.toString()}`), {
+      credentials: 'include'
+    })
     const text = await response.text()
     console.log('API Antwort:', text)
     const data = JSON.parse(text)
@@ -261,7 +264,6 @@ watch(search, () => {
 
 watch(itemsPerPage, () => {
   page.value = 1
-  // loadItems wird durch update:options automatisch ausgelöst
 })
 
 // Dialog
@@ -291,13 +293,16 @@ const saveBrand = async () => {
 
   saving.value = true
   try {
-    const url = editing.value ? '/api/update_brand_stock.php' : '/api/add_brand_stock.php'
+    const url = editing.value
+      ? apiUrl('/update_brand_stock.php')
+      : apiUrl('/add_brand_stock.php')
     const method = editing.value ? 'put' : 'post'
     const response = await axios({
       method,
       url,
       data: form.value,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
     if (response.data.success) {
       showSnackbar('Marke erfolgreich gespeichert', 'success')
@@ -328,9 +333,10 @@ const deleteBrand = async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: '/api/delete_brand_stock.php',
+      url: apiUrl('/delete_brand_stock.php'),
       data: { id: selectedItem.value.id },
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      withCredentials: true
     })
     if (response.data.success) {
       showSnackbar('Marke gelöscht', 'success')

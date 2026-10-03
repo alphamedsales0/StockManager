@@ -1,19 +1,16 @@
+// vite.config.js
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
 export default defineConfig({
-  // 🔑 BASE URL pour le déploiement dans un sous-dossier
-  base: '/stockmanager/',
+  // ✅ Racine — car le sous-domaine sert /stockmanager à la racine
+  base: '/',
 
-  plugins: [
-    vue()
-  ],
+  plugins: [vue()],
 
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
+    alias: { '@': path.resolve(__dirname, './src') }
   },
 
   server: {
@@ -33,10 +30,8 @@ export default defineConfig({
   },
 
   build: {
-    // S'assurer que les assets sont bien générés dans /stockmanager/assets/
     outDir: 'dist',
     assetsDir: 'assets',
-    // Important pour les sous-dossiers
     emptyOutDir: true
   }
 })

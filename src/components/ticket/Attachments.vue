@@ -1,4 +1,3 @@
-<!-- components/ticket/Attachments.vue -->
 <template>
   <v-card v-if="ticket" class="info-card glass-effect mb-5" :class="{ 'dark-glass': darkMode }">
     <v-card-title class="section-header gradient-bg">
@@ -24,17 +23,21 @@
           <div class="text-grey text-center py-4">Keine Anhänge vorhanden</div>
         </v-list-item>
       </v-list>
-      <v-file-input
-        v-model="newFiles"
-        label="Dateien anhängen"
-        multiple
-        variant="outlined"
-        density="comfortable"
-        class="mt-4"
-      />
-      <v-btn color="primary" block @click="upload" :loading="uploading" :disabled="!newFiles?.length">
-        Hochladen
-      </v-btn>
+
+      <!-- ✅ Bloc d'upload : masqué si readOnly -->
+      <template v-if="!readOnly">
+        <v-file-input
+          v-model="newFiles"
+          label="Dateien anhängen"
+          multiple
+          variant="outlined"
+          density="comfortable"
+          class="mt-4"
+        />
+        <v-btn color="primary" block @click="upload" :loading="uploading" :disabled="!newFiles?.length">
+          Hochladen
+        </v-btn>
+      </template>
     </v-card-text>
   </v-card>
 </template>
@@ -46,6 +49,7 @@ const props = defineProps({
   ticket: Object,
   attachments: Array,
   darkMode: Boolean,
+  readOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['upload', 'download'])

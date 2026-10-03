@@ -3,32 +3,10 @@
     <v-container class="login-container">
       <v-card class="login-card" elevation="10" rounded="xl">
         <div class="form-container-wrapper">
-          <!-- Guest -->
-          <v-card :class="['form-card guest-card', { active: isGuestMode }]" elevation="0">
-            <v-card-text class="pa-8">
-              <div class="text-center">
-                <h1 class="text-h5 font-weight-bold mb-4">Als Gast starten</h1>
-                <p class="text-body-2 text-grey-darken-1 mb-6">
-                  Keine Anmeldung erforderlich. Sie können direkt fortfahren.
-                </p>
-                <v-btn
-                  color="grey-darken-3"
-                  size="large"
-                  rounded="xl"
-                  class="font-weight-bold"
-                  @click="continueAsGuest"
-                  :loading="isLoading"
-                >
-                  Als Gast starten
-                </v-btn>
-              </div>
-            </v-card-text>
-          </v-card>
-
           <!-- Login -->
           <v-card
             v-show="!showResetPassword"
-            :class="['form-card sign-in-card', { active: !isGuestMode }]"
+            class="form-card sign-in-card active"
             elevation="0"
           >
             <v-card-text class="pa-8">
@@ -102,7 +80,7 @@
           <!-- Reset Password -->
           <v-card
             v-show="showResetPassword"
-            :class="['form-card reset-password-card', { active: !isGuestMode }]"
+            class="form-card reset-password-card active"
             elevation="0"
           >
             <v-card-text class="pa-8">
@@ -142,26 +120,16 @@
             </v-card-text>
           </v-card>
 
-          <!-- Overlays -->
+          <!-- Overlay -->
           <div class="overlay-container" v-if="!showResetPassword">
             <div class="overlay">
-              <div class="overlay-panel overlay-left">
-                <div class="overlay-content">
-                  <h1 class="text-h3 font-weight-bold mb-4">Willkommen!</h1>
-                  <p class="text-body-1 mb-6">Melden Sie sich mit Ihren Zugangsdaten an.</p>
-                  <v-btn class="ghost-btn" variant="outlined" color="white" size="large" rounded="xl" @click="togglePanel(false)">
-                    Anmelden
-                  </v-btn>
-                </div>
-              </div>
               <div class="overlay-panel overlay-right">
                 <div class="overlay-content">
                   <v-icon size="64" color="white" class="mb-4">mdi-warehouse</v-icon>
                   <h1 class="text-h4 font-weight-bold mb-4">StockManager</h1>
-                  <p class="text-body-1 mb-6">Verwalten Sie Ihre Lagerbestände effizient.</p>
-                  <v-btn class="ghost-btn" variant="outlined" color="white" size="large" rounded="xl" @click="togglePanel(true)">
-                    Gast-Modus
-                  </v-btn>
+                  <p class="text-body-1 mb-6">
+                    Verwalten Sie Ihre Lagerbestände effizient.
+                  </p>
                 </div>
               </div>
             </div>
@@ -172,7 +140,14 @@
               <div class="overlay-panel overlay-reset">
                 <div class="overlay-content">
                   <h1 class="text-h3 font-weight-bold mb-4">Zurück zur Anmeldung?</h1>
-                  <v-btn class="ghost-btn" variant="outlined" color="white" size="large" rounded="xl" @click="showResetPassword = false">
+                  <v-btn
+                    class="ghost-btn"
+                    variant="outlined"
+                    color="white"
+                    size="large"
+                    rounded="xl"
+                    @click="showResetPassword = false"
+                  >
                     Zurück zur Anmeldung
                   </v-btn>
                 </div>
@@ -190,13 +165,14 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../../stores/auth'
+import { usePermissionStore } from '../../stores/permission'
 import { useNotificationStore } from '../../stores/notifications'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 const notificationStore = useNotificationStore()
 
-const isGuestMode = ref(false)
 const showResetPassword = ref(false)
 const resetPasswordLoading = ref(false)
 const resetPasswordSuccess = ref(false)
@@ -207,6 +183,9 @@ const loginSuccess = ref(false)
 const signInForm = ref({ email: '', password: '' })
 const resetPasswordForm = ref({ email: '' })
 
+// ============================================================
+// LOGIN
+// ============================================================
 const handleSignIn = async () => {
   loginError.value = ''
   loginSuccess.value = false
@@ -228,57 +207,63 @@ const handleSignIn = async () => {
       { withCredentials: true }
     )
 
-    if (response.data.success) {
+    console.log('=== LOGIN RESPONSE ===', response.data)
+
+    if (response.data.success && response.data.user) {
+      // 1. Stocker l'utilisateur dans authStore
       authStore.setUser(response.data.user)
+      authStore.setLoggedIn(true)
+
+      // 2. ✅ Enregistrer le rôle dans permissionStore
+      //    (nécessite la méthode setRole dans stores/permission.js)
+      if (typeof permissionStore.setRole === 'function') {
+        permissionStore.setRole(response.data.user.role)
+      } else {
+        console.warn('⚠️ permissionStore.setRole n\'existe pas — mettre à jour stores/permission.js')
+      }
+
+      // 3. Afficher le succès
       notificationStore.showSuccess('Erfolgreich angemeldet', 'Willkommen zurück!')
       loginSuccess.value = true
-      setTimeout(() => (loginSuccess.value = false), 1500)
-      // Nach Login zur Dashboard-Seite navigieren
-      router.push('/dashboard')
+
+      // 4. ✅ Redirection selon le rôle
+      //    Note : '/' = DashboardView (pas '/dashboard')
+      const landing = permissionStore.can && permissionStore.can('dashboard')
+        ? '/'
+        : '/tickets'
+
+      console.log('→ Redirection vers :', landing)
+
+      // Petit délai pour laisser la snackbar apparaître
+      setTimeout(() => {
+        router.push(landing)
+      }, 300)
     } else {
-      loginError.value = response.data.message || 'Anmeldung fehlgeschlagen'
+      // ❌ Échec côté API
+      loginError.value = response.data.message || 'E-Mail oder Passwort falsch'
       notificationStore.showError('Anmeldung fehlgeschlagen', loginError.value)
     }
   } catch (error) {
     console.error('Login error:', error)
-    if (error.response && error.response.data && error.response.data.message) {
+    console.error('Response:', error.response?.data)
+
+    if (error.response?.data?.message) {
       loginError.value = error.response.data.message
+    } else if (error.request) {
+      loginError.value = 'Keine Antwort vom Server. Bitte später erneut versuchen.'
     } else {
       loginError.value = 'E-Mail oder Passwort falsch'
     }
+
     notificationStore.showError('Anmeldung fehlgeschlagen', loginError.value)
   } finally {
     isLoading.value = false
   }
 }
 
-const continueAsGuest = async () => {
-  isLoading.value = true
-  try {
-    // Gast im Store setzen (ohne Server-Request)
-    authStore.setUser({
-      id: 999,
-      name: 'Gast',
-      email: 'gast@alpha-med-care.com',
-      role: 'Gast'
-    })
-    // Sicherstellen, dass isLoggedIn true ist
-    authStore.setLoggedIn(true)
-    notificationStore.showSuccess('Als Gast angemeldet', 'Eingeschränkter Zugriff.')
-    // Zur Dashboard-Seite navigieren
-    router.push('/dashboard')
-  } catch (error) {
-    console.error('Guest login error:', error)
-    notificationStore.showError('Fehler', 'Bitte erneut versuchen.')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const togglePanel = (showGuest) => {
-  isGuestMode.value = showGuest
-}
-
+// ============================================================
+// RESET PASSWORD
+// ============================================================
 const forgotPassword = () => {
   showResetPassword.value = true
 }
@@ -307,7 +292,6 @@ const handleResetPassword = async () => {
 </script>
 
 <style scoped>
-/* Styles unverändert */
 .login-wrapper {
   min-height: 100vh;
   display: flex;
@@ -356,18 +340,6 @@ const handleResetPassword = async () => {
   z-index: 2;
 }
 
-.guest-card {
-  left: 0;
-  opacity: 0;
-  z-index: 1;
-}
-
-.guest-card.active {
-  opacity: 1;
-  z-index: 5;
-  transform: translateX(100%);
-}
-
 .reset-password-card {
   left: 0;
   opacity: 1;
@@ -387,10 +359,6 @@ const handleResetPassword = async () => {
   z-index: 10;
 }
 
-.guest-card.active ~ .overlay-container {
-  transform: translateX(-100%);
-}
-
 .reset-overlay {
   left: 50%;
   width: 50%;
@@ -399,15 +367,11 @@ const handleResetPassword = async () => {
 .overlay {
   color: #FFFFFF;
   position: relative;
-  left: -100%;
+  left: 0;
   height: 100%;
-  width: 200%;
+  width: 100%;
   transform: translateX(0);
   transition: transform 0.6s ease-in-out;
-}
-
-.overlay-left {
-  background: linear-gradient(rgba(44, 62, 80, 0.9), rgba(52, 73, 94, 0.9));
 }
 
 .overlay-right {
@@ -420,10 +384,6 @@ const handleResetPassword = async () => {
   width: 100%;
 }
 
-.guest-card.active ~ .overlay-container .overlay {
-  transform: translateX(50%);
-}
-
 .overlay-panel {
   position: absolute;
   display: flex;
@@ -434,17 +394,9 @@ const handleResetPassword = async () => {
   text-align: center;
   top: 0;
   height: 100%;
-  width: 50%;
+  width: 100%;
   transform: translateX(0);
   transition: transform 0.6s ease-in-out;
-}
-
-.overlay-left {
-  transform: translateX(-20%);
-}
-
-.guest-card.active ~ .overlay-container .overlay-left {
-  transform: translateX(0);
 }
 
 .overlay-right {
@@ -458,10 +410,6 @@ const handleResetPassword = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.guest-card.active ~ .overlay-container .overlay-right {
-  transform: translateX(20%);
 }
 
 .overlay-content {
@@ -516,13 +464,9 @@ const handleResetPassword = async () => {
     position: relative;
   }
   .sign-in-card,
-  .guest-card,
   .reset-password-card {
     transform: none !important;
     width: 100% !important;
-  }
-  .guest-card.active {
-    transform: none !important;
   }
   .overlay-container {
     display: none;

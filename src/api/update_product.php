@@ -1,20 +1,19 @@
 <?php
-// update_product.php
+// api/update_product.php
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     exit;
 }
+
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/marken_helper.php';
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input || !isset($input['product_id']) || !isset($input['article'])) {
@@ -23,257 +22,245 @@ if (!$input || !isset($input['product_id']) || !isset($input['article'])) {
     exit;
 }
 
-$productId = (int)$input['product_id'];
-$articleData = $input['article'];
-$specifics = $input['specifics'] ?? [];
-$shippingData = $input['shipping'] ?? [];
-$imagesData = $input['images'] ?? [];
+$productId    = (int)$input['product_id'];
+$articleData  = $input['article'];
+$specifics    = $input['specifics']  ?? [];
+$shippingData = $input['shipping']   ?? [];
+$imagesData   = $input['images']     ?? [];
 
-// ==================== NORMALISIERUNG ====================
-// Diese Funktion stellt sicher, dass Werte, die als Objekt oder Array
-// übergeben werden, in einen einfachen String umgewandelt werden.
-// Das verhindert, dass in der Datenbank "Array" gespeichert wird.
-function normalizeValue($value) {
-    if (is_array($value)) {
-        // Falls das Array einen 'name'-Schlüssel hat (z.B. {id:1, name:'Marke'})
-        if (isset($value['name'])) {
-            return (string)$value['name'];
-        }
-        // Falls es ein anderes Array ist, leeren String zurückgeben
-        return '';
-    }
-    // Ansonsten den Wert als String zurückgeben (trimmen optional)
-    return (string)$value;
+// ---------- Normalisation ----------
+function normalizeValue($v) {
+    if (is_array($v)) return isset($v['name']) ? (string)$v['name'] : '';
+    return (string)$v;
+}
+$articleData['category']     = normalizeValue($articleData['category'] ?? '');
+$articleData['article_type'] = normalizeValue($articleData['article_type'] ?? '');
+
+// ---------- Slug ----------
+function makeSlug(string $s): string {
+    $s = str_replace(['ä','ö','ü','Ä','Ö','Ü','ß'], ['ae','oe','ue','Ae','Oe','Ue','ss'], $s);
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim($s, '-');
 }
 
-// Die kritischen Felder normalisieren
-$articleData['brand']       = normalizeValue($articleData['brand']);
-$articleData['category']    = normalizeValue($articleData['category']);
-$articleData['article_type'] = normalizeValue($articleData['article_type']);
-// ========================================================
-
-$host_name = 'db5018574434.hosting-data.io';
-$database = 'dbs14737411';
-$user_name = 'dbu2173288';
-$password = 'cc4ef!NQfm4UAFs';
+// ---------- Helpers bool/JSON ----------
+function boolOrNull(array $arr, array $keys) {
+    foreach ($keys as $k) {
+        if (array_key_exists($k, $arr)) {
+            return !empty($arr[$k]) ? 1 : 0;
+        }
+    }
+    return null;
+}
+function buildSpezifikationenJson(array $specifics, array $excludeKeys): ?string {
+    $rest = [];
+    foreach ($specifics as $k => $v) {
+        if (in_array($k, $excludeKeys, true)) continue;
+        if ($v === '' || $v === null) continue;
+        $rest[$k] = $v;
+    }
+    return empty($rest) ? null : json_encode($rest, JSON_UNESCAPED_UNICODE);
+}
+function numOrNull($v) {
+    if ($v === '' || $v === null || $v === false) return null;
+    if (!is_numeric($v)) return null;
+    return (float)$v;
+}
+function intOrNull($v) {
+    if ($v === '' || $v === null || $v === false) return null;
+    if (!is_numeric($v)) return null;
+    return (int)$v;
+}
 
 try {
-    $dbh = new PDO("mysql:host=$host_name; dbname=$database; charset=utf8mb4", $user_name, $password);
-    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $dbh->beginTransaction();
 
-    // 1. Mise à jour de la table articles
-    $sql = "UPDATE articles SET
-                name = :name,
-                brand = :brand,
-                category = :category,
-                price = :price,
-                main_image = :main_image,
-                article_type = :article_type,
-                article_number = :article_number,
-                color = :color,
-                warranty_years = :warranty_years,
-                weight_capacity = :weight_capacity,
-                power_supply = :power_supply,
-                application_area = :application_area,
-                in_stock = :in_stock,
-                is_new = :is_new,
-                best_seller = :best_seller,
-                description = :description
+    // ============================================================
+    // ✅ OPTION B — Marque garantie dans `marken`
+    // ============================================================
+    $markeCanonique = markeEnsureExists($dbh, $articleData['brand'] ?? '');
+    if ($markeCanonique === null) {
+        throw new Exception("Marke ist erforderlich.");
+    }
+
+    // ============================================================
+    // 1. UPDATE artikel
+    // ============================================================
+    $sql = "UPDATE artikel SET
+                bezeichnung         = :bezeichnung,
+                slug                = :slug,
+                marke               = :marke,
+                kategorie_schluessel = :kategorie_schluessel,
+                unterkategorie_schluessel = :unterkategorie_schluessel,
+                artikeltyp          = :artikeltyp,
+                artikelnummer       = :artikelnummer,
+                preis               = :preis,
+                angebotspreis       = :angebotspreis,
+                waehrung            = :waehrung,
+                hauptbild           = :hauptbild,
+                garantie_jahre      = :garantie_jahre,
+                belastbarkeit       = :belastbarkeit,
+                stromversorgung     = :stromversorgung,
+                anwendungsbereich   = :anwendungsbereich,
+                beschreibung        = :beschreibung,
+                auf_lager           = :auf_lager,
+                ist_neu             = :ist_neu,
+                ist_angebot         = :ist_angebot,
+                bestseller          = :bestseller,
+                ist_gebraucht       = :ist_gebraucht,
+                zustand             = :zustand,
+                gebraucht_preis     = :gebraucht_preis,
+                gebraucht_beschreibung = :gebraucht_beschreibung,
+                spezifikationen     = :spezifikationen,
+                varianten           = :varianten,
+                variante_standard_farbe = :variante_standard_farbe,
+                variante_standard_artikelnummer = :variante_standard_artikelnummer
             WHERE id = :id";
-    
+
+    $flatBoolKeys = ['spez_hat_ekg','spez_hat_bluetooth','spez_hat_wifi',
+                     'spez_hat_touchscreen','spez_ist_klappbar','spez_hat_rueckenlehne'];
+    $flatTextKeys = ['spez_display_typ','spez_widerstandstyp'];
+    $spezJson = buildSpezifikationenJson($specifics, array_merge($flatBoolKeys, $flatTextKeys));
+
     $stmt = $dbh->prepare($sql);
     $stmt->execute([
-        ':name' => $articleData['name'],
-        ':brand' => $articleData['brand'],
-        ':category' => $articleData['category'],
-        ':price' => $articleData['price'],
-        ':main_image' => $articleData['main_image'],
-        ':article_type' => $articleData['article_type'],
-        ':article_number' => $articleData['article_number'],
-        ':color' => $articleData['color'] ?? null,
-        ':warranty_years' => $articleData['warranty_years'] ?? null,
-        ':weight_capacity' => $articleData['weight_capacity'] ?? null,
-        ':power_supply' => $articleData['power_supply'] ?? null,
-        ':application_area' => $articleData['application_area'] ?? null,
-        ':in_stock' => $articleData['in_stock'] ? 1 : 0,
-        ':is_new' => $articleData['is_new'] ? 1 : 0,
-        ':best_seller' => $articleData['best_seller'] ? 1 : 0,
-        ':description' => $articleData['description'] ?? null,
-        ':id' => $productId
+        ':bezeichnung'       => $articleData['name'] ?? '',
+        ':slug'              => makeSlug($articleData['name'] ?? ''),
+        ':marke'             => $markeCanonique,
+        ':kategorie_schluessel' => $articleData['category'] ?? '',
+        ':unterkategorie_schluessel' => $articleData['subcategory'] ?? null,
+        ':artikeltyp'        => $articleData['article_type'] ?? '',
+        ':artikelnummer'     => $articleData['article_number'] ?? '',
+
+        ':preis'             => (float)($articleData['price'] ?? 0),
+        ':angebotspreis'     => numOrNull($articleData['offer_price'] ?? null),
+        ':waehrung'          => !empty($articleData['currency']) ? $articleData['currency'] : 'EUR',
+
+        ':hauptbild'         => $articleData['main_image'] ?? '',
+
+        // ✅ NOT NULL DEFAULT 2
+        ':garantie_jahre'    => intOrNull($articleData['warranty_years'] ?? null) ?? 2,
+
+        ':belastbarkeit'     => $articleData['weight_capacity'] ?? null,
+        ':stromversorgung'   => $articleData['power_supply'] ?? null,
+        ':anwendungsbereich' => $articleData['application_area'] ?? null,
+        ':beschreibung'      => $articleData['description'] ?? null,
+
+        ':auf_lager'         => !empty($articleData['in_stock']) ? 1 : 0,
+        ':ist_neu'           => !empty($articleData['is_new']) ? 1 : 0,
+        ':ist_angebot'       => !empty($articleData['is_offer']) ? 1 : 0,
+        ':bestseller'        => !empty($articleData['best_seller']) ? 1 : 0,
+
+        ':ist_gebraucht'     => !empty($articleData['is_used']) ? 1 : 0,
+        ':zustand'           => !empty($articleData['condition']) ? $articleData['condition'] : null,
+        ':gebraucht_preis'   => numOrNull($articleData['used_price'] ?? null),
+        ':gebraucht_beschreibung' => !empty($articleData['used_description']) ? $articleData['used_description'] : null,
+
+        ':spezifikationen'   => $spezJson,
+        ':varianten'         => !empty($articleData['variants'])
+                                    ? json_encode($articleData['variants'], JSON_UNESCAPED_UNICODE)
+                                    : null,
+
+        ':variante_standard_farbe' => $articleData['color'] ?? null,
+        ':variante_standard_artikelnummer' => $articleData['article_number'] ?? null,
+
+        ':id'                => $productId
     ]);
 
-    // 2. Mise à jour des spécificités (treadmill / bike)
-    if ($articleData['article_type'] === 'treadmill') {
-        $check = $dbh->prepare("SELECT id FROM treadmills WHERE article_id = ?");
-        $check->execute([$productId]);
-        if ($check->fetch()) {
-            $sql = "UPDATE treadmills SET
-                        motor_power = :motor_power,
-                        max_speed = :max_speed,
-                        max_inclination = :max_inclination,
-                        display_type = :display_type,
-                        training_programs = :training_programs,
-                        has_ekg = :has_ekg,
-                        is_foldable = :is_foldable,
-                        has_touchscreen = :has_touchscreen,
-                        has_bluetooth = :has_bluetooth,
-                        has_heart_rate_monitor = :has_heart_rate_monitor,
-                        has_wifi = :has_wifi,
-                        has_speaker = :has_speaker,
-                        power_range = :power_range,
-                        display_info = :display_info,
-                        programs_info = :programs_info,
-                        comfort_features = :comfort_features
-                    WHERE article_id = :article_id";
-        } else {
-            $sql = "INSERT INTO treadmills (
-                        article_id, motor_power, max_speed, max_inclination,
-                        display_type, training_programs, has_ekg, is_foldable,
-                        has_touchscreen, has_bluetooth, has_heart_rate_monitor,
-                        has_wifi, has_speaker, power_range, display_info,
-                        programs_info, comfort_features
-                    ) VALUES (
-                        :article_id, :motor_power, :max_speed, :max_inclination,
-                        :display_type, :training_programs, :has_ekg, :is_foldable,
-                        :has_touchscreen, :has_bluetooth, :has_heart_rate_monitor,
-                        :has_wifi, :has_speaker, :power_range, :display_info,
-                        :programs_info, :comfort_features
-                    )";
-        }
-        $stmt = $dbh->prepare($sql);
-        $stmt->execute([
-            ':article_id' => $productId,
-            ':motor_power' => $specifics['motor_power'] ?? null,
-            ':max_speed' => $specifics['max_speed'] ?? null,
-            ':max_inclination' => $specifics['max_inclination'] ?? null,
-            ':display_type' => $specifics['display_type'] ?? null,
-            ':training_programs' => $specifics['training_programs'] ?? null,
-            ':has_ekg' => isset($specifics['has_ekg']) ? (int)$specifics['has_ekg'] : 0,
-            ':is_foldable' => isset($specifics['is_foldable']) ? (int)$specifics['is_foldable'] : 0,
-            ':has_touchscreen' => isset($specifics['has_touchscreen']) ? (int)$specifics['has_touchscreen'] : 0,
-            ':has_bluetooth' => isset($specifics['has_bluetooth']) ? (int)$specifics['has_bluetooth'] : 0,
-            ':has_heart_rate_monitor' => isset($specifics['has_heart_rate_monitor']) ? (int)$specifics['has_heart_rate_monitor'] : 1,
-            ':has_wifi' => isset($specifics['has_wifi']) ? (int)$specifics['has_wifi'] : 0,
-            ':has_speaker' => isset($specifics['has_speaker']) ? (int)$specifics['has_speaker'] : 0,
-            ':power_range' => $specifics['power_range'] ?? null,
-            ':display_info' => $specifics['display_info'] ?? null,
-            ':programs_info' => $specifics['programs_info'] ?? null,
-            ':comfort_features' => $specifics['comfort_features'] ?? null
-        ]);
-    }
-    elseif ($articleData['article_type'] === 'bike') {
-        $check = $dbh->prepare("SELECT id FROM exercise_bikes WHERE article_id = ?");
-        $check->execute([$productId]);
-        if ($check->fetch()) {
-            $sql = "UPDATE exercise_bikes SET
-                        resistance_type = :resistance_type,
-                        max_resistance = :max_resistance,
-                        pedal_type = :pedal_type,
-                        seat_adjustment = :seat_adjustment,
-                        handlebar_adjustment = :handlebar_adjustment,
-                        has_backrest = :has_backrest,
-                        has_pedal_straps = :has_pedal_straps,
-                        console_features = :console_features
-                    WHERE article_id = :article_id";
-        } else {
-            $sql = "INSERT INTO exercise_bikes (
-                        article_id, resistance_type, max_resistance, pedal_type,
-                        seat_adjustment, handlebar_adjustment, has_backrest,
-                        has_pedal_straps, console_features
-                    ) VALUES (
-                        :article_id, :resistance_type, :max_resistance, :pedal_type,
-                        :seat_adjustment, :handlebar_adjustment, :has_backrest,
-                        :has_pedal_straps, :console_features
-                    )";
-        }
-        $stmt = $dbh->prepare($sql);
-        $stmt->execute([
-            ':article_id' => $productId,
-            ':resistance_type' => $specifics['resistance_type'] ?? null,
-            ':max_resistance' => $specifics['max_resistance'] ?? null,
-            ':pedal_type' => $specifics['pedal_type'] ?? null,
-            ':seat_adjustment' => $specifics['seat_adjustment'] ?? null,
-            ':handlebar_adjustment' => $specifics['handlebar_adjustment'] ?? null,
-            ':has_backrest' => isset($specifics['has_backrest']) ? (int)$specifics['has_backrest'] : 0,
-            ':has_pedal_straps' => isset($specifics['has_pedal_straps']) ? (int)$specifics['has_pedal_straps'] : 1,
-            ':console_features' => $specifics['console_features'] ?? null
-        ]);
-    }
+    // ============================================================
+    // 2. versandregeln (⚠️ 3 colonnes NOT NULL)
+    // ============================================================
+    $check = $dbh->prepare("SELECT id FROM versandregeln WHERE artikel_id = ?");
+    $check->execute([$productId]);
+    $exists = (bool)$check->fetch();
 
-    // 3. Mise à jour des règles de livraison (shipping_rules)
-    $checkShip = $dbh->prepare("SELECT id FROM shipping_rules WHERE article_id = ?");
-    $checkShip->execute([$productId]);
-    if ($checkShip->fetch()) {
-        $sql = "UPDATE shipping_rules SET
-                    shipping_cost = :shipping_cost,
-                    free_shipping_threshold = :free_shipping_threshold,
-                    shipping_method = :shipping_method,
-                    estimated_delivery_days = :estimated_delivery_days
-                WHERE article_id = :article_id";
+    if ($exists) {
+        $sql = "UPDATE versandregeln SET
+                    versandkosten    = :versandkosten,
+                    kostenlos_ab     = :kostenlos_ab,
+                    versandart       = :versandart,
+                    lieferzeit_tage  = :lieferzeit_tage
+                WHERE artikel_id = :artikel_id";
     } else {
-        $sql = "INSERT INTO shipping_rules (
-                    article_id, shipping_cost, free_shipping_threshold,
-                    shipping_method, estimated_delivery_days
-                ) VALUES (
-                    :article_id, :shipping_cost, :free_shipping_threshold,
-                    :shipping_method, :estimated_delivery_days
-                )";
+        $sql = "INSERT INTO versandregeln
+                    (artikel_id, versandkosten, kostenlos_ab, versandart, lieferzeit_tage)
+                VALUES (:artikel_id, :versandkosten, :kostenlos_ab, :versandart, :lieferzeit_tage)";
     }
+
     $stmt = $dbh->prepare($sql);
     $stmt->execute([
-        ':article_id' => $productId,
-        ':shipping_cost' => $shippingData['shipping_cost'] ?? null,
-        ':free_shipping_threshold' => $shippingData['free_shipping_threshold'] ?? null,
-        ':shipping_method' => $shippingData['shipping_method'] ?? null,
-        ':estimated_delivery_days' => $shippingData['estimated_delivery_days'] ?? null
+        ':artikel_id'      => $productId,
+
+        // versandkosten : NULL autorisé
+        ':versandkosten'   => numOrNull($shippingData['shipping_cost'] ?? null),
+
+        // ✅ NOT NULL DEFAULT 50.00
+        ':kostenlos_ab'    => numOrNull($shippingData['free_shipping_threshold'] ?? null) ?? 50.00,
+
+        // ✅ NOT NULL DEFAULT 'Standard'
+        ':versandart'      => !empty($shippingData['shipping_method'])
+                                ? trim($shippingData['shipping_method'])
+                                : 'Standard',
+
+        // ✅ NOT NULL DEFAULT 3
+        ':lieferzeit_tage' => intOrNull($shippingData['estimated_delivery_days'] ?? null) ?? 3,
     ]);
 
-    // 4. Gestion des images (article_images)
-    // On récupère les IDs des images existantes à conserver
-    $keepImageIds = [];
+    // ============================================================
+    // 3. artikel_bilder
+    // ============================================================
+    $keepIds = [];
     foreach ($imagesData as $img) {
-        if (!empty($img['id'])) {
-            $keepImageIds[] = (int)$img['id'];
-        }
+        if (!empty($img['id'])) $keepIds[] = (int)$img['id'];
     }
-    
-    if (!empty($keepImageIds)) {
-        $placeholders = implode(',', array_fill(0, count($keepImageIds), '?'));
-        $deleteStmt = $dbh->prepare("DELETE FROM article_images WHERE article_id = ? AND id NOT IN ($placeholders)");
-        $deleteStmt->execute(array_merge([$productId], $keepImageIds));
+
+    if (!empty($keepIds)) {
+        $ph  = implode(',', array_fill(0, count($keepIds), '?'));
+        $del = $dbh->prepare("DELETE FROM artikel_bilder WHERE artikel_id = ? AND id NOT IN ($ph)");
+        $del->execute(array_merge([$productId], $keepIds));
     } else {
-        $deleteStmt = $dbh->prepare("DELETE FROM article_images WHERE article_id = ?");
-        $deleteStmt->execute([$productId]);
+        $del = $dbh->prepare("DELETE FROM artikel_bilder WHERE artikel_id = ?");
+        $del->execute([$productId]);
     }
-    
-    // Mise à jour / insertion des images
+
     $order = 1;
     foreach ($imagesData as $img) {
-        $url = $img['url'];
-        $type = $img['type']; // 'main', 'gallery', 'detail'
-        
+        if (empty($img['url'])) continue;
+        $bildUrl = $img['url'];
+        // ✅ ENUM('haupt','galerie','detail') — mapping depuis le front
+        $typ = $img['type'] ?? 'galerie';
+        if ($typ === 'main')    $typ = 'haupt';
+        if ($typ === 'gallery') $typ = 'galerie';
+        if (!in_array($typ, ['haupt','galerie','detail'], true)) $typ = 'galerie';
+
         if (!empty($img['id'])) {
-            $stmt = $dbh->prepare("UPDATE article_images SET image_url = ?, image_type = ?, image_order = ? WHERE id = ? AND article_id = ?");
-            $stmt->execute([$url, $type, $order, $img['id'], $productId]);
+            $upd = $dbh->prepare("UPDATE artikel_bilder
+                                  SET bild_url = ?, bild_typ = ?, bild_reihenfolge = ?
+                                  WHERE id = ? AND artikel_id = ?");
+            $upd->execute([$bildUrl, $typ, $order, (int)$img['id'], $productId]);
         } else {
-            // Récupérer l'article_name depuis la table articles
-            $nameStmt = $dbh->prepare("SELECT name FROM articles WHERE id = ?");
-            $nameStmt->execute([$productId]);
-            $articleName = $nameStmt->fetchColumn();
-            
-            $stmt = $dbh->prepare("INSERT INTO article_images (article_id, image_url, image_type, image_order, article_name) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$productId, $url, $type, $order, $articleName]);
+            $ins = $dbh->prepare("INSERT INTO artikel_bilder
+                                  (artikel_id, bild_url, bild_typ, bild_reihenfolge)
+                                  VALUES (?, ?, ?, ?)");
+            $ins->execute([$productId, $bildUrl, $typ, $order]);
         }
         $order++;
     }
 
     $dbh->commit();
-    echo json_encode(['success' => true, 'message' => 'Produkt erfolgreich aktualisiert']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Produkt erfolgreich aktualisiert',
+        'marke'   => $markeCanonique
+    ], JSON_UNESCAPED_UNICODE);
 
 } catch (PDOException $e) {
-    $dbh->rollBack();
+    if ($dbh->inTransaction()) $dbh->rollBack();
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+} catch (Exception $e) {
+    if ($dbh->inTransaction()) $dbh->rollBack();
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-?>

@@ -12,7 +12,7 @@
             <v-col cols="12" sm="4">
               <v-text-field
                 v-model="form.name"
-                label="Name"
+                label="Bezeichnung"
                 variant="outlined"
                 prepend-inner-icon="mdi-tag"
                 :rules="[v => !!v?.trim() || 'Name ist erforderlich']"
@@ -22,7 +22,7 @@
             <v-col cols="12" sm="4">
               <v-text-field
                 v-model="form.value"
-                label="Technischer Wert"
+                label="Technischer Wert (Schlüssel)"
                 hint="z.B. cardio"
                 persistent-hint
                 variant="outlined"
@@ -31,7 +31,19 @@
                 required
               />
             </v-col>
-            <v-col cols="12" sm="4" class="d-flex justify-end" style="height: 100%; align-self: flex-start; padding-top: 10px;">
+            <v-col cols="12" sm="4">
+              <v-text-field
+                v-model="form.route"
+                label="Route"
+                hint="/shop/cardio"
+                persistent-hint
+                variant="outlined"
+                prepend-inner-icon="mdi-link"
+                :rules="[v => !!v?.trim() || 'Route ist erforderlich']"
+                required
+              />
+            </v-col>
+            <v-col cols="12" class="d-flex justify-end">
               <v-btn
                 type="submit"
                 color="primary"
@@ -52,7 +64,6 @@
 
     <!-- === KARTE: VORHANDENE KATEGORIEN === -->
     <v-card elevation="2">
-      <!-- Header mit Suche & Seitenanzahl -->
       <v-data-table-server
         v-model:page="page"
         v-model:items-per-page="itemsPerPage"
@@ -96,12 +107,10 @@
           </div>
         </template>
 
-        <!-- ID -->
         <template #item.id="{ item }">
           <v-chip size="small" color="primary" variant="tonal">#{{ item.id }}</v-chip>
         </template>
 
-        <!-- NAME -->
         <template #item.name="{ item }">
           <div class="d-flex align-center">
             <v-avatar size="36" color="primary" class="mr-3">
@@ -111,28 +120,17 @@
           </div>
         </template>
 
-        <!-- VALUE -->
         <template #item.value="{ item }">
           <v-chip color="secondary" variant="outlined">{{ item.value }}</v-chip>
         </template>
 
-        <!-- ACTIONS -->
+        <template #item.route="{ item }">
+          <code class="text-caption">{{ item.route }}</code>
+        </template>
+
         <template #item.actions="{ item }">
-          <v-btn
-            icon="mdi-pencil"
-            size="small"
-            color="primary"
-            variant="tonal"
-            class="mr-1"
-            @click="openEditDialog(item)"
-          />
-          <v-btn
-            icon="mdi-delete"
-            size="small"
-            color="error"
-            variant="tonal"
-            @click="openDeleteDialog(item)"
-          />
+          <v-btn icon="mdi-pencil" size="small" color="primary" variant="tonal" class="mr-1" @click="openEditDialog(item)" />
+          <v-btn icon="mdi-delete" size="small" color="error" variant="tonal" @click="openDeleteDialog(item)" />
         </template>
 
         <template #no-data>
@@ -144,13 +142,7 @@
 
         <template #bottom>
           <div v-if="totalItems > 0" class="d-flex justify-center pa-4">
-            <v-pagination
-              v-model="page"
-              :length="totalPages"
-              :total-visible="5"
-              color="primary"
-              rounded="circle"
-            />
+            <v-pagination v-model="page" :length="totalPages" :total-visible="5" color="primary" rounded="circle" />
           </div>
         </template>
       </v-data-table-server>
@@ -164,27 +156,9 @@
           {{ editing ? 'Kategorie bearbeiten' : 'Neue Kategorie anlegen' }}
         </v-card-title>
         <v-card-text class="pt-4">
-          <v-form ref="formRef" @submit.prevent="saveCategory">
-            <v-text-field
-              v-model="form.name"
-              label="Name"
-              variant="outlined"
-              prepend-inner-icon="mdi-tag"
-              class="mb-3"
-              :rules="[v => !!v?.trim() || 'Name ist erforderlich']"
-              required
-            />
-            <v-text-field
-              v-model="form.value"
-              label="Technischer Wert"
-              hint="z.B. cardio"
-              persistent-hint
-              variant="outlined"
-              prepend-inner-icon="mdi-code-tags"
-              :rules="[v => !!v?.trim() || 'Technischer Wert ist erforderlich']"
-              required
-            />
-          </v-form>
+          <v-text-field v-model="form.name"  label="Bezeichnung"           variant="outlined" class="mb-3" :rules="[v => !!v?.trim() || 'Name ist erforderlich']"/>
+          <v-text-field v-model="form.value" label="Technischer Wert"      variant="outlined" class="mb-3" :rules="[v => !!v?.trim() || 'Schlüssel ist erforderlich']"/>
+          <v-text-field v-model="form.route" label="Route"                 variant="outlined" :rules="[v => !!v?.trim() || 'Route ist erforderlich']"/>
         </v-card-text>
         <v-card-actions class="pa-4">
           <v-btn variant="text" @click="dialog=false">Abbrechen</v-btn>
@@ -202,7 +176,6 @@
         </v-card-title>
         <v-card-text class="pt-4">
           Möchten Sie die Kategorie <strong class="text-error">{{ selectedItem?.name }}</strong> wirklich löschen?
-          Diese Aktion kann nicht rückgängig gemacht werden.
         </v-card-text>
         <v-card-actions class="pa-4">
           <v-btn variant="text" @click="deleteDialog=false">Abbrechen</v-btn>
@@ -211,7 +184,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- SNACKBAR -->
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="4000" location="top end">
       {{ snackbar.text }}
       <template #actions>
@@ -225,9 +197,6 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import axios from 'axios'
 
-// ------------------------------------------------------
-// État
-// ------------------------------------------------------
 const categories = ref([])
 const totalItems = ref(0)
 const loading = ref(false)
@@ -237,34 +206,24 @@ const page = ref(1)
 
 const headers = [
   { title: 'ID', key: 'id', sortable: true },
-  { title: 'Name', key: 'name', sortable: true },
-  { title: 'Technischer Wert', key: 'value', sortable: true },
+  { title: 'Bezeichnung', key: 'name', sortable: true },
+  { title: 'Schlüssel', key: 'value', sortable: true },
+  { title: 'Route', key: 'route', sortable: false },
   { title: 'Aktionen', key: 'actions', sortable: false, align: 'end' }
 ]
 
 const itemsPerPageOptions = [
-  { title: '5', value: 5 },
-  { title: '10', value: 10 },
-  { title: '25', value: 25 },
-  { title: '50', value: 50 }
+  { title: '5', value: 5 }, { title: '10', value: 10 },
+  { title: '25', value: 25 }, { title: '50', value: 50 }
 ]
 
 const totalPages = computed(() => Math.ceil(totalItems.value / itemsPerPage.value))
 
-// Options de tableau (pour rechargement)
-let currentOptions = {
-  page: 1,
-  itemsPerPage: 10,
-  sortBy: [{ key: 'id', order: 'desc' }]
-}
+let currentOptions = { page: 1, itemsPerPage: 10, sortBy: [{ key: 'id', order: 'desc' }] }
 
-// ------------------------------------------------------
-// Chargement des données
-// ------------------------------------------------------
 const loadItems = async (options) => {
   currentOptions = options
   loading.value = true
-
   try {
     const params = new URLSearchParams({
       page: options.page,
@@ -273,93 +232,55 @@ const loadItems = async (options) => {
       sortBy: options.sortBy?.length ? options.sortBy[0].key : 'id',
       sortOrder: options.sortBy?.length ? options.sortBy[0].order : 'desc'
     })
-
     const response = await fetch(`/api/get_categories_pagination.php?${params.toString()}`)
     const data = await response.json()
-
     if (data.success) {
       categories.value = data.items
       totalItems.value = data.total
     } else {
       showSnackbar('Fehler: ' + (data.message || 'Unbekannt'), 'error')
     }
-  } catch (error) {
+  } catch (err) {
     showSnackbar('Netzwerkfehler beim Laden', 'error')
-    console.error(error)
+    console.error(err)
   } finally {
     loading.value = false
   }
 }
 
-// ------------------------------------------------------
-// Montage
-// ------------------------------------------------------
-onMounted(() => {
-  loadItems(currentOptions)
-})
+onMounted(() => loadItems(currentOptions))
 
-// ------------------------------------------------------
-// Recherche & Seitenanzahl
-// ------------------------------------------------------
-watch(search, () => {
-  currentOptions.page = 1
-  page.value = 1
-  loadItems(currentOptions)
-})
+watch(search, () => { currentOptions.page = 1; page.value = 1; loadItems(currentOptions) })
+watch(itemsPerPage, () => { page.value = 1 })
 
-watch(itemsPerPage, () => {
-  page.value = 1
-  // loadItems wird durch update:options automatisch ausgelöst
-})
-
-// ------------------------------------------------------
-// Dialog Ajouter / Éditer
-// ------------------------------------------------------
 const dialog = ref(false)
 const editing = ref(false)
 const saving = ref(false)
-const form = ref({ id: null, name: '', value: '' })
+const form = ref({ id: null, name: '', value: '', route: '' })
 const formRef = ref(null)
 
 const openAddDialog = () => {
   editing.value = false
-  form.value = { id: null, name: '', value: '' }
+  form.value = { id: null, name: '', value: '', route: '' }
   dialog.value = true
   formRef.value?.resetValidation()
 }
 
 const openEditDialog = (item) => {
   editing.value = true
-  form.value = { id: item.id, name: item.name, value: item.value }
+  form.value = { id: item.id, name: item.name, value: item.value, route: item.route || '' }
   dialog.value = true
   formRef.value?.resetValidation()
 }
 
-// ------------------------------------------------------
-// Sauvegarder
-// ------------------------------------------------------
 const saveCategory = async () => {
-  const { valid } = await formRef.value?.validate() || { valid: false }
+  const { valid } = (await formRef.value?.validate()) || { valid: false }
   if (!valid) return
-
   saving.value = true
   try {
-    let url, method
-    if (editing.value) {
-      url = '/api/update_category.php'
-      method = 'put'
-    } else {
-      url = '/api/add_category.php'
-      method = 'post'
-    }
-
-    const response = await axios({
-      method,
-      url,
-      data: form.value,
-      headers: { 'Content-Type': 'application/json' }
-    })
-
+    const url = editing.value ? '/api/update_category.php' : '/api/add_category.php'
+    const method = editing.value ? 'put' : 'post'
+    const response = await axios({ method, url, data: form.value, headers: { 'Content-Type': 'application/json' } })
     if (response.data.success) {
       showSnackbar('Kategorie erfolgreich gespeichert', 'success')
       dialog.value = false
@@ -367,17 +288,13 @@ const saveCategory = async () => {
     } else {
       showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
     }
-  } catch (error) {
-    console.error(error)
-    showSnackbar(error.response?.data?.message || 'Fehler beim Speichern', 'error')
+  } catch (err) {
+    showSnackbar(err.response?.data?.message || 'Fehler beim Speichern', 'error')
   } finally {
     saving.value = false
   }
 }
 
-// ------------------------------------------------------
-// Supprimer
-// ------------------------------------------------------
 const deleteDialog = ref(false)
 const deleting = ref(false)
 const selectedItem = ref(null)
@@ -396,7 +313,6 @@ const deleteCategory = async () => {
       data: { id: selectedItem.value.id },
       headers: { 'Content-Type': 'application/json' }
     })
-
     if (response.data.success) {
       showSnackbar('Kategorie gelöscht', 'success')
       deleteDialog.value = false
@@ -404,26 +320,18 @@ const deleteCategory = async () => {
     } else {
       showSnackbar('Fehler: ' + (response.data.message || 'Unbekannt'), 'error')
     }
-  } catch (error) {
-    console.error(error)
+  } catch (err) {
     showSnackbar('Fehler beim Löschen', 'error')
   } finally {
     deleting.value = false
   }
 }
 
-// ------------------------------------------------------
-// Snackbar
-// ------------------------------------------------------
 const snackbar = ref({ show: false, text: '', color: 'success' })
-
-const showSnackbar = (text, color = 'success') => {
-  snackbar.value = { show: true, text, color }
-}
+const showSnackbar = (text, color = 'success') => { snackbar.value = { show: true, text, color } }
 </script>
 
 <style scoped>
-
 .v-card { transition: all .25s ease; }
 .v-card:hover { transform: translateY(-2px); }
 .v-data-table-server { border-radius: 16px; overflow: hidden; }
@@ -438,8 +346,4 @@ const showSnackbar = (text, color = 'success') => {
 :deep(.v-field--focused) { box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), .15); }
 .v-chip { font-weight: 600; }
 .v-snackbar { font-weight: 500; }
-@media(max-width:900px) {
-  .v-data-table-server :deep(.v-table) { font-size: 0.85rem; }
-  .v-select { max-width: 100px !important; }
-}
 </style>

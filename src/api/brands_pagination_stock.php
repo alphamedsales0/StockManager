@@ -1,65 +1,60 @@
 <?php
+// api/brands_pagination_stock.php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/database_connect.php';
 
 try {
-    $page          = isset($_GET['page'])          ? max((int)$_GET['page'], 1) : 1;
-    $itemsPerPage  = isset($_GET['itemsPerPage'])  ? max((int)$_GET['itemsPerPage'], 1) : 10;
-    $search        = isset($_GET['search'])        ? trim($_GET['search']) : '';
-    $sortBy        = isset($_GET['sortBy'])        ? $_GET['sortBy'] : 'id';
-    $sortOrder     = isset($_GET['sortOrder'])     ? strtolower($_GET['sortOrder']) : 'desc';
+    $page         = isset($_GET['page'])         ? max((int)$_GET['page'], 1)         : 1;
+    $itemsPerPage = isset($_GET['itemsPerPage']) ? max((int)$_GET['itemsPerPage'], 1) : 10;
+    $search       = isset($_GET['search'])       ? trim($_GET['search'])              : '';
+    $sortBy       = $_GET['sortBy']    ?? 'id';
+    $sortOrder    = strtolower($_GET['sortOrder'] ?? 'desc');
 
-    $allowedColumns = ['id', 'name'];
-    if (!in_array($sortBy, $allowedColumns)) $sortBy = 'id';
-    $sortOrder = ($sortOrder === 'asc') ? 'asc' : 'desc';
+    $map = ['id' => 'id', 'name' => 'name'];
+    $sortColumn = $map[$sortBy] ?? 'id';
+    $sortOrder  = ($sortOrder === 'asc') ? 'ASC' : 'DESC';
 
     $offset = ($page - 1) * $itemsPerPage;
 
-    $where = '';
+    $where  = "WHERE ist_aktiv = 1";
     $params = [];
     if ($search !== '') {
-        $where = "WHERE name LIKE :search";
+        $where .= " AND (name LIKE :search OR schluessel LIKE :search)";
         $params['search'] = "%{$search}%";
     }
 
-    $sqlTotal = "SELECT COUNT(*) AS total FROM brands $where";
-    $stmt = $pdo->prepare($sqlTotal);
-    foreach ($params as $key => $val) $stmt->bindValue(":$key", $val);
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM marken $where");
+    foreach ($params as $k => $v) $stmt->bindValue(":$k", $v);
     $stmt->execute();
     $total = (int)$stmt->fetchColumn();
 
-    $sql = "SELECT id, name
-            FROM brands
+    $sql = "SELECT id, name, schluessel, logo_url, webseite
+            FROM marken
             $where
-            ORDER BY $sortBy $sortOrder
+            ORDER BY $sortColumn $sortOrder
             LIMIT :limit OFFSET :offset";
+
     $stmt = $pdo->prepare($sql);
-    foreach ($params as $key => $val) $stmt->bindValue(":$key", $val);
+    foreach ($params as $k => $v) $stmt->bindValue(":$k", $v);
     $stmt->bindValue(':limit',  $itemsPerPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset,       PDO::PARAM_INT);
     $stmt->execute();
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
-        "success"      => true,
-        "page"         => $page,
-        "itemsPerPage" => $itemsPerPage,
-        "total"        => $total,
-        "items"        => $items
+        'success'      => true,
+        'page'         => $page,
+        'itemsPerPage' => $itemsPerPage,
+        'total'        => $total,
+        'items'        => $stmt->fetchAll(PDO::FETCH_ASSOC)
     ], JSON_UNESCAPED_UNICODE);
+
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Datenbankfehler: " . $e->getMessage()]);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Allgemeiner Fehler: " . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]);
 }

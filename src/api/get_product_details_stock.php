@@ -1,124 +1,114 @@
 <?php
-// get_product_details.php
+// api/get_product_details_stock.php
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
-$host_name = 'db5018574434.hosting-data.io';
-$database = 'dbs14737411';
-$user_name = 'dbu2173288';
-$password = 'cc4ef!NQfm4UAFs';
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/bild_helper.php';
 
 try {
-    $dbh = new PDO("mysql:host=$host_name; dbname=$database; charset=utf8mb4", $user_name, $password);
-    $dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    $identifier = isset($_GET['id']) ? trim($_GET['id']) : null;
-    $articleNumber = isset($_GET['article_number']) ? trim($_GET['article_number']) : null;
+    $identifier     = isset($_GET['id']) ? trim($_GET['id']) : null;
+    $articleNumber  = isset($_GET['article_number']) ? trim($_GET['article_number']) : null;
 
     if ($identifier && !$articleNumber && !is_numeric($identifier)) {
         $articleNumber = $identifier;
         $identifier = null;
     }
-
     if (!$identifier && !$articleNumber) {
         echo json_encode(['success' => false, 'error' => 'ID oder article_number erforderlich']);
         exit;
     }
 
-    // 1. Récupération de l'article + shipping_rules
-    $sql = "SELECT 
-                a.id, a.name, a.brand, a.category, a.price, a.main_image,
-                a.in_stock, a.is_new, a.best_seller, a.article_number,
-                a.color, a.warranty_years, a.weight_capacity,
-                a.power_supply, a.application_area, a.description,
-                a.article_type,
-                sr.shipping_cost, sr.free_shipping_threshold,
-                sr.shipping_method, sr.estimated_delivery_days
-            FROM articles a
-            LEFT JOIN shipping_rules sr ON a.id = sr.article_id
-            WHERE " . ($identifier ? "a.id = :id" : "a.article_number = :an");
-    
+    // 1. Récupère article + shipping
+    $sql = "SELECT a.*,
+                   sr.versandkosten, sr.kostenlos_ab, sr.versandart, sr.lieferzeit_tage
+            FROM artikel a
+            LEFT JOIN versandregeln sr ON a.id = sr.artikel_id
+            WHERE " . ($identifier ? "a.id = :id" : "a.artikelnummer = :an");
     $stmt = $dbh->prepare($sql);
-    if ($identifier) {
-        $stmt->execute([':id' => (int)$identifier]);
-    } else {
-        $stmt->execute([':an' => $articleNumber]);
-    }
-    $article = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute($identifier ? [':id' => (int)$identifier] : [':an' => $articleNumber]);
+    $art = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$article) {
+    if (!$art) {
         echo json_encode(['success' => false, 'error' => 'Produkt nicht gefunden']);
         exit;
     }
 
-    // 2. Spécificités selon le type
+    // 2. Spécificités : colonnes plates + JSON
     $specifics = [];
-    if ($article['article_type'] === 'treadmill') {
-        $stmt = $dbh->prepare("SELECT * FROM treadmills WHERE article_id = ?");
-        $stmt->execute([$article['id']]);
-        $specifics = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    } elseif ($article['article_type'] === 'bike') {
-        $stmt = $dbh->prepare("SELECT * FROM exercise_bikes WHERE article_id = ?");
-        $stmt->execute([$article['id']]);
-        $specifics = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    foreach (['spez_display_typ','spez_widerstandstyp',
+              'spez_hat_ekg','spez_hat_bluetooth','spez_hat_wifi',
+              'spez_hat_touchscreen','spez_ist_klappbar','spez_hat_rueckenlehne'] as $k) {
+        if (isset($art[$k]) && $art[$k] !== null && $art[$k] !== '') {
+            $specifics[$k] = $art[$k];
+        }
+    }
+    if (!empty($art['spezifikationen'])) {
+        $json = json_decode($art['spezifikationen'], true);
+        if (is_array($json)) $specifics = array_merge($json, $specifics);
     }
 
-    // 3. Images (toutes, avec leur type)
-    $stmt = $dbh->prepare("SELECT id, image_url, image_type, image_order FROM article_images WHERE article_id = ? ORDER BY image_order");
-    $stmt->execute([$article['id']]);
-    $images = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // 3. Images galerie
+    $imgStmt = $dbh->prepare("SELECT id, bild_url, bild_typ, bild_reihenfolge, farbe_schluessel
+                              FROM artikel_bilder
+                              WHERE artikel_id = ?
+                              ORDER BY bild_reihenfolge ASC, id ASC");
+    $imgStmt->execute([$art['id']]);
+    $images = [];
+    foreach ($imgStmt->fetchAll(PDO::FETCH_ASSOC) as $img) {
+        $url = bildMitExtension($img['bild_url']);
+        if ($url) {
+            $images[] = [
+                'id'    => (int)$img['id'],
+                'url'   => $url,
+                'type'  => $img['bild_typ'] ?: 'gallery',
+                'order' => (int)$img['bild_reihenfolge']
+            ];
+        }
+    }
 
-    // 4. Construction de la réponse imbriquée (compatible avec EditProduct.vue)
-    $response = [
+    // 4. Réponse compatible avec EditProduct.vue / ProductForm.vue
+    echo json_encode([
         'success' => true,
         'product' => [
             'article' => [
-                'name' => $article['name'],
-                'brand' => $article['brand'],
-                'category' => $article['category'],
-                'price' => (float)$article['price'],
-                'main_image' => $article['main_image'],
-                'article_type' => $article['article_type'],
-                'article_number' => $article['article_number'],
-                'color' => $article['color'],
-                'warranty_years' => $article['warranty_years'] ? (int)$article['warranty_years'] : null,
-                'weight_capacity' => $article['weight_capacity'],
-                'power_supply' => $article['power_supply'],
-                'application_area' => $article['application_area'],
-                'in_stock' => (bool)$article['in_stock'],
-                'is_new' => (bool)$article['is_new'],
-                'best_seller' => (bool)$article['best_seller'],
-                'description' => $article['description']
+                'name'             => $art['bezeichnung'],
+                'brand'            => $art['marke'],
+                'category'         => $art['kategorie_schluessel'],
+                'subcategory'      => $art['unterkategorie_schluessel'],
+                'price'            => (float)$art['preis'],
+                'offer_price'      => $art['angebotspreis'] !== null ? (float)$art['angebotspreis'] : null,
+                'currency'         => $art['waehrung'] ?: 'EUR',
+                'main_image'       => $art['hauptbild'] ? bildMitExtension($art['hauptbild']) : null,
+                'article_type'     => $art['artikeltyp'],
+                'article_number'   => $art['artikelnummer'],
+                'color'            => $art['variante_standard_farbe'],
+                'warranty_years'   => $art['garantie_jahre'] !== null ? (int)$art['garantie_jahre'] : null,
+                'weight_capacity'  => $art['belastbarkeit'],
+                'power_supply'     => $art['stromversorgung'],
+                'application_area' => $art['anwendungsbereich'],
+                'in_stock'         => (bool)$art['auf_lager'],
+                'is_new'           => (bool)$art['ist_neu'],
+                'is_offer'         => (bool)$art['ist_angebot'],
+                'best_seller'      => (bool)$art['bestseller'],
+                'description'      => $art['beschreibung']
             ],
             'specifics' => $specifics,
-            'shipping' => [
-                'shipping_cost' => $article['shipping_cost'] ? (float)$article['shipping_cost'] : null,
-                'free_shipping_threshold' => $article['free_shipping_threshold'] ? (float)$article['free_shipping_threshold'] : null,
-                'shipping_method' => $article['shipping_method'],
-                'estimated_delivery_days' => $article['estimated_delivery_days'] ? (int)$article['estimated_delivery_days'] : null
+            'shipping'  => [
+                'shipping_cost'            => $art['versandkosten']    !== null ? (float)$art['versandkosten']    : null,
+                'free_shipping_threshold'  => $art['kostenlos_ab']     !== null ? (float)$art['kostenlos_ab']     : null,
+                'shipping_method'          => $art['versandart'],
+                'estimated_delivery_days'  => $art['lieferzeit_tage']  !== null ? (int)$art['lieferzeit_tage']  : null
             ],
-            'images' => array_map(function($img) {
-                return [
-                    'id' => $img['id'],
-                    'url' => $img['image_url'],
-                    'type' => $img['image_type'], // 'main', 'gallery', 'detail'
-                    'order' => $img['image_order']
-                ];
-            }, $images)
+            'images' => $images
         ]
-    ];
-
-    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    ], JSON_UNESCAPED_UNICODE);
 
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
 }
-?>

@@ -3,7 +3,7 @@
     <v-card class="pa-4">
 
       <!-- HEADER -->
-      <div class="d-flex justify-space-between align-start mb-4">
+      <div class="d-flex justify-space-between align-start mb-4 flex-wrap">
         <div>
           <div class="d-flex align-center">
             <v-icon start size="28">mdi-plus-box</v-icon>
@@ -14,15 +14,17 @@
           </p>
         </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 mt-2 mt-sm-0">
           <v-btn variant="outlined" @click="cancel" prepend-icon="mdi-arrow-left" class="back-btn">
             Zurück
           </v-btn>
-          <v-btn @click="submit"
-                 prepend-icon="mdi-check"
-                 :loading="submitting"
-                 :disabled="!valid"
-                 class="action-btn">
+          <v-btn
+            @click="submit"
+            prepend-icon="mdi-check"
+            :loading="submitting"
+            :disabled="!valid"
+            class="action-btn"
+          >
             Hinzufügen
           </v-btn>
         </div>
@@ -38,12 +40,16 @@
 
           <v-card-text>
             <v-row>
-              <!-- 1. Zeile: name + brand (als Combobox) -->
+              <!-- Name + Marque -->
               <v-col cols="12" md="6">
-                <v-text-field v-model="product.name" label="Produktname *" :rules="[required]" variant="outlined"/>
+                <v-text-field
+                  v-model="product.name"
+                  label="Produktname *"
+                  :rules="[required]"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="12" md="6">
-                <!-- ====== NEU: Combobox für Marke ====== -->
                 <v-combobox
                   v-model="product.brand"
                   :items="brands"
@@ -54,76 +60,182 @@
                   @update:model-value="onBrandChange"
                   no-filter
                 >
-              <template #no-data>
-                <v-list-item>
-                  <span class="text-caption">Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.</span>
-                </v-list-item>
-              </template>
-              </v-combobox>
+                  <template #no-data>
+                    <v-list-item>
+                      <span class="text-caption">
+                        Keine Marke gefunden. Drücken Sie Enter, um eine neue Marke anzulegen.
+                      </span>
+                    </v-list-item>
+                  </template>
+                </v-combobox>
               </v-col>
 
-              <!-- 2. Zeile: category, article_type, article_number -->
+              <!-- Kategorie / Artikeltyp / Artikelnummer -->
               <v-col cols="12" md="4">
-                <v-select 
-                  v-model="product.category" 
-                  :items="categories" 
-                  item-title="name" 
+                <v-select
+                  v-model="product.category"
+                  :items="categories"
+                  item-title="name"
                   item-value="value"
-                  label="Kategorie *" 
-                  :rules="[required]" 
+                  label="Kategorie *"
+                  :rules="[required]"
                   variant="outlined"
                 />
               </v-col>
               <v-col cols="12" md="4">
-                <v-select 
-                  v-model="product.article_type" 
-                  :items="articleTypes" 
-                  item-title="name" 
+                <v-select
+                  v-model="product.article_type"
+                  :items="articleTypes"
+                  item-title="name"
                   item-value="value"
-                  label="Artikeltyp *" 
-                  :rules="[required]" 
+                  label="Artikeltyp *"
+                  :rules="[required]"
                   variant="outlined"
                   @update:model-value="onArticleTypeChange"
                 />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field v-model="product.article_number" label="Artikelnummer *" :rules="[required]" variant="outlined"/>
+                <v-text-field
+                  v-model="product.article_number"
+                  label="Artikelnummer *"
+                  :rules="[required]"
+                  variant="outlined"
+                />
               </v-col>
 
-              <!-- 3. Zeile: price, color, warranty_years -->
+              <!-- Unterkategorie -->
               <v-col cols="12" md="4">
-                <v-text-field v-model="product.price" label="Preis (€) *" type="number" :rules="[required]" variant="outlined"/>
-              </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="product.color" label="Farbe" variant="outlined"/>
-              </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="product.warranty_years" label="Garantie (Jahre)" type="number" variant="outlined"/>
+                <v-text-field
+                  v-model="product.subcategory"
+                  label="Unterkategorie"
+                  variant="outlined"
+                />
               </v-col>
 
-              <!-- 4. Zeile: weight_capacity, power_supply, application_area -->
+              <!-- Prix / Angebotspreis / Währung -->
               <v-col cols="12" md="4">
-                <v-text-field v-model="product.weight_capacity" label="Tragfähigkeit" variant="outlined"/>
+                <v-text-field
+                  v-model="product.price"
+                  label="Preis (€) *"
+                  type="number"
+                  :rules="[required]"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field v-model="product.power_supply" label="Stromversorgung" variant="outlined"/>
+                <v-text-field
+                  v-model="product.offer_price"
+                  label="Angebotspreis (€)"
+                  type="number"
+                  variant="outlined"
+                />
               </v-col>
               <v-col cols="12" md="4">
-                <v-text-field v-model="product.application_area" label="Anwendungsbereich" variant="outlined"/>
+                <v-select
+                  v-model="product.currency"
+                  :items="['EUR', 'CHF', 'USD']"
+                  label="Währung"
+                  variant="outlined"
+                />
+              </v-col>
+
+              <!-- Farbe / Garantie / Tragfähigkeit -->
+              <v-col cols="12" md="4">
+                <v-text-field v-model="product.color" label="Standardfarbe" variant="outlined"/>
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field
+                  v-model="product.warranty_years"
+                  label="Garantie (Jahre)"
+                  type="number"
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field
+                  v-model="product.weight_capacity"
+                  label="Tragfähigkeit (kg)"
+                  variant="outlined"
+                />
+              </v-col>
+
+              <!-- Stromversorgung / Anwendungsbereich -->
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="product.power_supply"
+                  label="Stromversorgung"
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="product.application_area"
+                  label="Anwendungsbereich"
+                  variant="outlined"
+                />
               </v-col>
 
               <!-- Beschreibung -->
               <v-col cols="12">
-                <v-textarea v-model="product.description" label="Beschreibung" rows="3" variant="outlined"/>
+                <v-textarea
+                  v-model="product.description"
+                  label="Beschreibung"
+                  rows="3"
+                  variant="outlined"
+                />
               </v-col>
 
-              <!-- Checkboxen -->
+              <!-- Checkboxen Statut -->
               <v-col cols="12">
                 <div class="d-flex flex-wrap gap-4 mt-2">
-                  <v-checkbox v-model="product.in_stock" label="Auf Lager" hide-details></v-checkbox>
-                  <v-checkbox v-model="product.is_new" label="Neues Produkt" hide-details></v-checkbox>
-                  <v-checkbox v-model="product.best_seller" label="Bestseller" hide-details></v-checkbox>
+                  <v-checkbox v-model="product.in_stock" label="Auf Lager" hide-details/>
+                  <v-checkbox v-model="product.is_new" label="Neues Produkt" hide-details/>
+                  <v-checkbox v-model="product.best_seller" label="Bestseller" hide-details/>
+                  <v-checkbox v-model="product.is_offer" label="Im Angebot" hide-details/>
                 </div>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <!-- ======================== GEBRAUCHT ======================== -->
+        <v-card variant="outlined" class="mb-6">
+          <v-card-title class="text-subtitle-1 bg-grey-lighten-3 py-2 d-flex align-center">
+            <v-checkbox
+              v-model="product.is_used"
+              label="Gebrauchtes Produkt"
+              hide-details
+              density="compact"
+              class="mr-4"
+            />
+          </v-card-title>
+          <v-card-text v-if="product.is_used">
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-select
+                  v-model="product.condition"
+                  :items="conditionOptions"
+                  item-title="name"
+                  item-value="value"
+                  label="Zustand"
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="product.used_price"
+                  label="Gebrauchtpreis (€)"
+                  type="number"
+                  variant="outlined"
+                />
+              </v-col>
+              <v-col cols="12">
+                <v-textarea
+                  v-model="product.used_description"
+                  label="Beschreibung des Gebrauchtzustands"
+                  rows="2"
+                  variant="outlined"
+                />
               </v-col>
             </v-row>
           </v-card-text>
@@ -172,7 +284,6 @@
                     density="compact"
                     hide-details
                     class="mb-1"
-                    :rules="img.method === 'url' ? [requiredImage] : []"
                   />
 
                   <div v-else class="file-input-wrapper mb-1">
@@ -220,20 +331,21 @@
             Technische Spezifikationen
           </v-card-title>
           <v-card-text>
-            <!-- Laufband -->
+
+            <!-- LAUFBAND -->
             <template v-if="product.article_type === 'treadmill'">
               <v-row>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.motor_power" label="Motorleistung" variant="outlined"/>
+                  <v-text-field v-model="specifics.motor_power" label="Motorleistung (PS)" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.max_speed" label="Höchstgeschwindigkeit" variant="outlined"/>
+                  <v-text-field v-model="specifics.max_speed" label="Höchstgeschwindigkeit (km/h)" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.max_inclination" label="Max. Steigung" variant="outlined"/>
+                  <v-text-field v-model="specifics.max_inclination" label="Max. Steigung (%)" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.display_type" label="Displaytyp" variant="outlined"/>
+                  <v-text-field v-model="specifics.spez_display_typ" label="Displaytyp" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
                   <v-text-field v-model="specifics.training_programs" label="Trainingsprogramme" variant="outlined"/>
@@ -251,25 +363,27 @@
                   <v-textarea v-model="specifics.comfort_features" label="Komfortfunktionen" rows="2" variant="outlined"/>
                 </v-col>
                 <v-col cols="12">
-                  <v-checkbox v-model="specifics.has_ekg" label="EKG integriert" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.is_foldable" label="Klappbar" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_touchscreen" label="Touchscreen" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_bluetooth" label="Bluetooth" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_heart_rate_monitor" label="Herzfrequenzmessung" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_wifi" label="WLAN" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_speaker" label="Lautsprecher" hide-details></v-checkbox>
+                  <div class="d-flex flex-wrap gap-4">
+                    <v-checkbox v-model="specifics.spez_hat_ekg" label="EKG integriert" hide-details/>
+                    <v-checkbox v-model="specifics.spez_ist_klappbar" label="Klappbar" hide-details/>
+                    <v-checkbox v-model="specifics.spez_hat_touchscreen" label="Touchscreen" hide-details/>
+                    <v-checkbox v-model="specifics.spez_hat_bluetooth" label="Bluetooth" hide-details/>
+                    <v-checkbox v-model="specifics.has_heart_rate_monitor" label="Herzfrequenzmessung" hide-details/>
+                    <v-checkbox v-model="specifics.spez_hat_wifi" label="WLAN" hide-details/>
+                    <v-checkbox v-model="specifics.has_speaker" label="Lautsprecher" hide-details/>
+                  </div>
                 </v-col>
               </v-row>
             </template>
 
-            <!-- Fahrrad -->
+            <!-- FAHRRAD -->
             <template v-if="product.article_type === 'bike'">
               <v-row>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.resistance_type" label="Widerstandsart" variant="outlined"/>
+                  <v-text-field v-model="specifics.spez_widerstandstyp" label="Widerstandsart" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
-                  <v-text-field v-model="specifics.max_resistance" label="Max. Widerstand" variant="outlined"/>
+                  <v-text-field v-model="specifics.max_resistance" label="Max. Widerstand (Level)" variant="outlined"/>
                 </v-col>
                 <v-col cols="12" md="6">
                   <v-text-field v-model="specifics.pedal_type" label="Pedaltyp" variant="outlined"/>
@@ -284,11 +398,72 @@
                   <v-textarea v-model="specifics.console_features" label="Konsolenfunktionen" rows="3" variant="outlined"/>
                 </v-col>
                 <v-col cols="12">
-                  <v-checkbox v-model="specifics.has_backrest" label="Rückenlehne" hide-details></v-checkbox>
-                  <v-checkbox v-model="specifics.has_pedal_straps" label="Pedalriemen" hide-details></v-checkbox>
+                  <div class="d-flex flex-wrap gap-4">
+                    <v-checkbox v-model="specifics.spez_hat_rueckenlehne" label="Rückenlehne" hide-details/>
+                    <v-checkbox v-model="specifics.has_pedal_straps" label="Pedalriemen" hide-details/>
+                  </div>
                 </v-col>
               </v-row>
             </template>
+
+            <!-- KRAFTGERÄT -->
+            <template v-if="product.article_type === 'strength'">
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.weight_stack_kg" label="Gewichtsblock (kg)" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.max_user_weight_kg" label="Max. Benutzergewicht (kg)" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.dimensions" label="Abmessungen" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.adjustment_range" label="Verstellbereich" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.muscle_groups_targeted" label="Trainierte Muskelgruppen" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.frame_material" label="Rahmenmaterial" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <div class="d-flex flex-wrap gap-4">
+                    <v-checkbox v-model="specifics.has_adjustable_seat" label="Verstellbarer Sitz" hide-details/>
+                    <v-checkbox v-model="specifics.has_adjustable_backrest" label="Verstellbare Rückenlehne" hide-details/>
+                    <v-checkbox v-model="specifics.has_digital_display" label="Digitales Display" hide-details/>
+                  </div>
+                </v-col>
+              </v-row>
+            </template>
+
+            <!-- REHA-ZUBEHÖR -->
+            <template v-if="product.article_type === 'rehabilitation_accessory'">
+              <v-row>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.material" label="Material" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.compatibility" label="Kompatibilität" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.usage_area" label="Einsatzbereich" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.weight_kg" label="Gewicht (kg)" variant="outlined"/>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field v-model="specifics.dimensions" label="Abmessungen" variant="outlined"/>
+                </v-col>
+                <v-col cols="12">
+                  <div class="d-flex flex-wrap gap-4">
+                    <v-checkbox v-model="specifics.has_adjustable" label="Verstellbar" hide-details/>
+                    <v-checkbox v-model="specifics.has_certification" label="Zertifiziert" hide-details/>
+                  </div>
+                </v-col>
+              </v-row>
+            </template>
+
           </v-card-text>
         </v-card>
 
@@ -299,22 +474,42 @@
           </v-card-title>
           <v-card-text>
             <v-row>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="shipping.shipping_cost" label="Versandkosten (€)" type="number" variant="outlined"/>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                  v-model="shipping.shipping_cost"
+                  label="Versandkosten (€)"
+                  type="number"
+                  variant="outlined"
+                />
               </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="shipping.free_shipping_threshold" label="Kostenloser Versand ab (€)" type="number" variant="outlined"/>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                  v-model="shipping.free_shipping_threshold"
+                  label="Kostenloser Versand ab (€)"
+                  type="number"
+                  variant="outlined"
+                />
               </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="shipping.shipping_method" label="Versandart" variant="outlined"/>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                  v-model="shipping.shipping_method"
+                  label="Versandart"
+                  variant="outlined"
+                />
               </v-col>
-              <v-col cols="12" md="4">
-                <v-text-field v-model="shipping.estimated_delivery_days" label="Voraussichtliche Lieferzeit (Tage)" type="number" variant="outlined"/>
+              <v-col cols="12" sm="6" md="3">
+                <v-text-field
+                  v-model="shipping.estimated_delivery_days"
+                  label="Lieferzeit (Tage)"
+                  type="number"
+                  variant="outlined"
+                />
               </v-col>
             </v-row>
           </v-card-text>
         </v-card>
 
+        <!-- ACTIONS -->
         <v-card-actions class="justify-end">
           <v-btn variant="outlined" @click="cancel">Abbrechen</v-btn>
           <v-btn color="primary" :loading="submitting" @click="submit" :disabled="!valid">
@@ -325,7 +520,7 @@
       </v-form>
     </v-card>
 
-    <!-- Overlay & Snackbar -->
+    <!-- Overlay redirect -->
     <v-overlay
       v-model="redirecting"
       class="align-center justify-center"
@@ -339,25 +534,16 @@
       </div>
     </v-overlay>
 
-    <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      timeout="3000"
-      location="top end"
-    >
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" location="top end">
       {{ snackbar.text }}
-      <template v-slot:actions>
+      <template #actions>
         <v-btn variant="text" icon="mdi-close" @click="snackbar.show = false"/>
       </template>
     </v-snackbar>
   </v-container>
 
   <!-- Floating Help Button -->
-  <div
-    class="floating-help-btn"
-    :class="{ open: guideDrawer }"
-    @click="guideDrawer = !guideDrawer"
-  >
+  <div class="floating-help-btn" :class="{ open: guideDrawer }" @click="guideDrawer = !guideDrawer">
     <v-icon :icon="guideDrawer ? 'mdi-close' : 'mdi-help-circle'" color="white"/>
   </div>
 
@@ -378,21 +564,22 @@ const redirecting = ref(false)
 const formRef = ref(null)
 const guideDrawer = ref(false)
 
-const snackbar = ref({
-  show: false,
-  text: '',
-  color: 'success'
-})
+const snackbar = ref({ show: false, text: '', color: 'success' })
+const showSnackbar = (text, color = 'success') => {
+  snackbar.value = { show: true, text, color }
+}
 
-// Produktstammdaten
+// ---------- MODELE PRODUIT ----------
 const product = reactive({
   name: '',
-  brand: '', // wird über Combobox gesetzt
+  brand: '',
   category: '',
-  price: null,
-  main_image: '',
+  subcategory: null,
   article_type: '',
   article_number: '',
+  price: null,
+  offer_price: null,
+  currency: 'EUR',
   color: '',
   warranty_years: null,
   weight_capacity: '',
@@ -401,10 +588,16 @@ const product = reactive({
   in_stock: true,
   is_new: false,
   best_seller: false,
+  is_offer: false,
+  is_used: false,
+  condition: '',
+  used_price: null,
+  used_description: '',
   description: ''
 })
 
 const specifics = reactive({})
+
 const shipping = reactive({
   shipping_cost: null,
   free_shipping_threshold: null,
@@ -412,8 +605,19 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// ---------- BILDER ----------
 const allImages = ref([])
+
+// ---------- OPTIONS ----------
+const categories = ref([])
+const articleTypes = ref([])
+const brands = ref([])
+
+const conditionOptions = [
+  { name: 'Wie neu', value: 'like_new' },
+  { name: 'Sehr gut', value: 'very_good' },
+  { name: 'Gut', value: 'good' },
+  { name: 'Akzeptabel', value: 'acceptable' }
+]
 
 const imageUploadMethods = [
   { title: 'Bild-URL', value: 'url' },
@@ -426,77 +630,76 @@ const imageTypeOptions = [
   { title: 'Detail', value: 'detail' }
 ]
 
-// Dynamische Listen für Kategorien, Artikeltypen und Marken
-const categories = ref([])
-const articleTypes = ref([])
-const brands = ref([]) // <-- NEU: Marken
-
-// Regeln
 const required = v => !!v || 'Dieses Feld ist erforderlich'
-const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
 
-// ---------- MARKEN (NEU) ----------
+// ---------- BRANDS ----------
 const loadBrands = async () => {
   try {
     const res = await axios.get('/api/get_brands_stock.php')
-    if (res.data.success) {
-      brands.value = res.data.items
-    }
-  } catch (error) {
-    console.error('Fehler beim Laden der Marken:', error)
+    if (res.data.success) brands.value = res.data.items
+  } catch (e) {
+    console.error('Fehler beim Laden der Marken:', e)
   }
 }
 
 const onBrandChange = async (val) => {
-  // Wenn der Benutzer einen neuen Text eingegeben hat (String)
-  if (typeof val === 'string' && val.trim() !== '') {
-    const exists = brands.value.some(b => b.name.toLowerCase() === val.trim().toLowerCase())
-    if (!exists) {
-      try {
-        const newBrand = {
-          name: val.trim(),
-          value: val.trim().toLowerCase().replace(/\s+/g, '-')
-        }
-        const res = await axios.post('/api/add_brand.php', newBrand)
-        if (res.data.success) {
-          brands.value.push(res.data.item)
-          product.brand = res.data.item.value // technischer Wert
-          snackbar.value = {
-            show: true,
-            text: '✅ Neue Marke angelegt',
-            color: 'success'
-          }
-        }
-      } catch (error) {
-        console.error('Fehler beim Anlegen der Marke:', error)
-        snackbar.value = {
-          show: true,
-          text: '❌ Marke konnte nicht angelegt werden',
-          color: 'error'
-        }
+  if (typeof val === 'object' && val?.name) val = val.name
+  if (typeof val !== 'string' || !val.trim()) return
+  const trimmed = val.trim()
+  const exists = brands.value.some(b => b.name?.toLowerCase() === trimmed.toLowerCase())
+  if (!exists) {
+    try {
+      const res = await axios.post('/api/add_brand_stock.php', { name: trimmed })
+      if (res.data.success) {
+        brands.value.push(res.data.item)
+        product.brand = trimmed
+        showSnackbar('✅ Neue Marke angelegt', 'success')
       }
+    } catch (e) {
+      console.error(e)
+      showSnackbar('❌ Marke konnte nicht angelegt werden', 'error')
     }
+  } else {
+    product.brand = trimmed
   }
 }
 
-// ---------- BILDVERWALTUNG ----------
+// ---------- OPTIONS LADEN ----------
+const loadOptions = async () => {
+  try {
+    const [catRes, typeRes] = await Promise.all([
+      axios.get('/api/get_categories.php?roots=1'),   // ← uniquement catégories racines
+      axios.get('/api/get_article_types.php')
+    ])
+
+    let cats = catRes.data
+    let types = typeRes.data
+    if (cats.success !== undefined) cats = cats.items || []
+    if (types.success !== undefined) types = types.items || []
+    if (!Array.isArray(cats)) cats = []
+    if (!Array.isArray(types)) types = []
+
+    categories.value = cats
+    articleTypes.value = types
+  } catch (e) {
+    console.error('Fehler beim Laden der Optionen:', e)
+    showSnackbar(`❌ Optionen konnten nicht geladen werden: ${e.message}`, 'error')
+  }
+}
+
+// ---------- IMAGES ----------
 const addImage = () => {
   allImages.value.push({
-    url: '',
-    type: 'gallery',
-    method: 'url',
-    file: null,
-    fileName: ''
+    id: null, url: '', type: 'gallery',
+    method: 'url', file: null, fileName: ''
   })
 }
 
 const removeImage = (idx) => {
   const img = allImages.value[idx]
   if (img.type === 'main') {
-    const nextMain = allImages.value.find((_, i) => i !== idx && allImages.value[i].url)
-    if (nextMain) {
-      nextMain.type = 'main'
-    }
+    const nextMain = allImages.value.find((im, i) => i !== idx && im.url)
+    if (nextMain) nextMain.type = 'main'
   }
   allImages.value.splice(idx, 1)
 }
@@ -515,165 +718,105 @@ const onImageMethodChange = (img) => {
 const onFileSelected = (event, idx) => {
   const file = event.target.files[0]
   if (!file) return
-
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!allowedTypes.includes(file.type)) {
+  const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowed.includes(file.type)) {
     alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
     event.target.value = ''
     return
   }
-
   const img = allImages.value[idx]
   img.file = file
   img.fileName = file.name
   img.url = URL.createObjectURL(file)
 }
 
-const handleImageError = (event) => {
-  event.target.src = 'https://placehold.co/300x200?text=Fehler'
+const handleImageError = (e) => {
+  e.target.src = 'https://placehold.co/300x200?text=Fehler'
 }
 
 // ---------- ARTICLE TYPE CHANGE ----------
 const onArticleTypeChange = () => {
-  Object.keys(specifics).forEach(key => delete specifics[key])
-}
-
-// ---------- OPTIONEN LADEN (Kategorien, Artikeltypen) ----------
-const loadOptions = async () => {
-  try {
-    const [catRes, typeRes] = await Promise.all([
-      axios.get('/api/get_categories.php'),
-      axios.get('/api/get_article_types.php')
-    ])
-
-    let cats = catRes.data
-    let types = typeRes.data
-
-    if (cats.success !== undefined) {
-      cats = cats.items || []
-    } else if (!Array.isArray(cats)) {
-      cats = []
-    }
-
-    if (types.success !== undefined) {
-      types = types.items || []
-    } else if (!Array.isArray(types)) {
-      types = []
-    }
-
-    categories.value = cats
-    articleTypes.value = types
-  } catch (error) {
-    console.error('Fehler beim Laden der Optionen:', error)
-    categories.value = []
-    articleTypes.value = []
-    snackbar.value = {
-      show: true,
-      text: `❌ Optionen konnten nicht geladen werden: ${error.message}`,
-      color: 'error'
-    }
-  }
+  Object.keys(specifics).forEach(k => delete specifics[k])
 }
 
 // ---------- NAVIGATION ----------
-const cancel = () => {
-  router.push('/products')
-}
+const cancel = () => router.push('/products')
 
 // ---------- SUBMIT ----------
 const submit = async () => {
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
-  const mainImageObj = allImages.value.find(img => img.type === 'main')
+  const mainImageObj = allImages.value.find(i => i.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
-    snackbar.value = {
-      show: true,
-      text: '❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")',
-      color: 'error'
-    }
+    showSnackbar('❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")', 'error')
     return
   }
 
   // Uploads
   const uploadPromises = allImages.value
-    .filter(img => img.method === 'upload' && img.file)
+    .filter(i => i.method === 'upload' && i.file)
     .map(async (img) => {
-      const formData = new FormData()
-      formData.append('image', img.file)
+      const fd = new FormData()
+      fd.append('image', img.file)
       try {
-        const response = await axios.post(
-          '/api/upload_image.php',
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        )
-        if (response.data.success) {
-          img.url = response.data.url
+        const r = await axios.post('/api/upload_image.php', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (r.data.success) {
+          img.url = r.data.url
           img.file = null
           img.fileName = ''
           img.method = 'url'
         } else {
-          throw new Error(response.data.error || 'Upload fehlgeschlagen')
+          throw new Error(r.data.error || 'Upload fehlgeschlagen')
         }
-      } catch (error) {
-        console.error('Upload error:', error)
-        throw new Error(`Upload fehlgeschlagen: ${error.message}`)
+      } catch (e) {
+        throw new Error(`Upload fehlgeschlagen: ${e.message}`)
       }
     })
 
   try {
     await Promise.all(uploadPromises)
-  } catch (error) {
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler beim Upload: ${error.message}`,
-      color: 'error'
-    }
+  } catch (e) {
+    showSnackbar(`❌ Fehler beim Upload: ${e.message}`, 'error')
     return
   }
 
-  const missingUrl = allImages.value.some(img => !img.url)
-  if (missingUrl) {
-    snackbar.value = {
-      show: true,
-      text: '❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.',
-      color: 'error'
-    }
+  if (allImages.value.some(i => !i.url)) {
+    showSnackbar('❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.', 'error')
     return
   }
 
   product.main_image = mainImageObj.url
 
   const galleryImages = allImages.value
-    .filter(img => img.type !== 'main')
-    .map((img, idx) => ({
-      url: img.url,
+    .filter(i => i.type !== 'main')
+    .map((i, idx) => ({
+      url: i.url,
       image_order: idx + 1,
-      type: img.type || 'gallery',
+      type: i.type || 'gallery',
       article_name: product.name
     }))
 
   product.price = parseFloat(product.price) || 0
+  if (product.offer_price !== null && product.offer_price !== '') {
+    product.offer_price = parseFloat(product.offer_price) || null
+  } else {
+    product.offer_price = null
+  }
+
+  // Normalise brand/category/article_type
+  function norm(v) {
+    if (v && typeof v === 'object') return v.name ?? v.value ?? ''
+    return (v ?? '').toString().trim()
+  }
+  product.brand = norm(product.brand)
+  product.category = norm(product.category)
+  product.article_type = norm(product.article_type)
 
   const payload = {
-    article: {
-      name: product.name,
-      brand: product.brand, // <-- hier wird die Marke (technischer Wert) übergeben
-      category: product.category,
-      price: product.price,
-      main_image: product.main_image,
-      article_type: product.article_type,
-      article_number: product.article_number,
-      color: product.color || null,
-      warranty_years: product.warranty_years || null,
-      weight_capacity: product.weight_capacity || null,
-      power_supply: product.power_supply || null,
-      application_area: product.application_area || null,
-      in_stock: product.in_stock ? 1 : 0,
-      is_new: product.is_new ? 1 : 0,
-      best_seller: product.best_seller ? 1 : 0,
-      description: product.description || null
-    },
+    article: { ...product },
     specifics: { ...specifics },
     shipping: { ...shipping },
     images: galleryImages
@@ -681,38 +824,24 @@ const submit = async () => {
 
   submitting.value = true
   try {
-    const response = await axios.post(
-      '/api/stock_manager_products.php',
-      payload,
-      { headers: { 'Content-Type': 'application/json' } }
-    )
+    const response = await axios.post('/api/stock_manager_products.php', payload, {
+      headers: { 'Content-Type': 'application/json' }
+    })
 
     if (response.data.success) {
-      snackbar.value = {
-        show: true,
-        text: '✅ Produkt erfolgreich erstellt!',
-        color: 'success'
-      }
+      showSnackbar('✅ Produkt erfolgreich erstellt!', 'success')
       redirecting.value = true
       setTimeout(() => router.push('/products'), 2000)
     } else {
-      throw new Error(response.data.error || 'Unbekannter Fehler beim Speichern')
+      throw new Error(response.data.error || 'Unbekannter Fehler')
     }
-  } catch (error) {
-    console.error('Fehler beim Erstellen des Produkts:', error)
-    let errorMsg = 'Unbekannter Fehler'
-    if (error.response) {
-      errorMsg = error.response.data?.error || error.response.data?.message || `Server-Fehler (${error.response.status})`
-    } else if (error.request) {
-      errorMsg = 'Keine Antwort vom Server. Bitte Netzwerk prüfen.'
-    } else {
-      errorMsg = error.message
-    }
-    snackbar.value = {
-      show: true,
-      text: `❌ Fehler: ${errorMsg}`,
-      color: 'error'
-    }
+  } catch (e) {
+    console.error(e)
+    let msg = 'Unbekannter Fehler'
+    if (e.response) msg = e.response.data?.error || `Server-Fehler (${e.response.status})`
+    else if (e.request) msg = 'Keine Antwort vom Server.'
+    else msg = e.message
+    showSnackbar(`❌ Fehler: ${msg}`, 'error')
     redirecting.value = false
   } finally {
     submitting.value = false
@@ -722,22 +851,17 @@ const submit = async () => {
 // ---------- LIFECYCLE ----------
 onMounted(() => {
   loadOptions()
-  loadBrands()   // <-- Marken laden
-  // Standardmäßig ein leeres Hauptbild anlegen
+  loadBrands()
   allImages.value.push({
-    url: '',
-    type: 'main',
-    method: 'url',
-    file: null,
-    fileName: ''
+    id: null, url: '', type: 'main',
+    method: 'url', file: null, fileName: ''
   })
 })
 </script>
 
 <style scoped>
-.gap-2 {
-  gap: 8px;
-}
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
 .action-btn {
   border-radius: 50px;
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
@@ -748,62 +872,20 @@ onMounted(() => {
   box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
 }
 .floating-help-btn {
-  position: fixed;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  background: #1976d2;
-  width: 50px;
-  height: 50px;
-  border-radius: 10px 0 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2000;
-  box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
+  position: fixed; top: 50%; right: 0; transform: translateY(-50%);
+  background: #1976d2; width: 50px; height: 50px;
+  border-radius: 10px 0 0 10px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2000; box-shadow: -3px 3px 10px rgba(0,0,0,0.2);
   transition: right 0.3s ease;
 }
-.floating-help-btn.open {
-  right: 400px;
-}
-.floating-help-btn:hover {
-  background: #1565c0;
-}
-.h-100 {
-  height: 100%;
-}
+.floating-help-btn.open { right: 400px; }
+.floating-help-btn:hover { background: #1565c0; }
+.h-100 { height: 100%; }
 .file-input-wrapper {
-  display: flex;
-  align-items: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 4px 8px;
-  background: #f9f9f9;
-  min-height: 36px;
-  position: relative;
-  overflow: hidden;
+  display: flex; align-items: center; border: 1px solid #ccc; border-radius: 4px;
+  padding: 4px 8px; background: #f9f9f9; min-height: 36px; position: relative; overflow: hidden;
 }
-.file-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-.file-name {
-  font-size: 0.9rem;
-  color: #333;
-  margin-left: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.file-placeholder {
-  color: #999;
-  font-size: 0.9rem;
-  margin-left: 4px;
-}
+.file-input { position: absolute; top: 0; left: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.file-name { font-size: .9rem; color: #333; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-placeholder { color: #999; font-size: .9rem; margin-left: 4px; }
 </style>

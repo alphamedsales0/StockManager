@@ -1,42 +1,42 @@
 <template>
   <v-container fluid>
     <v-card class="pa-4" v-if="!loading">
-      <!-- HEADER -->
-      <div class="d-flex justify-space-between align-start mb-4 flex-wrap">
-        <div>
-          <div class="d-flex align-center">
-            <v-icon start size="28">mdi-pencil-box</v-icon>
-            <h1 class="text-h5 font-weight-bold mb-0">Produkt bearbeiten</h1>
-          </div>
-          <p class="text-caption text-grey-darken-1 mt-1 mb-0">
-            Bearbeiten Sie die Produktinformationen
-          </p>
-        </div>
+     <!-- HEADER -->
+<div class="d-flex justify-space-between align-start mb-4 flex-wrap">
+  <div>
+    <div class="d-flex align-center">
+      <v-icon start size="28">mdi-pencil-box</v-icon>
+      <h1 class="text-h5 font-weight-bold mb-0">Produkt bearbeiten</h1>
+    </div>
+    <p class="text-caption text-grey-darken-1 mt-1 mb-0">
+      Bearbeiten Sie die Produktinformationen
+    </p>
+  </div>
 
-        <div class="d-flex gap-2 mt-2 mt-sm-0">
-          <v-btn variant="outlined" @click="cancel" prepend-icon="mdi-arrow-left" class="back-btn">
-            Zurück
-          </v-btn>
-          <v-btn
-            color="error"
-            variant="tonal"
-            @click="confirmDelete"
-            prepend-icon="mdi-delete"
-            class="delete-btn"
-          >
-            Löschen
-          </v-btn>
-          <v-btn
-            @click="submit"
-            prepend-icon="mdi-content-save"
-            :loading="submitting"
-            :disabled="!valid"
-            class="action-btn"
-          >
-            Speichern
-          </v-btn>
-        </div>
-      </div>
+  <div class="d-flex gap-2 mt-2 mt-sm-0">
+    <v-btn variant="outlined" @click="cancel" prepend-icon="mdi-arrow-left" class="back-btn">
+      Zurück
+    </v-btn>
+    <v-btn
+      color="error"
+      variant="tonal"
+      @click="confirmDelete"
+      prepend-icon="mdi-delete"
+      class="delete-btn"
+    >
+      Löschen
+    </v-btn>
+    <v-btn
+      @click="submit"
+      prepend-icon="mdi-content-save"
+      :loading="submitting"
+      :disabled="!valid"
+      class="action-btn"
+    >
+      Speichern
+    </v-btn>
+  </div>
+</div>
 
       <v-form ref="formRef" v-model="valid" lazy-validation>
         <!-- ======================== ALLGEMEINE INFORMATIONEN ======================== -->
@@ -327,36 +327,42 @@
 
         <!-- ======================== AKTIONSLEISTE ======================== -->
         <v-card-actions class="justify-end">
-          <v-btn color="error" variant="tonal" @click="confirmDelete" prepend-icon="mdi-delete" class="mr-auto">
-            Löschen
-          </v-btn>
-          <v-btn variant="outlined" @click="cancel">Abbrechen</v-btn>
-          <v-btn color="primary" :loading="submitting" @click="submit" :disabled="!valid">
-            Änderungen speichern
-          </v-btn>
-        </v-card-actions>
+  <v-btn color="error" variant="tonal" @click="confirmDelete" prepend-icon="mdi-delete" class="mr-auto">
+    Löschen
+  </v-btn>
+  <v-btn variant="outlined" @click="cancel">Abbrechen</v-btn>
+  <v-btn color="primary" :loading="submitting" @click="submit" :disabled="!valid">
+    Änderungen speichern
+  </v-btn>
+</v-card-actions>
       </v-form>
 
       <!-- Lösch-Dialog -->
       <v-dialog v-model="deleteDialog" max-width="500">
-        <v-card>
-          <v-card-title class="text-h6">
-            <v-icon color="error" start>mdi-alert</v-icon>
-            Produkt wirklich löschen?
-          </v-card-title>
-          <v-card-text>
-            Möchten Sie das Produkt <strong>{{ product.name }}</strong> (ID: {{ productId }}) 
-            endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn variant="text" @click="deleteDialog = false">Abbrechen</v-btn>
-            <v-btn color="error" @click="deleteProduct" :loading="deleting">
-              Ja, löschen
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
+  <v-card>
+    <v-card-title class="text-h6">
+      <v-icon color="error" start>mdi-alert</v-icon>
+      Produkt wirklich löschen?
+    </v-card-title>
+    <v-card-text>
+      Möchten Sie das Produkt <strong>{{ product.name }}</strong> (ID: {{ productId }})
+      endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+    </v-card-text>
+    <v-card-actions>
+      <v-spacer />
+      <v-btn variant="text" @click="deleteDialog = false">Abbrechen</v-btn>
+      <v-btn color="error" @click="deleteProduct" :loading="deleting">
+        Ja, löschen
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
+<!-- Loader initial -->
+<v-overlay v-model="loading" class="align-center justify-center" persistent>
+  <v-progress-circular indeterminate size="80" color="primary" width="6" />
+  <div class="text-h6 mt-4 text-white">Produkt wird geladen...</div>
+</v-overlay>
     </v-card>
 
     <!-- Loader -->
@@ -388,7 +394,6 @@
 
   <GuideDrawer v-model="guideDrawer" />
 </template>
-
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -409,25 +414,21 @@ const guideDrawer = ref(false)
 const deleteDialog = ref(false)
 const deleting = ref(false)
 
-const snackbar = ref({
-  show: false,
-  text: '',
-  color: 'success'
-})
-
-// Hilfsfunktion für Snackbar
+const snackbar = ref({ show: false, text: '', color: 'success' })
 const showSnackbar = (text, color = 'success') => {
   snackbar.value = { show: true, text, color }
 }
 
-// Produktdaten
 const product = reactive({
   name: '',
-  brand: '',      // jetzt ein String (value)
-  category: '',   // jetzt ein String (value)
-  price: null,
-  article_type: '', // jetzt ein String (value)
+  brand: '',
+  category: '',
+  subcategory: null,
+  article_type: '',
   article_number: '',
+  price: null,
+  offer_price: null,
+  currency: 'EUR',
   color: '',
   warranty_years: null,
   weight_capacity: '',
@@ -436,10 +437,16 @@ const product = reactive({
   in_stock: true,
   is_new: false,
   best_seller: false,
+  is_offer: false,
+  is_used: false,
+  condition: '',
+  used_price: null,
+  used_description: '',
   description: ''
 })
 
 const specifics = reactive({})
+
 const shipping = reactive({
   shipping_cost: null,
   free_shipping_threshold: null,
@@ -447,18 +454,17 @@ const shipping = reactive({
   estimated_delivery_days: null
 })
 
-// Alle Bilder
 const allImages = ref([])
 
-// Auswahllisten
 const categories = ref([])
 const articleTypes = ref([])
 const brands = ref([])
 
-const imageTypeOptions = [
-  { title: 'Hauptbild', value: 'main' },
-  { title: 'Galerie', value: 'gallery' },
-  { title: 'Detail', value: 'detail' }
+const conditionOptions = [
+  { name: 'Wie neu', value: 'like_new' },
+  { name: 'Sehr gut', value: 'very_good' },
+  { name: 'Gut', value: 'good' },
+  { name: 'Akzeptabel', value: 'acceptable' }
 ]
 
 const imageUploadMethods = [
@@ -466,173 +472,156 @@ const imageUploadMethods = [
   { title: 'Bild hochladen', value: 'upload' }
 ]
 
-// Validierungsregeln
-const required = v => !!v || 'Dieses Feld ist erforderlich'
-const requiredImage = v => !!v || 'Bitte geben Sie eine Bild-URL ein'
+const imageTypeOptions = [
+  { title: 'Hauptbild', value: 'main' },
+  { title: 'Galerie', value: 'gallery' },
+  { title: 'Detail', value: 'detail' }
+]
 
-// ---------- MARKEN (NEU) ----------
+const required = v => !!v || 'Dieses Feld ist erforderlich'
+
+// ---------- BRANDS ----------
 const loadBrands = async () => {
   try {
     const res = await axios.get('/api/get_brands_stock.php')
-    if (res.data.success) {
-      brands.value = res.data.items
-    }
-  } catch (error) {
-    console.error('Fehler beim Laden der Marken:', error)
-  }
+    if (res.data.success) brands.value = res.data.items
+  } catch (e) { console.error(e) }
 }
 
 const onBrandChange = async (val) => {
-  // Normalisierung: Falls val ein Objekt ist, den Namen extrahieren
-  if (typeof val === 'object' && val !== null && 'name' in val) {
-    val = val.name;
-  }
-  if (typeof val !== 'string' || val.trim() === '') return;
-
-  const trimmed = val.trim();
-  const exists = brands.value.some(b => b.name?.toLowerCase() === trimmed.toLowerCase());
-
+  if (typeof val === 'object' && val?.name) val = val.name
+  if (typeof val !== 'string' || !val.trim()) return
+  const trimmed = val.trim()
+  const exists = brands.value.some(b => b.name?.toLowerCase() === trimmed.toLowerCase())
   if (!exists) {
     try {
-      const res = await axios.post('/api/add_brand_stock.php', { name: trimmed });
+      const res = await axios.post('/api/add_brand_stock.php', { name: trimmed })
       if (res.data.success) {
-        brands.value.push(res.data.item); // { id, name }
-        product.brand = trimmed;
-        showSnackbar('✅ Neue Marke angelegt', 'success');
+        brands.value.push(res.data.item)
+        product.brand = trimmed
+        showSnackbar('✅ Neue Marke angelegt', 'success')
       }
-    } catch (error) {
-      console.error('Fehler beim Anlegen der Marke:', error);
-      showSnackbar('❌ Marke konnte nicht angelegt werden', 'error');
+    } catch (e) {
+      console.error(e)
+      showSnackbar('❌ Marke konnte nicht angelegt werden', 'error')
     }
   } else {
-    const existing = brands.value.find(b => b.name?.toLowerCase() === trimmed.toLowerCase());
-    if (existing) product.brand = existing.name;
-  }
-};
-
-// ---------- OPTIONEN LADEN (Kategorien, Artikeltypen) ----------
-const loadOptions = async () => {
-  try {
-    const [catRes, typeRes] = await Promise.all([
-      axios.get('/api/get_categories.php'),
-      axios.get('/api/get_article_types.php')
-    ])
-
-    let cats = catRes.data
-    let types = typeRes.data
-
-    if (cats.success !== undefined) {
-      cats = cats.items || []
-    } else if (!Array.isArray(cats)) {
-      cats = []
-    }
-
-    if (types.success !== undefined) {
-      types = types.items || []
-    } else if (!Array.isArray(types)) {
-      types = []
-    }
-
-    categories.value = cats
-    articleTypes.value = types
-  } catch (error) {
-    console.error('Fehler beim Laden der Optionen:', error)
-    categories.value = []
-    articleTypes.value = []
-    showSnackbar(`❌ Optionen konnten nicht geladen werden: ${error.message}`, 'error')
+    product.brand = trimmed
   }
 }
 
-// ---------- PRODUKT LADEN ----------
+// ---------- OPTIONS ----------
+const loadOptions = async () => {
+  try {
+    const [catRes, typeRes] = await Promise.all([
+  axios.get('/api/get_categories.php?roots=1'),   // ← uniquement catégories racines
+  axios.get('/api/get_article_types.php')
+])
+    let cats = catRes.data, types = typeRes.data
+    if (cats.success !== undefined) cats = cats.items || []
+    if (types.success !== undefined) types = types.items || []
+    categories.value = Array.isArray(cats) ? cats : []
+    articleTypes.value = Array.isArray(types) ? types : []
+  } catch (e) {
+    console.error(e)
+    showSnackbar(`❌ Optionen konnten nicht geladen werden: ${e.message}`, 'error')
+  }
+}
+
+// ---------- LOAD PRODUCT ----------
 const loadProduct = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`/api/get_product_details_stock.php?id=${productId.value}`)
-    if (response.data.success) {
-      const data = response.data.product
+    const res = await axios.get(`/api/get_product_details_stock.php?id=${productId.value}`)
+    if (!res.data.success) throw new Error(res.data.error || 'Fehler beim Laden')
 
-      // Allgemeine Daten – die Felder sind bereits Strings
-      Object.assign(product, data.article)
-      Object.assign(specifics, data.specifics)
-      Object.assign(shipping, data.shipping)
+    const a = res.data.product.article
 
-      // Bilder
-      const images = []
-      const mainImageUrl = data.article.main_image || ''
+    // Mappe les champs backend → modèle local
+    product.name             = a.name || ''
+    product.brand            = a.brand || ''
+    product.category         = a.category || ''
+    product.subcategory      = a.subcategory || null
+    product.article_type     = a.article_type || ''
+    product.article_number   = a.article_number || ''
+    product.price            = a.price ?? null
+    product.offer_price      = a.offer_price ?? null
+    product.currency         = a.currency || 'EUR'
+    product.color            = a.color || ''
+    product.warranty_years   = a.warranty_years ?? null
+    product.weight_capacity  = a.weight_capacity ?? ''
+    product.power_supply     = a.power_supply || ''
+    product.application_area = a.application_area || ''
+    product.in_stock         = !!a.in_stock
+    product.is_new           = !!a.is_new
+    product.best_seller      = !!a.best_seller
+    product.is_offer         = !!a.is_offer
+    product.is_used          = !!a.is_used
+    product.condition        = a.condition || ''
+    product.used_price       = a.used_price ?? null
+    product.used_description = a.used_description || ''
+    product.description      = a.description || ''
 
-      if (mainImageUrl) {
-        images.push({
-          id: null,
-          url: mainImageUrl,
-          type: 'main',
-          method: 'url',
-          file: null,
-          fileName: ''
-        })
-      }
+    // Spécificités (colonnes plates + JSON)
+    Object.assign(specifics, res.data.product.specifics || {})
 
-      if (data.images && data.images.length) {
-        data.images.forEach(img => {
-          if (img.url !== mainImageUrl) {
-            images.push({
-              id: img.id || null,
-              url: img.url,
-              type: img.type || 'gallery',
-              method: 'url',
-              file: null,
-              fileName: ''
-            })
-          }
-        })
-      }
+    // Shipping
+    Object.assign(shipping, res.data.product.shipping || {})
 
-      allImages.value = images
-    } else {
-      throw new Error(response.data.error || 'Fehler beim Laden')
+    // Images
+    const images = []
+    const main = a.main_image || ''
+    if (main) {
+      images.push({
+        id: null, url: main, type: 'main',
+        method: 'url', file: null, fileName: ''
+      })
     }
-  } catch (error) {
-    console.error('Fehler:', error)
-    showSnackbar(`❌ Fehler beim Laden: ${error.message}`, 'error')
+    ;(res.data.product.images || []).forEach(img => {
+      if (img.url && img.url !== main) {
+        images.push({
+          id: img.id || null,
+          url: img.url,
+          type: img.type || 'gallery',
+          method: 'url', file: null, fileName: ''
+        })
+      }
+    })
+    // Toujours avoir un main
+    if (!images.some(i => i.type === 'main')) {
+      images.unshift({
+        id: null, url: main, type: 'main',
+        method: 'url', file: null, fileName: ''
+      })
+    }
+    allImages.value = images
+
+  } catch (e) {
+    console.error(e)
+    showSnackbar(`❌ Fehler beim Laden: ${e.message}`, 'error')
     setTimeout(() => router.push('/products'), 2000)
   } finally {
     loading.value = false
   }
 }
 
-// ---------- ARTIKELTYP ÄNDERN ----------
-const onArticleTypeChange = () => {
-  // Alle spezifischen Felder zurücksetzen
-  Object.keys(specifics).forEach(key => delete specifics[key])
-}
-
-// ---------- BILDVERWALTUNG ----------
+// ---------- IMAGES ----------
 const addImage = () => {
   allImages.value.push({
-    id: null,
-    url: '',
-    type: 'gallery',
-    method: 'url',
-    file: null,
-    fileName: ''
+    id: null, url: '', type: 'gallery',
+    method: 'url', file: null, fileName: ''
   })
 }
 
 const removeImage = (idx) => {
   const img = allImages.value[idx]
   if (img.type === 'main') {
-    const nextMain = allImages.value.find((_, i) => i !== idx && allImages.value[i].url)
-    if (nextMain) {
-      nextMain.type = 'main'
-    } else {
-      allImages.value.push({
-        id: null,
-        url: '',
-        type: 'main',
-        method: 'url',
-        file: null,
-        fileName: ''
-      })
-    }
+    const next = allImages.value.find((im, i) => i !== idx && im.url)
+    if (next) next.type = 'main'
+    else allImages.value.push({
+      id: null, url: '', type: 'main',
+      method: 'url', file: null, fileName: ''
+    })
   }
   allImages.value.splice(idx, 1)
 }
@@ -651,111 +640,98 @@ const onImageMethodChange = (img) => {
 const onFileSelected = (event, idx) => {
   const file = event.target.files[0]
   if (!file) return
-
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!allowedTypes.includes(file.type)) {
+  const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  if (!allowed.includes(file.type)) {
     alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
     event.target.value = ''
     return
   }
-
   const img = allImages.value[idx]
   img.file = file
   img.fileName = file.name
   img.url = URL.createObjectURL(file)
 }
 
-const handleImageError = (event, idx) => {
-  event.target.src = 'https://placehold.co/300x200?text=Fehler'
+const handleImageError = (e) => {
+  e.target.src = 'https://placehold.co/300x200?text=Fehler'
 }
 
-// ---------- SPEICHERN ----------
+// ---------- ARTICLE TYPE ----------
+const onArticleTypeChange = () => {
+  Object.keys(specifics).forEach(k => delete specifics[k])
+}
+
+// ---------- NAV ----------
+const cancel = () => router.push('/products')
+
+// ---------- SUBMIT ----------
 const submit = async () => {
-  // 1. Formular-Validierung
   const { valid: isValid } = await formRef.value.validate()
   if (!isValid) return
 
-  // 2. Prüfen, ob ein Hauptbild existiert
-  const mainImageObj = allImages.value.find(img => img.type === 'main')
+  const mainImageObj = allImages.value.find(i => i.type === 'main')
   if (!mainImageObj || !mainImageObj.url) {
     showSnackbar('❌ Bitte legen Sie ein Hauptbild fest (Typ "Hauptbild")', 'error')
     return
   }
 
-  // 3. Uploads für hochgeladene Bilder durchführen
-  const uploadPromises = allImages.value
-    .filter(img => img.method === 'upload' && img.file)
+  const uploads = allImages.value
+    .filter(i => i.method === 'upload' && i.file)
     .map(async (img) => {
-      const formData = new FormData()
-      formData.append('image', img.file)
-
+      const fd = new FormData()
+      fd.append('image', img.file)
       try {
-        const response = await axios.post(
-          '/api/upload_image.php',
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        )
-        if (response.data.success) {
-          img.url = response.data.url
+        const r = await axios.post('/api/upload_image.php', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (r.data.success) {
+          img.url = r.data.url
           img.file = null
           img.fileName = ''
           img.method = 'url'
-        } else {
-          throw new Error(response.data.error || 'Upload fehlgeschlagen')
-        }
-      } catch (error) {
-        console.error('Upload error:', error)
-        throw new Error(`Upload fehlgeschlagen: ${error.message}`)
+        } else throw new Error(r.data.error || 'Upload fehlgeschlagen')
+      } catch (e) {
+        throw new Error(`Upload fehlgeschlagen: ${e.message}`)
       }
     })
 
   try {
-    await Promise.all(uploadPromises)
-  } catch (error) {
-    showSnackbar(`❌ Fehler beim Upload: ${error.message}`, 'error')
+    await Promise.all(uploads)
+  } catch (e) {
+    showSnackbar(`❌ Fehler beim Upload: ${e.message}`, 'error')
     return
   }
 
-  // 4. Prüfen, ob alle Bilder eine URL haben
-  const missingUrl = allImages.value.some(img => !img.url)
-  if (missingUrl) {
+  if (allImages.value.some(i => !i.url)) {
     showSnackbar('❌ Bitte geben Sie für alle Bilder eine URL ein oder laden Sie eine Datei hoch.', 'error')
     return
   }
 
-  // 5. Hauptbild setzen
   product.main_image = mainImageObj.url
 
-  // 6. Galerie-Bilder vorbereiten
   const galleryImages = allImages.value
-    .filter(img => img.type !== 'main')
-    .map((img, idx) => ({
-      id: img.id || null,
-      url: img.url,
-      type: img.type || 'gallery',
-      order: idx + 1
+    .filter(i => i.type !== 'main')
+    .map((i, idx) => ({
+      id: i.id || null,
+      url: i.url,
+      image_order: idx + 1,
+      type: i.type || 'gallery',
+      article_name: product.name
     }))
 
-  // 7. ⚠️ NORMALISIERUNG der Werte, die als Objekt kommen könnten
-  //    (besonders wichtig für brand, category, article_type)
-  function normalizeValue(value) {
-    if (typeof value === 'object' && value !== null) {
-      // Wenn das Objekt ein 'name'-Feld hat, nehmen Sie dieses
-      if (value.name !== undefined) {
-        return String(value.name).trim()
-      }
-      // Sonst leeren String
-      return ''
-    }
-    return String(value).trim()
+  product.price = parseFloat(product.price) || 0
+  product.offer_price = (product.offer_price === null || product.offer_price === '')
+    ? null
+    : parseFloat(product.offer_price) || null
+
+  function norm(v) {
+    if (v && typeof v === 'object') return v.name ?? v.value ?? ''
+    return (v ?? '').toString().trim()
   }
+  product.brand = norm(product.brand)
+  product.category = norm(product.category)
+  product.article_type = norm(product.article_type)
 
-  // Werte im product-Objekt normalisieren
-  product.brand       = normalizeValue(product.brand)
-  product.category    = normalizeValue(product.category)
-  product.article_type = normalizeValue(product.article_type)
-
-  // 8. Payload erstellen
   const payload = {
     product_id: productId.value,
     article: { ...product },
@@ -764,72 +740,57 @@ const submit = async () => {
     images: galleryImages
   }
 
-  // 9. Senden
   submitting.value = true
   try {
-    const response = await axios.post(
-      '/api/update_product.php',
-      payload,
-      { headers: { 'Content-Type': 'application/json' } }
-    )
-
+    const response = await axios.post('/api/update_product.php', payload, {
+      headers: { 'Content-Type': 'application/json' }
+    })
     if (response.data.success) {
       showSnackbar('✅ Produkt erfolgreich aktualisiert!', 'success')
       redirecting.value = true
-      setTimeout(() => {
-        router.push('/products')
-      }, 2000)
+      setTimeout(() => router.push('/products'), 2000)
     } else {
       throw new Error(response.data.error || 'Unbekannter Fehler')
     }
-  } catch (error) {
-    console.error('Fehler beim Aktualisieren:', error)
-    showSnackbar(`❌ Fehler: ${error.message}`, 'error')
+  } catch (e) {
+    console.error(e)
+    let msg = 'Unbekannter Fehler'
+    if (e.response) msg = e.response.data?.error || `Server-Fehler (${e.response.status})`
+    else if (e.request) msg = 'Keine Antwort vom Server.'
+    else msg = e.message
+    showSnackbar(`❌ Fehler: ${msg}`, 'error')
     redirecting.value = false
   } finally {
     submitting.value = false
   }
 }
-// ---------- LÖSCHEN ----------
-const confirmDelete = () => {
-  deleteDialog.value = true
-}
+
+// ---------- DELETE ----------
+const confirmDelete = () => { deleteDialog.value = true }
 
 const deleteProduct = async () => {
   deleting.value = true
   try {
-    const response = await axios.post('/api/delete_product.php', {
-      product_id: productId.value
-    })
-
-    if (response.data && response.data.success === true) {
+    const r = await axios.post('/api/delete_product.php', { product_id: productId.value })
+    if (r.data?.success === true) {
       showSnackbar('🗑️ Produkt erfolgreich gelöscht.', 'success')
       deleteDialog.value = false
       redirecting.value = true
       setTimeout(() => router.push('/products'), 2000)
     } else {
-      throw new Error(response.data?.error || 'Unbekannter Fehler')
+      throw new Error(r.data?.error || 'Unbekannter Fehler')
     }
-  } catch (error) {
-    console.error('❌ Löschfehler:', error)
-    let message = 'Unbekannter Fehler'
-    if (error.response) {
-      message = error.response.data?.error || `HTTP ${error.response.status}`
-    } else if (error.request) {
-      message = 'Keine Antwort vom Server'
-    } else {
-      message = error.message
-    }
-    showSnackbar(`❌ Fehler beim Löschen: ${message}`, 'error')
+  } catch (e) {
+    console.error(e)
+    let msg = 'Unbekannter Fehler'
+    if (e.response) msg = e.response.data?.error || `HTTP ${e.response.status}`
+    else if (e.request) msg = 'Keine Antwort vom Server'
+    else msg = e.message
+    showSnackbar(`❌ Fehler beim Löschen: ${msg}`, 'error')
     deleteDialog.value = false
   } finally {
     deleting.value = false
   }
-}
-
-// ---------- ABBRECHEN ----------
-const cancel = () => {
-  router.push('/products')
 }
 
 // ---------- LIFECYCLE ----------
@@ -843,7 +804,11 @@ onMounted(() => {
 <style scoped>
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
-.action-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); color: rgb(17, 90, 10); }
+.action-btn {
+  border-radius: 50px;
+  box-shadow: 5px 5px 5px rgba(0,0,0,0.2);
+  color: rgb(17, 90, 10);
+}
 .back-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); }
 .delete-btn { border-radius: 50px; box-shadow: 5px 5px 5px rgba(0,0,0,0.2); }
 .floating-help-btn {
@@ -861,6 +826,6 @@ onMounted(() => {
   padding: 4px 8px; background: #f9f9f9; min-height: 36px; position: relative; overflow: hidden;
 }
 .file-input { position: absolute; top: 0; left: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-.file-name { font-size: 0.9rem; color: #333; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-placeholder { color: #999; font-size: 0.9rem; margin-left: 4px; }
+.file-name { font-size: .9rem; color: #333; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-placeholder { color: #999; font-size: .9rem; margin-left: 4px; }
 </style>

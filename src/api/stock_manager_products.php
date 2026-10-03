@@ -1,34 +1,64 @@
 <?php
 // api/stock_manager_products.php
-// Gestion CORS dynamique
 if (isset($_SERVER['HTTP_ORIGIN'])) {
     header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Max-Age: 86400');
 }
-
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD'])) {
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-    }
-    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'])) {
+    if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
         header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
-    }
     exit(0);
 }
-
 header('Content-Type: application/json; charset=utf-8');
 
-require_once __DIR__ . '/database_connect.php';
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/marken_helper.php';
 
-// ------------------------------------------------------------
-// 1. GET : récupérer tous les produits
-// ------------------------------------------------------------
+// ============================================================
+// Helpers globaux
+// ============================================================
+function makeSlug(string $s): string {
+    $s = str_replace(['ä','ö','ü','Ä','Ö','Ü','ß'], ['ae','oe','ue','Ae','Oe','Ue','ss'], $s);
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim($s, '-');
+}
+function boolOrNull(array $arr, array $keys) {
+    foreach ($keys as $k) if (array_key_exists($k, $arr)) return !empty($arr[$k]) ? 1 : 0;
+    return null;
+}
+function buildSpezifikationenJson(array $specifics, array $excludeKeys): ?string {
+    $rest = [];
+    foreach ($specifics as $k => $v) {
+        if (in_array($k, $excludeKeys, true)) continue;
+        if ($v === '' || $v === null) continue;
+        $rest[$k] = $v;
+    }
+    return empty($rest) ? null : json_encode($rest, JSON_UNESCAPED_UNICODE);
+}
+function numOrNull($v) {
+    if ($v === '' || $v === null || $v === false) return null;
+    return is_numeric($v) ? (float)$v : null;
+}
+function intOrNull($v) {
+    if ($v === '' || $v === null || $v === false) return null;
+    return is_numeric($v) ? (int)$v : null;
+}
+function normalizeValue($v) {
+    if (is_array($v)) return isset($v['name']) ? (string)$v['name'] : '';
+    return (string)$v;
+}
+
+// ============================================================
+// GET — liste tous les articles
+// ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        $stmt = $pdo->query("SELECT * FROM articles ORDER BY id DESC");
-        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'data' => $products], JSON_UNESCAPED_UNICODE);
+        $stmt = $dbh->query("SELECT * FROM artikel ORDER BY id DESC");
+        echo json_encode(['success' => true, 'data' => $stmt->fetchAll()], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
@@ -36,9 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-// ------------------------------------------------------------
-// 2. POST : créer un nouveau produit (avec spécificités, images, livraison)
-// ------------------------------------------------------------
+// ============================================================
+// POST — création
+// ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || !isset($input['article'])) {
@@ -47,224 +77,186 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $article = $input['article'];
+    $article   = $input['article'];
     $specifics = $input['specifics'] ?? [];
-    $shipping = $input['shipping'] ?? [];
-    $images = $input['images'] ?? [];
+    $shipping  = $input['shipping']  ?? [];
+    $images    = $input['images']    ?? [];
 
-    // Validation des champs obligatoires de la table `articles`
-    $required = ['name', 'brand', 'category', 'price', 'main_image', 'article_type', 'article_number'];
-    foreach ($required as $field) {
-        if (empty($article[$field])) {
+    // Normalisation
+    $article['category']     = normalizeValue($article['category'] ?? '');
+    $article['article_type'] = normalizeValue($article['article_type'] ?? '');
+
+    // Champs requis
+    foreach (['name','brand','category','price','main_image','article_type','article_number'] as $f) {
+        if (empty($article[$f])) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Champ requis manquant : $field"]);
+            echo json_encode(['success' => false, 'error' => "Champ requis manquant : $f"]);
             exit;
         }
     }
 
     try {
-        $pdo->beginTransaction();
+        $dbh->beginTransaction();
 
-        // ----- Insertion dans la table `articles` -----
-        $sql = "INSERT INTO articles (
-                    name, brand, category, price, main_image, article_type, article_number,
-                    color, warranty_years, weight_capacity, power_supply, application_area,
-                    in_stock, is_new, best_seller, description
-                ) VALUES (
-                    :name, :brand, :category, :price, :main_image, :article_type, :article_number,
-                    :color, :warranty_years, :weight_capacity, :power_supply, :application_area,
-                    :in_stock, :is_new, :best_seller, :description
-                )";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':name' => $article['name'],
-            ':brand' => $article['brand'],
-            ':category' => $article['category'],
-            ':price' => $article['price'],
-            ':main_image' => $article['main_image'],
-            ':article_type' => $article['article_type'],
-            ':article_number' => $article['article_number'],
-            ':color' => $article['color'] ?? null,
-            ':warranty_years' => $article['warranty_years'] ?? null,
-            ':weight_capacity' => $article['weight_capacity'] ?? null,
-            ':power_supply' => $article['power_supply'] ?? null,
-            ':application_area' => $article['application_area'] ?? null,
-            ':in_stock' => $article['in_stock'] ?? 1,
-            ':is_new' => $article['is_new'] ?? 0,
-            ':best_seller' => $article['best_seller'] ?? 0,
-            ':description' => $article['description'] ?? null
-        ]);
-
-        $articleId = $pdo->lastInsertId();
-
-        // ----- Insertion dans la table spécifique selon `article_type` -----
-        if ($article['article_type'] === 'treadmill') {
-            $sql = "INSERT INTO treadmills (
-                        article_id, motor_power, max_speed, max_inclination, display_type,
-                        training_programs, has_ekg, is_foldable, has_touchscreen, has_bluetooth,
-                        has_heart_rate_monitor, has_wifi, has_speaker, power_range, display_info,
-                        programs_info, comfort_features
-                    ) VALUES (
-                        :article_id, :motor_power, :max_speed, :max_inclination, :display_type,
-                        :training_programs, :has_ekg, :is_foldable, :has_touchscreen, :has_bluetooth,
-                        :has_heart_rate_monitor, :has_wifi, :has_speaker, :power_range, :display_info,
-                        :programs_info, :comfort_features
-                    )";
-                    
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':motor_power' => $specifics['motor_power'] ?? null,
-                ':max_speed' => $specifics['max_speed'] ?? null,
-                ':max_inclination' => $specifics['max_inclination'] ?? null,
-                ':display_type' => $specifics['display_type'] ?? null,
-                ':training_programs' => $specifics['training_programs'] ?? null,
-                ':has_ekg' => $specifics['has_ekg'] ?? 0,
-                ':is_foldable' => $specifics['is_foldable'] ?? 0,
-                ':has_touchscreen' => $specifics['has_touchscreen'] ?? 0,
-                ':has_bluetooth' => $specifics['has_bluetooth'] ?? 0,
-                ':has_heart_rate_monitor' => $specifics['has_heart_rate_monitor'] ?? 0,
-                ':has_wifi' => $specifics['has_wifi'] ?? 0,
-                ':has_speaker' => $specifics['has_speaker'] ?? 0,
-                ':power_range' => $specifics['power_range'] ?? null,
-                ':display_info' => $specifics['display_info'] ?? null,
-                ':programs_info' => $specifics['programs_info'] ?? null,
-                ':comfort_features' => $specifics['comfort_features'] ?? null
-            ]);
-
-        } elseif ($article['article_type'] === 'bike') {
-            $sql = "INSERT INTO exercise_bikes (
-                        article_id, resistance_type, max_resistance, pedal_type, seat_adjustment,
-                        handlebar_adjustment, has_backrest, has_pedal_straps, console_features
-                    ) VALUES (
-                        :article_id, :resistance_type, :max_resistance, :pedal_type, :seat_adjustment,
-                        :handlebar_adjustment, :has_backrest, :has_pedal_straps, :console_features
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':resistance_type' => $specifics['resistance_type'] ?? null,
-                ':max_resistance' => $specifics['max_resistance'] ?? null,
-                ':pedal_type' => $specifics['pedal_type'] ?? null,
-                ':seat_adjustment' => $specifics['seat_adjustment'] ?? null,
-                ':handlebar_adjustment' => $specifics['handlebar_adjustment'] ?? null,
-                ':has_backrest' => $specifics['has_backrest'] ?? 0,
-                ':has_pedal_straps' => $specifics['has_pedal_straps'] ?? 0,
-                ':console_features' => $specifics['console_features'] ?? null
-            ]);
-        } elseif ($article['article_type'] === 'strength') {
-            $sql = "INSERT INTO strength_machines (
-                        article_id, weight_stack_kg, max_user_weight_kg, dimensions,
-                        adjustment_range, has_adjustable_seat, has_adjustable_backrest,
-                        has_digital_display, muscle_groups_targeted, color_options,
-                        frame_material, warranty_years
-                    ) VALUES (
-                        :article_id, :weight_stack_kg, :max_user_weight_kg, :dimensions,
-                        :adjustment_range, :has_adjustable_seat, :has_adjustable_backrest,
-                        :has_digital_display, :muscle_groups_targeted, :color_options,
-                        :frame_material, :warranty_years
-                    )";
-
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':weight_stack_kg' => $specifics['weight_stack_kg'] ?? null,
-                ':max_user_weight_kg' => $specifics['max_user_weight_kg'] ?? null,
-                ':dimensions' => $specifics['dimensions'] ?? null,
-                ':adjustment_range' => $specifics['adjustment_range'] ?? null,
-                ':has_adjustable_seat' => $specifics['has_adjustable_seat'] ?? 0,
-                ':has_adjustable_backrest' => $specifics['has_adjustable_backrest'] ?? 0,
-                ':has_digital_display' => $specifics['has_digital_display'] ?? 0,
-                ':muscle_groups_targeted' => $specifics['muscle_groups_targeted'] ?? null,
-                ':color_options' => $specifics['color_options'] ?? null,
-                ':frame_material' => $specifics['frame_material'] ?? null,
-                ':warranty_years' => $specifics['warranty_years'] ?? null
-            ]);
-        } elseif ($article['article_type'] === 'rehabilitation_accessory') {
-            $sql = "INSERT INTO rehabilitation_accessories (
-                        article_id, material, compatibility, usage_area,
-                        weight_kg, dimensions, has_adjustable, has_certification,
-                        color_options, warranty_years
-                    ) VALUES (
-                        :article_id, :material, :compatibility, :usage_area,
-                        :weight_kg, :dimensions, :has_adjustable, :has_certification,
-                        :color_options, :warranty_years
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':material' => $specifics['material'] ?? null,
-                ':compatibility' => $specifics['compatibility'] ?? null,
-                ':usage_area' => $specifics['usage_area'] ?? null,
-                ':weight_kg' => isset($specifics['weight_kg']) && $specifics['weight_kg'] !== '' ? (float)$specifics['weight_kg'] : null,
-                ':dimensions' => $specifics['dimensions'] ?? null,
-                ':has_adjustable' => $specifics['has_adjustable'] ?? 0,
-                ':has_certification' => $specifics['has_certification'] ?? 0,
-                ':color_options' => $specifics['color_options'] ?? null,
-                ':warranty_years' => isset($specifics['warranty_years']) && $specifics['warranty_years'] !== '' ? (int)$specifics['warranty_years'] : null
-            ]);
+        // ============================================================
+        // ✅ OPTION B — Marque garantie
+        // ============================================================
+        $markeCanonique = markeEnsureExists($dbh, $article['brand']);
+        if ($markeCanonique === null) {
+            throw new Exception("Marke ist erforderlich.");
         }
 
-        // ----- Insertion des images supplémentaires (si envoyées) -----
+        // ---------- Specs JSON ----------
+        $flatBoolKeys = ['spez_hat_ekg','spez_hat_bluetooth','spez_hat_wifi',
+                         'spez_hat_touchscreen','spez_ist_klappbar','spez_hat_rueckenlehne'];
+        $flatTextKeys = ['spez_display_typ','spez_widerstandstyp'];
+        $spezJson = buildSpezifikationenJson($specifics, array_merge($flatBoolKeys, $flatTextKeys));
+
+        // ============================================================
+        // 1. INSERT artikel
+        // ============================================================
+        $sql = "INSERT INTO artikel (
+                    bezeichnung, slug, marke,
+                    kategorie_schluessel, unterkategorie_schluessel,
+                    artikeltyp, artikelnummer,
+                    preis, angebotspreis, waehrung, hauptbild,
+                    garantie_jahre, belastbarkeit, stromversorgung, anwendungsbereich,
+                    beschreibung, auf_lager, ist_neu, ist_angebot, bestseller,
+                    ist_gebraucht, zustand, gebraucht_preis, gebraucht_beschreibung,
+                    spezifikationen, varianten,
+                    variante_standard_farbe, variante_standard_artikelnummer
+                ) VALUES (
+                    :bezeichnung, :slug, :marke,
+                    :kategorie_schluessel, :unterkategorie_schluessel,
+                    :artikeltyp, :artikelnummer,
+                    :preis, :angebotspreis, :waehrung, :hauptbild,
+                    :garantie_jahre, :belastbarkeit, :stromversorgung, :anwendungsbereich,
+                    :beschreibung, :auf_lager, :ist_neu, :ist_angebot, :bestseller,
+                    :ist_gebraucht, :zustand, :gebraucht_preis, :gebraucht_beschreibung,
+                    :spezifikationen, :varianten,
+                    :variante_standard_farbe, :variante_standard_artikelnummer
+                )";
+
+        $stmt = $dbh->prepare($sql);
+        $stmt->execute([
+            ':bezeichnung'       => $article['name'],
+            ':slug'              => makeSlug($article['name']),
+            ':marke'             => $markeCanonique,
+
+            ':kategorie_schluessel'     => $article['category'],
+            ':unterkategorie_schluessel'=> $article['subcategory'] ?? null,
+
+            ':artikeltyp'        => $article['article_type'],
+            ':artikelnummer'     => $article['article_number'],
+
+            ':preis'             => (float)$article['price'],
+            ':angebotspreis'     => numOrNull($article['offer_price'] ?? null),
+            ':waehrung'          => !empty($article['currency']) ? $article['currency'] : 'EUR',
+            ':hauptbild'         => $article['main_image'],
+
+            // ✅ NOT NULL DEFAULT 2
+            ':garantie_jahre'    => intOrNull($article['warranty_years'] ?? null) ?? 2,
+
+            ':belastbarkeit'     => $article['weight_capacity'] ?? null,
+            ':stromversorgung'   => $article['power_supply'] ?? null,
+            ':anwendungsbereich' => $article['application_area'] ?? null,
+            ':beschreibung'      => $article['description'] ?? null,
+
+            ':auf_lager'         => !empty($article['in_stock']) ? 1 : 0,
+            ':ist_neu'           => !empty($article['is_new']) ? 1 : 0,
+            ':ist_angebot'       => !empty($article['is_offer']) ? 1 : 0,
+            ':bestseller'        => !empty($article['best_seller']) ? 1 : 0,
+
+            ':ist_gebraucht'     => !empty($article['is_used']) ? 1 : 0,
+            ':zustand'           => !empty($article['condition']) ? $article['condition'] : null,
+            ':gebraucht_preis'   => numOrNull($article['used_price'] ?? null),
+            ':gebraucht_beschreibung' => !empty($article['used_description']) ? $article['used_description'] : null,
+
+            ':spezifikationen'   => $spezJson,
+            ':varianten'         => !empty($article['variants'])
+                                        ? json_encode($article['variants'], JSON_UNESCAPED_UNICODE)
+                                        : null,
+
+            ':variante_standard_farbe' => $article['color'] ?? null,
+            ':variante_standard_artikelnummer' => $article['article_number']
+        ]);
+
+        $articleId = (int)$dbh->lastInsertId();
+
+        // ============================================================
+        // 2. Images galerie
+        // ============================================================
         if (!empty($images)) {
-            $sql = "INSERT INTO article_images (article_id, image_url, image_order, image_type, article_name)
-                    VALUES (:article_id, :image_url, :image_order, :image_type, :article_name)";
-            $stmt = $pdo->prepare($sql);
-            foreach ($images as $image) {
-                $stmt->execute([
-                    ':article_id' => $articleId,
-                    ':image_url' => $image['url'],
-                    ':image_order' => $image['image_order'] ?? 1,
-                    ':image_type' => $image['type'] ?? 'gallery',
-                    ':article_name' => $image['article_name'] ?? $article['name']
+            $ins = $dbh->prepare("INSERT INTO artikel_bilder
+                                  (artikel_id, bild_url, bild_typ, bild_reihenfolge)
+                                  VALUES (?, ?, ?, ?)");
+            foreach ($images as $i => $img) {
+                if (empty($img['url'])) continue;
+
+                $typ = $img['type'] ?? 'galerie';
+                if ($typ === 'main')    $typ = 'haupt';
+                if ($typ === 'gallery') $typ = 'galerie';
+                if (!in_array($typ, ['haupt','galerie','detail'], true)) $typ = 'galerie';
+
+                $ins->execute([
+                    $articleId,
+                    $img['url'],
+                    $typ,
+                    $img['image_order'] ?? ($i + 1)
                 ]);
             }
         }
 
-        // ----- Insertion des règles de livraison (si envoyées) -----
+        // ============================================================
+        // 3. versandregeln (⚠️ 3 colonnes NOT NULL)
+        // ============================================================
         if (!empty($shipping)) {
-            $sql = "INSERT INTO shipping_rules (
-                        article_id, shipping_cost, free_shipping_threshold, shipping_method, estimated_delivery_days
-                    ) VALUES (
-                        :article_id, :shipping_cost, :free_shipping_threshold, :shipping_method, :estimated_delivery_days
-                    )";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':article_id' => $articleId,
-                ':shipping_cost' => (isset($shipping['shipping_cost']) && $shipping['shipping_cost'] !== '') ? (float)$shipping['shipping_cost'] : null,
-                ':free_shipping_threshold' => (isset($shipping['free_shipping_threshold']) && $shipping['free_shipping_threshold'] !== '') ? (float)$shipping['free_shipping_threshold'] : null,
-                ':shipping_method' => $shipping['shipping_method'] ?? null,
-                ':estimated_delivery_days' => (isset($shipping['estimated_delivery_days']) && $shipping['estimated_delivery_days'] !== '') ? (int)$shipping['estimated_delivery_days'] : null
+            $ins = $dbh->prepare("INSERT INTO versandregeln
+                                  (artikel_id, versandkosten, kostenlos_ab, versandart, lieferzeit_tage)
+                                  VALUES (?, ?, ?, ?, ?)");
+            $ins->execute([
+                $articleId,
+
+                // versandkosten : NULL autorisé
+                numOrNull($shipping['shipping_cost'] ?? null),
+
+                // ✅ NOT NULL DEFAULT 50.00
+                numOrNull($shipping['free_shipping_threshold'] ?? null) ?? 50.00,
+
+                // ✅ NOT NULL DEFAULT 'Standard'
+                !empty($shipping['shipping_method'])
+                    ? trim($shipping['shipping_method'])
+                    : 'Standard',
+
+                // ✅ NOT NULL DEFAULT 3
+                intOrNull($shipping['estimated_delivery_days'] ?? null) ?? 3,
             ]);
         }
 
-        $pdo->commit();
-
+        $dbh->commit();
         echo json_encode([
-            'success' => true,
-            'message' => 'Produit créé avec succès',
-            'article_id' => $articleId,
-            'article_number' => $article['article_number']
+            'success'        => true,
+            'message'        => 'Produit créé avec succès',
+            'article_id'     => $articleId,
+            'article_number' => $article['article_number'],
+            'marke'          => $markeCanonique
         ], JSON_UNESCAPED_UNICODE);
 
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
+    } catch (PDOException $e) {
+        if ($dbh->inTransaction()) $dbh->rollBack();
         http_response_code(500);
         echo json_encode([
             'success' => false,
-            'error' => 'Erreur SQL : ' . $e->getMessage(),
-            'code' => $e->getCode(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
+            'error'   => 'Erreur SQL : ' . $e->getMessage(),
+            'code'    => $e->getCode()
         ], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        if ($dbh->inTransaction()) $dbh->rollBack();
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
     }
     exit;
 }
 
-// Si la méthode HTTP n'est ni GET ni POST
 http_response_code(405);
 echo json_encode(['success' => false, 'error' => 'Méthode non autorisée'], JSON_UNESCAPED_UNICODE);
-?>

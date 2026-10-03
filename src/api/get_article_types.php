@@ -1,47 +1,26 @@
 <?php
-// get_article_types.php
-//------------------------------------------------------
-// CORS
-//------------------------------------------------------
-
-if (isset($_SERVER['HTTP_ORIGIN'])) {
-    header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
-    header("Access-Control-Allow-Credentials: true");
-    header("Access-Control-Allow-Headers: Content-Type");
-    header("Access-Control-Allow-Methods: GET, OPTIONS");
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit;
-}
-
+// api/get_article_types.php
+header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-require_once "database_connect.php";
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+
+require_once __DIR__ . '/database_connect.php';
 
 try {
-
     $stmt = $pdo->query("
-        SELECT
-            id,
-            name,
-            value
-        FROM article_types
-        ORDER BY name ASC
+        SELECT id, schluessel AS value, bezeichnung AS name, sortierung
+        FROM artikeltypen
+        WHERE ist_aktiv = 1
+        ORDER BY sortierung, bezeichnung
     ");
-
     echo json_encode([
-        "success" => true,
-        "items" => $stmt->fetchAll()
+        'success' => true,
+        'items'   => $stmt->fetchAll(PDO::FETCH_ASSOC)
     ], JSON_UNESCAPED_UNICODE);
-
 } catch (PDOException $e) {
-
     http_response_code(500);
-
-    echo json_encode([
-        "success" => false,
-        "message" => "Fehler beim Laden der Artikeltypen.",
-        "error" => $e->getMessage()
-    ]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

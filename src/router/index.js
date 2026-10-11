@@ -126,6 +126,7 @@ const routes = [
 
   // ============================================================
   // MITARBEITER
+  // ⚠️ ORDRE CRITIQUE : les routes spécifiques AVANT /employees/:uid
   // ============================================================
   {
     path: '/employees/add',
@@ -134,21 +135,21 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/employees',
-    name: 'Employees',
-    component: () => import('../views/EmployeesView.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/employees/edit/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+    path: '/employees/edit/:uid',
     name: 'EditEmployee',
     component: () => import('../components/employees/EditEmployee.vue'),
     meta: { requiresAuth: true }
   },
   {
-    path: '/employees/:uid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
-    name: 'EmployeeDetail',
+    path: '/employees/:uid',
+    name: 'EmployeeDetailView',
     component: () => import('../views/EmployeeDetailView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/employees',
+    name: 'Employees',
+    component: () => import('../views/EmployeesView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -191,6 +192,15 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const permissionStore = usePermissionStore()
 
+  // ✅ Log de diagnostic
+  console.log('[Router Guard]', {
+    from: from.fullPath,
+    to: to.fullPath,
+    routeName: to.name,
+    matched: to.matched.map(r => r.path),
+    loggedIn: authStore.isLoggedIn
+  })
+
   // ✅ 1. Si déjà connecté et va sur /login → redirection auto
   if (authStore.isLoggedIn && (to.name === 'Login' || to.path === '/login')) {
     const landing = permissionStore.can('dashboard') ? '/' : '/tickets'
@@ -207,8 +217,25 @@ router.beforeEach((to, from, next) => {
     return next({ name: 'Login' })
   }
 
-  // ✅ 4. Vérifier la permission selon la route
+  // ✅ 4. Routes employés : pas de vérification de permission spécifique
+  //    (déjà couvertes par requiresAuth)
+  const skipPermissionCheck = [
+    'EditEmployee',
+    'EmployeeDetailView',
+    'EmployeeCreate'
+  ]
+  if (skipPermissionCheck.includes(to.name)) {
+    return next()
+  }
+
+  // ✅ 5. Vérifier la permission selon la route
   const key = getRouteKey(to.path)
+  console.log('[Router Guard] permission check', {
+    to: to.fullPath,
+    permissionKey: key,
+    allowed: key ? permissionStore.can(key) : null
+  })
+
   if (!key) return next()
 
   if (permissionStore.can(key)) {
@@ -218,12 +245,10 @@ router.beforeEach((to, from, next) => {
   // ❌ Permission refusée
   permissionStore.showAccessDenied()
 
-  // Reste sur la page actuelle (évite les boucles infinies)
   if (from.path && from.path !== to.path) {
     return next(false)
   }
 
-  // Sinon, fallback selon le rôle
   const fallback = permissionStore.can('dashboard') ? '/' : '/tickets'
   return next(fallback)
 })

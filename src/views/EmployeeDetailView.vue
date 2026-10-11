@@ -118,35 +118,50 @@
               </div>
             </v-col>
 
-            <!-- NAME -->
+            <!-- NAME / INFOS -->
             <v-col cols="12" md class="text-center text-md-left">
-              <div class="d-flex flex-column flex-md-row align-center align-md-center ga-2">
-                <h2 class="employee-name">{{ fullName }}</h2>
-                <v-chip
-                  :color="employee.is_active ? 'success' : 'error'"
-                  variant="flat"
-                  size="small"
-                  class="status-chip"
-                >
-                  <v-icon start size="14">
-                    {{ employee.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}
-                  </v-icon>
-                  {{ employee.is_active ? 'Aktiv' : 'Inaktiv' }}
-                </v-chip>
-              </div>
+              <div class="employee-info-list">
 
-              <div class="employee-number mt-2">
-                <v-icon size="15" class="mr-1">mdi-card-account-details-outline</v-icon>
-                Mitarbeiter-Nr. <strong>{{ employee.mitarbeiter_nummer }}</strong>
-              </div>
+                <div class="employee-info-row">
+                  <span class="employee-info-label">Nachname:</span>
+                  <span class="employee-info-value">{{ employee.nachname || '—' }}</span>
+                </div>
 
-              <div v-if="employee.position" class="employee-position mt-2">
-                {{ employee.position }}
-              </div>
+                <div class="employee-info-row">
+                  <span class="employee-info-label">Vorname:</span>
+                  <span class="employee-info-value">{{ employee.vorname || '—' }}</span>
+                </div>
 
-              <div v-if="employee.abteilung" class="employee-department mt-1">
-                <v-icon size="14" class="mr-1">mdi-domain</v-icon>
-                {{ employee.abteilung }}
+                <div class="employee-info-row">
+                  <span class="employee-info-label">Status:</span>
+                  <v-chip
+                    :color="employee.is_active ? 'success' : 'error'"
+                    variant="flat"
+                    size="small"
+                    class="status-chip"
+                  >
+                    <v-icon start size="14">
+                      {{ employee.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}
+                    </v-icon>
+                    {{ employee.is_active ? 'Aktiv' : 'Inaktiv' }}
+                  </v-chip>
+                </div>
+
+                <div class="employee-info-row">
+                  <span class="employee-info-label">Mitarbeiter-Nr.:</span>
+                  <span class="employee-info-value">{{ employee.mitarbeiter_nummer || '—' }}</span>
+                </div>
+
+                <div class="employee-info-row" v-if="employee.position">
+                  <span class="employee-info-label">Position:</span>
+                  <span class="employee-info-value">{{ employee.position }}</span>
+                </div>
+
+                <div class="employee-info-row" v-if="employee.abteilung">
+                  <span class="employee-info-label">Abteilung:</span>
+                  <span class="employee-info-value">{{ employee.abteilung }}</span>
+                </div>
+
               </div>
             </v-col>
 
@@ -503,7 +518,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
 import EmployeeSectionHeader from './EmployeeSectionHeader.vue'
 
 const route = useRoute()
@@ -609,34 +623,129 @@ const isUuid = (id) => /^[0-9a-f-]{36}$/i.test(id)
    LOAD EMPLOYEE
 ============================================================ */
 
+
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE ||
+  '/api'
+).replace(/\/+$/, '')
+
 const loadEmployee = async () => {
   loading.value = true
   error.value = null
+
   try {
-    const identifier = route.params.uid || route.params.id
-    const param = isUuid(identifier) ? 'uid' : 'id'
-    const { data } = await axios.get(`/api/employees_get.php?${param}=${identifier}`)
-    if (!data.success) throw new Error(data.error || 'Unbekannter Fehler')
+    const identifier = String(
+      route.params.uid || route.params.id || ''
+    )
+
+    if (!identifier) {
+      throw new Error('Die Mitarbeiter-UID fehlt in der URL.')
+    }
+
+    const isUuid = /^[0-9a-f-]{36}$/i.test(identifier)
+    const param = isUuid ? 'uid' : 'id'
+
+    const url =
+      `${API_BASE}/employees_get.php` +
+      `?${param}=${encodeURIComponent(identifier)}` +
+      `&diagnostic=${Date.now()}`
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      },
+      credentials: 'omit',
+      cache: 'no-store'
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    const raw = await response.text()
+
+    console.log('[Employee details] URL:', url)
+    console.log('[Employee details] Status:', response.status)
+    console.log('[Employee details] Content-Type:', contentType)
+    console.log('[Employee details] Antwort:', raw.slice(0, 1000))
+
+    if (!contentType.includes('application/json')) {
+      throw new Error(
+        'Der Server liefert HTML statt JSON. Bitte API-Proxy prüfen.'
+      )
+    }
+
+    let data
+
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      throw new Error('Die Serverantwort ist kein gültiges JSON.')
+    }
+
+    if (!response.ok || data.success !== true) {
+      throw new Error(
+        data.error || `Mitarbeiter konnte nicht geladen werden (HTTP ${response.status}).`
+      )
+    }
+
+    if (!data.employee || typeof data.employee !== 'object') {
+      throw new Error('Die API hat keine Mitarbeiterdaten zurückgegeben.')
+    }
+
     const emp = data.employee
-    if (emp?.foto_pfad && !emp.photo) emp.photo = emp.foto_pfad
-    if (emp?.vorgesetzter_photo && !emp.vorgesetzter_foto) emp.vorgesetzter_foto = emp.vorgesetzter_photo
+
+    if (emp.foto_pfad && !emp.photo) {
+      emp.photo = emp.foto_pfad
+    }
+
+    if (emp.vorgesetzter_photo && !emp.vorgesetzter_foto) {
+      emp.vorgesetzter_foto = emp.vorgesetzter_photo
+    }
+
     employee.value = emp
+    photoError.value = false
+    supervisorPhotoError.value = false
+
   } catch (e) {
-    console.error(e)
-    error.value = e.response?.data?.error || e.message || 'Fehler beim Laden'
+    console.error('[Employee details] Fehler:', e)
+    error.value = e.message || 'Fehler beim Laden des Mitarbeiters.'
   } finally {
     loading.value = false
   }
 }
 
+
 /* ============================================================
    ACTIONS
 ============================================================ */
 
-const goToEdit = () => {
-  const uid = employee.value?.uid || route.params.uid || route.params.id
-  router.push(`/employees/edit/${uid}`)
+
+const goToEdit = async () => {
+  const uid =
+    employee.value?.employee_uid ||
+    employee.value?.uid ||
+    route.params.uid ||
+    route.params.id
+
+  if (!uid) {
+    console.error('[goToEdit] UID introuvable', employee.value)
+    error.value = 'Die Mitarbeiter-UID wurde nicht gefunden.'
+    return
+  }
+
+  const target = `/employees/edit/${encodeURIComponent(String(uid))}`
+
+  console.log('[goToEdit] UID:', uid)
+  console.log('[goToEdit] Ziel:', target)
+  console.log('[goToEdit] Router:', router.resolve(target).fullPath)
+
+  try {
+    await router.push(target)
+  } catch (err) {
+    console.error('[goToEdit] Navigation fehlgeschlagen:', err)
+  }
 }
+
 
 const mailEmployee = () => {
   if (employee.value?.email) window.location.href = `mailto:${employee.value.email}`
@@ -946,15 +1055,33 @@ onMounted(loadEmployee)
 }
 
 /* ============================================================
-   EMPLOYEE INFO
+   EMPLOYEE INFO (LABEL + VALUE)
 ============================================================ */
 
-.employee-name {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  line-height: 1.15;
-  font-weight: 750;
-  letter-spacing: -0.025em;
+.employee-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.employee-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.employee-info-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.employee-info-value {
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--text-main);
 }
 
@@ -1484,13 +1611,15 @@ onMounted(loadEmployee)
 
   .hero-card { border-radius: var(--radius-md) !important; }
   .hero-content { padding: 18px 14px !important; }
-  .employee-name { font-size: 1.45rem; }
 
   .employee-hierarchy { min-width: 130px; }
   .avatar-wrapper { width: 120px; height: 120px; }
   .employee-avatar { width: 110px !important; height: 110px !important; }
   .hierarchy-line { height: 24px; }
   .supervisor-avatar { width: 58px !important; height: 58px !important; }
+
+  .employee-info-list { align-items: center; }
+  .employee-info-row { justify-content: center; }
 
   .kpi-mini-row { gap: 6px; margin-top: 6px; }
   .kpi-mini { padding: 10px 4px; gap: 4px; }

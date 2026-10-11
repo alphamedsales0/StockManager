@@ -23,7 +23,10 @@
           <EmployeePersonalCard />
           <EmployeeAddressCard />
           <EmployeeInsuranceCard />
-          <EmployeePhotoUpload ref="photoUploadRef" :existing-photo="employee.foto_pfad" />
+          <EmployeePhotoUpload
+            ref="photoUploadRef"
+            :existing-photo="employee.foto_pfad"
+          />
         </v-col>
 
         <!-- Rechte Spalte -->
@@ -64,7 +67,47 @@
       </v-card>
     </v-form>
 
-    <v-progress-circular v-else indeterminate color="primary" class="d-block mx-auto mt-10" />
+    <!-- ERREUR DE CHARGEMENT -->
+    <v-alert
+      v-else-if="loadError"
+      type="error"
+      variant="tonal"
+      class="ma-6"
+    >
+      <div class="font-weight-bold mb-1">
+        Mitarbeiter konnte nicht geladen werden
+      </div>
+      <div class="mb-2">{{ loadError }}</div>
+
+      <v-expansion-panels v-if="rawResponse" variant="accordion">
+        <v-expansion-panel>
+          <v-expansion-panel-title>
+            Technische Details anzeigen
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <pre class="raw-response">{{ rawResponse }}</pre>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
+
+      <template #append>
+        <v-btn
+          variant="text"
+          color="error"
+          @click="$router.push('/employees')"
+        >
+          Zurück zur Liste
+        </v-btn>
+      </template>
+    </v-alert>
+
+    <!-- CHARGEMENT -->
+    <v-progress-circular
+      v-else
+      indeterminate
+      color="primary"
+      class="d-block mx-auto mt-10"
+    />
 
     <!-- SNACKBAR -->
     <v-snackbar
@@ -101,63 +144,128 @@ import EmployeeAddressCard from '../../components/employees/EmployeeAddressCard.
 const router = useRouter()
 const route = useRoute()
 const store = useEmployeeStore()
+
 const form = ref(null)
 const loading = ref(false)
 const photoUploadRef = ref(null)
 const employee = ref(null)
+const loadError = ref(null)
+const rawResponse = ref(null)
 
 const snackbar = ref(false)
 const snackbarText = ref('')
 const snackbarColor = ref('success')
 
-// ---------- Récupération de l'employé via son UID ----------
+// ============================================================
+// LECTURE DE L'EMPLOYÉ
+// ============================================================
 const fetchEmployee = async () => {
   const uid = route.params.uid
+  console.log('[EditEmployee] mounted, uid =', uid)
+
   if (!uid) {
-    router.push('/employees')
+    loadError.value = "Aucun UID fourni dans l'URL."
     return
   }
 
+  loadError.value = null
+  rawResponse.value = null
+
   try {
-    const response = await axios.get(`/api/employees_get.php?uid=${uid}`)
-    if (response.data.success) {
-      const data = response.data.employee
+    // ✅ Cache-buster pour éviter tout cache navigateur/service worker
+    const url = `/api/employees_get.php?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`
+    console.log('[EditEmployee] GET', url)
 
-      // Extraire l'adresse primaire
-      const addresses = data.addresses || []
-      const primary = addresses.find(a => a.adresstyp === 'primär') || {}
-      data.adresse = {
-        strasse:   primary.strasse   || '',
-        hausnummer: primary.hausnummer || '',
-        plz:       primary.plz       || '',
-        stadt:     primary.stadt     || '',
-        land:      primary.land      || 'Deutschland'
+    const response = await axios.get(url, {
+      withCredentials: true,
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
+    })
 
-      // Assurer l'existence des tableaux enfants
-      data.bank_accounts   = data.bank_accounts   || []
-      data.qualifications  = data.qualifications  || []
-      data.documents       = data.documents       || []
+    console.log('[EditEmployee] Status:', response.status)
+    console.log('[EditEmployee] Content-Type:', response.headers['content-type'])
+    console.log('[EditEmployee] response.data:', response.data)
 
-      // Hydrater le store Pinia
-      store.setEmployee(data)
-      employee.value = store.employee
+    // Vérifie le type de contenu : si c'est du HTML, on prévient clairement
+    const contentType = response.headers['content-type'] || ''
+    if (!contentType.includes('application/json')) {
+      rawResponse.value = String(response.data).slice(0, 2000)
+      loadError.value =
+        "Le serveur a répondu avec du HTML au lieu de JSON. " +
+        "Videz le cache du navigateur (F12 → Application → Clear site data) " +
+        "puis rechargez avec Ctrl+Shift+R."
+      return
+    }
+
+    if (response.status !== 200 || response.data?.success !== true) {
+      rawResponse.value = JSON.stringify(response.data, null, 2)
+
+      loadError.value =
+        response.data?.error ||
+        response.data?.message ||
+        `HTTP ${response.status} — Réponse inattendue du serveur`
+      return
+    }
+
+    const data = response.data.employee
+
+    // ---------- Adresse primaire ----------
+    const addresses = data.addresses || []
+    const primary =
+      addresses.find(a => a.adresstyp === 'primär') ||
+      addresses[0] ||
+      {}
+    data.adresse = {
+      strasse:    primary.strasse    || '',
+      hausnummer: primary.hausnummer || '',
+      plz:        primary.plz        || '',
+      stadt:      primary.stadt      || '',
+      land:       primary.land       || 'Deutschland'
+    }
+
+    // ---------- Tableaux enfants (sécurité) ----------
+    data.bank_accounts  = data.bank_accounts  || []
+    data.qualifications = data.qualifications || []
+    data.documents      = data.documents      || []
+
+    // ---------- Store Pinia ----------
+    store.setEmployee(data)
+    employee.value = store.employee
+
+    if (!employee.value) {
+      loadError.value = "Le store Pinia n'a pas retourné d'employé."
     } else {
-      snackbarText.value = 'Fehler beim Laden: ' + (response.data.error || 'Unbekannter Fehler')
-      snackbarColor.value = 'error'
-      snackbar.value = true
-      router.push('/employees')
+      console.log('[EditEmployee] ✅ Employé chargé:', employee.value.vorname)
     }
   } catch (error) {
-    console.error('Fehler beim Laden:', error)
-    snackbarText.value = 'Netzwerkfehler beim Laden des Mitarbeiters.'
-    snackbarColor.value = 'error'
-    snackbar.value = true
-    router.push('/employees')
+    console.error('[EditEmployee] Fehler:', error)
+
+    rawResponse.value = JSON.stringify(
+      {
+        message: error.message,
+        status: error.response?.status,
+        contentType: error.response?.headers?.['content-type'],
+        data: typeof error.response?.data === 'string'
+          ? error.response.data.slice(0, 2000)
+          : error.response?.data
+      },
+      null,
+      2
+    )
+
+    loadError.value =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      'Netzwerkfehler beim Laden des Mitarbeiters.'
   }
 }
 
-// ---------- Envoi du formulaire ----------
+// ============================================================
+// ENVOI DU FORMULAIRE
+// ============================================================
 const submit = async () => {
   const result = await form.value.validate()
   if (!result.valid) return
@@ -165,20 +273,16 @@ const submit = async () => {
   loading.value = true
   try {
     const uid = route.params.uid
-
-    // Construire le FormData (pour supporter photo + documents)
     const formData = new FormData()
 
     const payload = { ...store.employee }
     if (!payload.password) delete payload.password
     formData.append('employee', JSON.stringify(payload))
 
-    // Photo
     if (photoUploadRef.value && photoUploadRef.value.photoFile) {
       formData.append('photo', photoUploadRef.value.photoFile)
     }
 
-    // Documents
     if (store.employee.documents && store.employee.documents.length > 0) {
       store.employee.documents.forEach((doc, index) => {
         if (doc.file && doc.file instanceof File) {
@@ -188,9 +292,12 @@ const submit = async () => {
     }
 
     const response = await axios.post(
-      `/api/employees_update.php?uid=${uid}`,
+      `/api/employees_update.php?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`,
       formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true
+      }
     )
 
     if (response.data.success) {
@@ -223,4 +330,15 @@ onMounted(fetchEmployee)
 .v-card-title { font-weight: 600; letter-spacing: .3px; }
 .v-btn { text-transform: none; font-weight: 600; }
 .font-monospace { font-family: monospace; }
+
+.raw-response {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 </style>

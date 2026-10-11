@@ -1,10 +1,11 @@
 <?php
 // employees_create.php
 // Crée un nouvel employé avec toutes ses données
-// Dernière mise à jour : 2025-09-18
+// Dernière mise à jour : 2026-10-11
 // ✅ Structure : employees.uid référencé par les tables enfants
 // ✅ Uploads : /DOCUMENT_ROOT/uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
 // ✅ Nettoyage : steuer_id et sozialversicherungsnummer (suppression des espaces)
+// ✅ Ajout : austrittsdatum
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -16,7 +17,6 @@ header('Content-Type: application/json; charset=utf-8');
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -42,8 +42,8 @@ if (file_exists(__DIR__ . '/config.php')) {
 // ----- UUID v4 generator -----
 function generateUid(): string {
     $data = random_bytes(16);
-    $data[6] = chr(ord($data[6]) & 0x0f | 0x40); // version 4
-    $data[8] = chr(ord($data[8]) & 0x3f | 0x80); // variant 10
+    $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+    $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
@@ -113,7 +113,6 @@ if (!$email || !$vorname || !$nachname) {
 function generateEmployeeNumber($pdo) {
     $prefix = 'EMP-';
     $date = date('Ymd');
-    // Format: EMP-YYYYMMDD-NNNN → préfixe(4) + date(8) + tiret(1) = 13 caractères
     $sql = "SELECT MAX(CAST(SUBSTRING(mitarbeiter_nummer, 14) AS UNSIGNED))
             FROM employees
             WHERE mitarbeiter_nummer LIKE ?";
@@ -135,20 +134,15 @@ function generatePassword($length = 12) {
     return $password;
 }
 
-/**
- * Nettoie une valeur : supprime les espaces (y compris insécables) et les tirets optionnels.
- * Utile pour Steuer-ID et Sozialversicherungsnummer qui peuvent être saisis avec des séparateurs.
- */
 function cleanIdentifier($value) {
     if (empty($value)) {
         return null;
     }
-    // Supprime les espaces normaux, insécables, tabulations et tirets
     return preg_replace('/[\s\x{00A0}\-]+/u', '', trim($value));
 }
 
 // ============================================================
-// NETTOYAGE DES IDENTIFIANTS (avant insertion en base)
+// NETTOYAGE DES IDENTIFIANTS
 // ============================================================
 $steuerIdClean            = cleanIdentifier($employeeData['steuer_id'] ?? null);
 $sozialversicherungClean  = cleanIdentifier($employeeData['sozialversicherungsnummer'] ?? null);
@@ -207,7 +201,7 @@ try {
     $mitarbeiter_nummer = generateEmployeeNumber($pdo);
 
     // ---------- 3. EMPLOYEE ----------
-    // ⚠️ Utilisation de $steuerIdClean et $sozialversicherungClean (valeurs nettoyées)
+    // ⚠️ 22 placeholders — attention à la répartition
     $sql = "
 INSERT INTO employees (
     uid,
@@ -220,6 +214,7 @@ INSERT INTO employees (
     position,
     abteilung,
     einstellungsdatum,
+    austrittsdatum,
     geburtsdatum,
     gehalt,
     notfall_kontakt_name,
@@ -248,12 +243,16 @@ INSERT INTO employees (
         empty($employeeData['position']) ? null : $employeeData['position'],
         empty($employeeData['abteilung']) ? null : $employeeData['abteilung'],
         empty($employeeData['einstellungsdatum']) ? null : $employeeData['einstellungsdatum'],
+
+        // ✅ Nouveau champ
+        empty($employeeData['austrittsdatum']) ? null : $employeeData['austrittsdatum'],
+
         empty($employeeData['geburtsdatum']) ? null : $employeeData['geburtsdatum'],
         empty($employeeData['gehalt']) ? null : $employeeData['gehalt'],
         empty($employeeData['notfall_kontakt_name']) ? null : $employeeData['notfall_kontakt_name'],
         empty($employeeData['notfall_kontakt_telefon']) ? null : $employeeData['notfall_kontakt_telefon'],
-        $steuerIdClean,              // ✅ valeur nettoyée (sans espaces)
-        $sozialversicherungClean,    // ✅ valeur nettoyée (sans espaces)
+        $steuerIdClean,
+        $sozialversicherungClean,
         empty($employeeData['vertragsart']) ? null : $employeeData['vertragsart'],
         empty($employeeData['wochenarbeitszeit']) ? null : $employeeData['wochenarbeitszeit'],
         empty($employeeData['steuerklasse']) ? '1' : $employeeData['steuerklasse'],
@@ -288,7 +287,6 @@ INSERT INTO employees (
                 executeWithCheck($pdo, $sql, [
                     $employeeUid,
                     $account['kontoinhaber'] ?? null,
-                    // Nettoyage de l'IBAN (suppression des espaces)
                     preg_replace('/\s+/', '', strtoupper($account['iban'])),
                     $account['bic']      ?? null,
                     $account['bankname'] ?? null,
@@ -320,8 +318,7 @@ INSERT INTO employees (
         }
     }
 
-    // ---------- 7. DOKUMENTE (avec upload) ----------
-    // ⚠️ Dossier physique : /DOCUMENT_ROOT/uploads/employees/{uid}/
+    // ---------- 7. DOKUMENTE ----------
     if (!empty($employeeData['documents']) && is_array($employeeData['documents'])) {
         $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/employees/' . $employeeUid . '/';
         if (!is_dir($uploadDir)) {
@@ -343,7 +340,6 @@ INSERT INTO employees (
                 $targetPath = $uploadDir . $newName;
 
                 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-                    // Chemin public
                     $filePath = '/uploads/employees/' . $employeeUid . '/' . $newName;
                 }
             }
@@ -379,12 +375,9 @@ INSERT INTO employees (
     }
 
     // ---------- 9. FOTO ----------
-    // ⚠️ Dossier physique : /DOCUMENT_ROOT/uploads/employees/{uid}/
-    // ⚠️ URL publique      : /uploads/employees/{uid}/profil_{timestamp}_{random}.{ext}
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['photo'];
 
-        // Validation MIME réelle
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime  = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
@@ -410,9 +403,6 @@ INSERT INTO employees (
             throw new Exception('DOCUMENT_ROOT nicht definiert.');
         }
 
-        // ====================================================
-        // 1. Créer /uploads/ s'il n'existe pas
-        // ====================================================
         $uploadsDir = $docRoot . '/uploads/';
         if (!is_dir($uploadsDir)) {
             if (!mkdir($uploadsDir, 0755, true)) {
@@ -420,13 +410,10 @@ INSERT INTO employees (
             }
         }
 
-        // ====================================================
-        // 2. Créer /uploads/employees/ s'il n'existe pas
-        // ====================================================
         $employeesDir = $uploadsDir . 'employees/';
         if (!is_dir($employeesDir)) {
             if (!mkdir($employeesDir, 0755, true)) {
-                throw new Exception('Verzeichnis /uploads/employees/ konnte nicht erstellt werden. Prüfe die Rechte von /uploads/.');
+                throw new Exception('Verzeichnis /uploads/employees/ konnte nicht erstellt werden.');
             }
         }
 
@@ -434,9 +421,6 @@ INSERT INTO employees (
             throw new Exception('/uploads/employees/ ist nicht beschreibbar.');
         }
 
-        // ====================================================
-        // 3. Créer /uploads/employees/{uid}/ s'il n'existe pas
-        // ====================================================
         $photoDir = $employeesDir . $employeeUid . '/';
         if (!is_dir($photoDir)) {
             if (!mkdir($photoDir, 0755, true)) {
@@ -448,14 +432,11 @@ INSERT INTO employees (
             throw new Exception('Verzeichnis /uploads/employees/{uid}/ ist nicht beschreibbar.');
         }
 
-        // ====================================================
-        // 4. Déplacer le fichier
-        // ====================================================
         $photoName  = 'profil_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         $targetPath = $photoDir . $photoName;
 
         if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
-            throw new Exception('Fehler beim Speichern des Fotos. Prüfe die Schreibrechte.');
+            throw new Exception('Fehler beim Speichern des Fotos.');
         }
 
         $photoPublicPath = '/uploads/employees/' . $employeeUid . '/' . $photoName;
@@ -465,12 +446,6 @@ INSERT INTO employees (
             $photoPublicPath,
             $employeeUid
         ]);
-
-        file_put_contents(
-            __DIR__ . '/debug.log',
-            date('Y-m-d H:i:s') . " PHOTO OK: {$targetPath} → {$photoPublicPath}\n",
-            FILE_APPEND
-        );
     }
 
     // ---------- COMMIT ----------
@@ -519,12 +494,6 @@ INSERT INTO employees (
             $mailSent = @mail($email, $subject, $textBody, $headers);
         }
     }
-
-    file_put_contents(
-        __DIR__ . '/debug.log',
-        date('Y-m-d H:i:s') . " Mail sent: " . ($mailSent ? 'yes' : 'no') . "\n",
-        FILE_APPEND
-    );
 
     echo json_encode([
         'success'             => true,
@@ -584,10 +553,8 @@ function buildCredentialsEmail($vorname, $nachname, $username, $password) {
         .credentials .row { margin-bottom: 12px; }
         .credentials .row:last-child { margin-bottom: 0; }
         .btn { display: inline-block; background: #0f172a; color: white !important; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 16px; margin-top: 10px; }
-        .btn:hover { background: #1e293b; }
         .footer { background: #f8fafc; padding: 20px 25px; text-align: center; font-size: 13px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
         .footer a { color: #0f172a; text-decoration: none; }
-        .footer a:hover { text-decoration: underline; }
         .footer img { max-width: 120px; margin-bottom: 10px; }
     </style>
 </head>
@@ -618,12 +585,9 @@ function buildCredentialsEmail($vorname, $nachname, $username, $password) {
             <p style="font-size: 14px; color: #64748b; margin-top: 20px; text-align: center;">
                 Bitte ändern Sie Ihr Passwort nach dem ersten Login.
             </p>
-            <p style="font-size: 14px; color: #64748b; text-align: center;">
-                Bei Fragen wenden Sie sich an Ihren Administrator.
-            </p>
         </div>
         <div class="footer">
-            <img src="https://alpha-med-care.com/images/logo.png" alt="Alpha Med Care Logo" style="max-width:120px; margin-bottom:10px;">
+            <img src="https://alpha-med-care.com/images/logo.png" alt="Alpha Med Care Logo">
             <p>alpha med care GmbH &bull; www.alpha-med-care.com &bull; service@alpha-med-care.com</p>
             <p><a href="https://alpha-med-care.com/datenschutz">Datenschutz</a> &bull; <a href="https://alpha-med-care.com/impressum">Impressum</a></p>
         </div>

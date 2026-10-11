@@ -18,20 +18,23 @@ defineProps({
   subtitle: { type: String, default: '' }
 })
 </script>
-
 <style scoped>
 .section-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-bottom: 1px solid #e5eaf0;
+  border-bottom: 1px solid #eef2f7;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #172033 !important;
 }
 
-.section-header-blue   { background: linear-gradient(90deg, #f0f7fc 0%, #ffffff 100%); }
-.section-header-green  { background: linear-gradient(90deg, #f0faf4 0%, #ffffff 100%); }
-.section-header-purple { background: linear-gradient(90deg, #f6f2ff 0%, #ffffff 100%); }
-.section-header-orange { background: linear-gradient(90deg, #fff6ec 0%, #ffffff 100%); }
+/* Dégradés clairs en plus du fond blanc */
+.section-header-blue   { background-image: linear-gradient(90deg, #fbfdff 0%, #ffffff 100%) !important; }
+.section-header-green  { background-image: linear-gradient(90deg, #fbfefc 0%, #ffffff 100%) !important; }
+.section-header-purple { background-image: linear-gradient(90deg, #fdfbff 0%, #ffffff 100%) !important; }
+.section-header-orange { background-image: linear-gradient(90deg, #fffdf9 0%, #ffffff 100%) !important; }
 
 .section-icon {
   width: 34px;
@@ -43,13 +46,13 @@ defineProps({
   border-radius: 6px;
 }
 
-.section-icon.blue   { color: #191b1d; background: #e8f4fb; }
-.section-icon.green  { color: #159447; background: #e8f8ef; }
-.section-icon.purple { color: #7655c8; background: #f0ebff; }
-.section-icon.orange { color: #d87818; background: #fff2e4; }
+.section-icon.blue   { color: #3a7ca5 !important; background-color: #f0f8fd !important; }
+.section-icon.green  { color: #2aa15c !important; background-color: #f0faf5 !important; }
+.section-icon.purple { color: #8a6fd4 !important; background-color: #f7f4ff !important; }
+.section-icon.orange { color: #e08a2e !important; background-color: #fff7ef !important; }
 
 .section-title {
-  color: #172033;
+  color: #172033 !important;
   font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -58,7 +61,7 @@ defineProps({
 
 .section-subtitle {
   margin-top: 1px;
-  color: #8a94a4;
+  color: #9aa3b2 !important;
   font-size: 0.72rem;
   line-height: 1.2;
 }

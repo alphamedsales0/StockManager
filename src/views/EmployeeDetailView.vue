@@ -1,11 +1,7 @@
 <template>
-
   <v-container fluid class="employee-page pa-3 pa-md-4">
 
-    <!-- =========================
-         LOADING
-    ========================== -->
-
+    <!-- LOADING -->
     <v-card v-if="loading" class="modern-card loading-card">
       <v-card-text class="text-center pa-10">
         <v-progress-circular indeterminate color="primary" size="48" width="4" />
@@ -18,10 +14,7 @@
       </v-card-text>
     </v-card>
 
-    <!-- =========================
-         ERROR
-    ========================== -->
-
+    <!-- ERROR -->
     <v-alert
       v-else-if="error"
       type="error"
@@ -38,46 +31,53 @@
       <div>{{ error }}</div>
     </v-alert>
 
-    <!-- =========================
-         CONTENT
-    ========================== -->
-
+    <!-- CONTENT -->
     <template v-else-if="employee">
 
-      <!-- =========================
-           HERO
-      ========================== -->
-
-      <v-card class="hero-card mb-2">
+      <!-- HERO -->
+      <v-card class="hero-card mb-3">
         <div class="hero-background"></div>
         <div class="hero-glow"></div>
 
-        <v-card-text class="hero-content pa-4 pa-md-5">
+        <v-card-text class="hero-content pa-5 pa-md-7">
 
-          <!-- EN-TÊTE INTÉGRÉ AU HERO -->
           <div class="hero-header">
             <div>
-              <div class="text-overline hero-overline font-weight-bold">MITARBEITER</div>
+              <div class="hero-pill">
+                <v-icon size="13">mdi-account-badge-outline</v-icon>
+                MITARBEITER
+              </div>
               <h1 class="hero-title">Mitarbeiterprofil</h1>
               <div class="hero-subtitle">
                 Übersicht und Stammdaten des Mitarbeiters
               </div>
             </div>
 
-            <v-btn
-              size="large"
-              variant="flat"
-              prepend-icon="mdi-pencil-outline"
-              class="edit-button-hero"
-              @click="goToEdit"
-            >
-              Bearbeiten
-            </v-btn>
+            <div class="hero-actions">
+              <v-btn
+                v-if="employee.email"
+                variant="tonal"
+                prepend-icon="mdi-email-outline"
+                class="hero-action-btn"
+                @click="mailEmployee"
+              >
+                E-Mail
+              </v-btn>
+              <v-btn
+                size="large"
+                variant="flat"
+                prepend-icon="mdi-pencil-outline"
+                class="edit-button-hero"
+                @click="goToEdit"
+              >
+                Bearbeiten
+              </v-btn>
+            </div>
           </div>
 
           <v-divider class="hero-divider" />
 
-          <v-row align="center" class="ma-0">
+          <v-row align="center" class="ma-0 hero-body">
 
             <!-- PHOTO / HIERARCHY -->
             <v-col cols="12" md="auto" class="d-flex justify-center justify-md-start">
@@ -93,12 +93,8 @@
                         class="employee-photo"
                         @error="photoError = true"
                       />
-                      <v-icon v-else size="62" color="primary">mdi-account</v-icon>
+                      <span v-else class="avatar-initials">{{ initials }}</span>
                     </v-avatar>
-                    <div
-                      class="status-dot"
-                      :class="employee.is_active ? 'status-active' : 'status-inactive'"
-                    ></div>
                   </div>
                 </div>
 
@@ -114,7 +110,7 @@
                         class="employee-photo"
                         @error="supervisorPhotoError = true"
                       />
-                      <v-icon v-else size="36" color="primary">mdi-account-tie-outline</v-icon>
+                      <v-icon v-else size="34" color="grey-darken-2">mdi-account-tie-outline</v-icon>
                     </v-avatar>
                     <div class="supervisor-name">{{ employee.vorgesetzter }}</div>
                   </div>
@@ -140,7 +136,7 @@
               </div>
 
               <div class="employee-number mt-2">
-                <v-icon size="16" class="mr-1">mdi-card-account-details-outline</v-icon>
+                <v-icon size="15" class="mr-1">mdi-card-account-details-outline</v-icon>
                 Mitarbeiter-Nr. <strong>{{ employee.mitarbeiter_nummer }}</strong>
               </div>
 
@@ -149,12 +145,12 @@
               </div>
 
               <div v-if="employee.abteilung" class="employee-department mt-1">
-                <v-icon size="15" class="mr-1">mdi-domain</v-icon>
+                <v-icon size="14" class="mr-1">mdi-domain</v-icon>
                 {{ employee.abteilung }}
               </div>
             </v-col>
 
-            <!-- QUICK INFO -->
+            <!-- QUICK INFO + KPI -->
             <v-col cols="12" md="4">
               <div class="hero-info-grid">
                 <div v-for="info in heroInfo" :key="info.label" class="hero-info-item">
@@ -166,6 +162,17 @@
                     <div class="hero-info-value">{{ info.value }}</div>
                   </div>
                 </div>
+
+                <!-- KPI -->
+                <div class="kpi-mini-row">
+                  <div v-for="kpi in kpis" :key="kpi.label" class="kpi-mini">
+                    <div class="kpi-mini-icon">
+                      <v-icon size="22">{{ kpi.icon }}</v-icon>
+                    </div>
+                    <div class="kpi-mini-value">{{ kpi.value }}</div>
+                    <div class="kpi-mini-label">{{ kpi.label }}</div>
+                  </div>
+                </div>
               </div>
             </v-col>
 
@@ -173,277 +180,327 @@
         </v-card-text>
       </v-card>
 
-      <!-- =========================
-           SECTIONS — 3 CARTES PAR LIGNE
-      ========================== -->
+      <!-- TABS -->
+      <v-tabs v-model="activeTab" class="profile-tabs mb-3" density="comfortable">
+        <v-tab value="personal" prepend-icon="mdi-account-details-outline">Persönlich</v-tab>
+        <v-tab value="contact" prepend-icon="mdi-home-outline">Kontakt</v-tab>
+        <v-tab value="finance" prepend-icon="mdi-bank-outline">Finanzen</v-tab>
+        <v-tab value="career" prepend-icon="mdi-school-outline">Karriere</v-tab>
+      </v-tabs>
 
-      <v-row class="ma-0 section-row">
+      <!-- TAB CONTENT -->
+      <v-window v-model="activeTab">
 
-        <!-- 1. PERSÖNLICHE DATEN -->
-        <v-col cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-account-details-outline"
-              color="blue"
-              title="Persönliche Daten"
-              subtitle="Allgemeine Informationen"
-            />
-            <v-card-text class="pa-3">
-              <div class="contact-fields">
-                <div v-for="field in personalFields" :key="field.label" class="contact-row">
-                  <div class="contact-icon">
-                    <v-icon size="16">{{ field.icon }}</v-icon>
+        <!-- PERSÖNLICH -->
+        <v-window-item value="personal">
+          <v-row class="ma-0 section-row">
+
+            <v-col cols="12" md="6">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-account-details-outline"
+                  color="grey"
+                  title="Persönliche Daten"
+                  subtitle="Allgemeine Informationen"
+                />
+                <v-card-text class="pa-3">
+                  <div class="contact-fields">
+                    <template v-for="(field, i) in personalFields" :key="field.label">
+                      <div class="contact-row">
+                        <div class="contact-icon"><v-icon size="16">{{ field.icon }}</v-icon></div>
+                        <div class="contact-label">{{ field.label }}</div>
+                        <div class="contact-value">{{ field.value }}</div>
+                      </div>
+                      <v-divider v-if="i < personalFields.length - 1" class="item-divider" />
+                    </template>
                   </div>
-                  <div class="contact-label">{{ field.label }}</div>
-                  <div class="contact-value">{{ field.value }}</div>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-        <!-- 2. KONTAKTDATEN + ADRESSEN -->
-        <v-col cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-home-outline"
-              color="green"
-              title="Kontaktdaten"
-            />
-            <v-card-text class="pa-3">
-              <div class="contact-fields mb-3">
-                <div v-for="field in contactFields" :key="field.label" class="contact-row">
-                  <div class="contact-icon">
-                    <v-icon size="16">{{ field.icon }}</v-icon>
+            <v-col cols="12" md="6" v-if="employee.versicherung_gesellschaft">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-shield-check-outline"
+                  color="grey"
+                  title="Versicherung"
+                  subtitle="Versicherungsinformationen"
+                />
+                <v-card-text class="pa-3">
+                  <div class="contact-fields">
+                    <template v-for="(field, i) in insuranceFields" :key="field.label">
+                      <div class="contact-row">
+                        <div class="contact-icon"><v-icon size="16">{{ field.icon }}</v-icon></div>
+                        <div class="contact-label">{{ field.label }}</div>
+                        <div class="contact-value">{{ field.value || '—' }}</div>
+                      </div>
+                      <v-divider v-if="i < insuranceFields.length - 1" class="item-divider" />
+                    </template>
                   </div>
-                  <div class="contact-label">{{ field.label }}</div>
-                  <div class="contact-value">{{ field.value || '—' }}</div>
-                </div>
-              </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-              <v-divider class="mb-3" />
+          </v-row>
+        </v-window-item>
 
-              <div v-if="employee.addresses?.length" class="address-list">
-                <div class="address-header">
-                  <div class="address-icon">
-                    <v-icon size="17">mdi-map-marker-outline</v-icon>
+        <!-- KONTAKT -->
+        <v-window-item value="contact">
+          <v-row class="ma-0 section-row">
+
+            <v-col cols="12" md="6" lg="5">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-card-account-phone-outline"
+                  color="grey"
+                  title="Kontaktdaten"
+                  subtitle="Erreichbarkeit"
+                />
+                <v-card-text class="pa-3">
+                  <div class="contact-fields">
+                    <template v-for="(field, i) in contactFields" :key="field.label">
+                      <div class="contact-row">
+                        <div class="contact-icon"><v-icon size="16">{{ field.icon }}</v-icon></div>
+                        <div class="contact-label">{{ field.label }}</div>
+                        <div class="contact-value">{{ field.value || '—' }}</div>
+                      </div>
+                      <v-divider v-if="i < contactFields.length - 1" class="item-divider" />
+                    </template>
                   </div>
-                  <div class="address-header-title">Hinterlegte Anschriften</div>
-                </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-                <div
-                  v-for="addr in employee.addresses"
-                  :key="addr.id"
-                  class="address-item"
-                >
-                  <div class="d-flex align-center mb-2">
-                    <v-chip size="x-small" color="primary" variant="flat" class="font-weight-bold">
-                      {{ addr.adresstyp }}
-                    </v-chip>
+            <v-col cols="12" md="6" lg="7">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-map-marker-outline"
+                  color="grey"
+                  title="Anschriften"
+                  :subtitle="employee.addresses?.length ? `${employee.addresses.length} hinterlegt` : 'Keine Adresse hinterlegt'"
+                />
+                <v-card-text class="pa-3">
+                  <div v-if="employee.addresses?.length" class="address-list">
+                    <template v-for="(addr, i) in employee.addresses" :key="addr.id">
+                      <div class="address-item">
+                        <div class="d-flex align-center mb-2">
+                          <v-chip size="x-small" variant="flat" class="chip-grey">
+                            {{ addr.adresstyp }}
+                          </v-chip>
+                        </div>
+                        <div class="address-main">{{ addr.strasse }} {{ addr.hausnummer }}</div>
+                        <div class="address-city">{{ addr.plz }} {{ addr.stadt }}</div>
+                        <div class="address-country">{{ addr.land }}</div>
+                      </div>
+                      <v-divider v-if="i < employee.addresses.length - 1" class="item-divider" />
+                    </template>
                   </div>
-                  <div class="address-main">{{ addr.strasse }} {{ addr.hausnummer }}</div>
-                  <div class="address-city">{{ addr.plz }} {{ addr.stadt }}</div>
-                  <div class="address-country">{{ addr.land }}</div>
-                </div>
-              </div>
-
-              <div v-else class="empty-state">
-                <v-icon size="36">mdi-map-marker-off-outline</v-icon>
-                <div class="mt-2">Keine Adresse hinterlegt</div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- 3. BANKVERBINDUNGEN -->
-        <v-col v-if="employee.bank_accounts?.length" cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-bank-outline"
-              color="purple"
-              title="Bankverbindungen"
-              subtitle="Hinterlegte Bankkonten"
-            />
-            <v-card-text class="pa-3">
-              <div v-for="bank in employee.bank_accounts" :key="bank.id" class="bank-card">
-                <div class="bank-top">
-                  <div class="bank-logo">
-                    <v-icon size="22">mdi-bank</v-icon>
+                  <div v-else class="empty-state">
+                    <v-icon size="36">mdi-map-marker-off-outline</v-icon>
+                    <div class="mt-2">Keine Adresse hinterlegt</div>
                   </div>
-                  <div class="flex-grow-1 ml-2">
-                    <div class="bank-owner">{{ bank.kontoinhaber }}</div>
-                    <div class="bank-name">{{ bank.bankname || 'Bankverbindung' }}</div>
-                  </div>
-                  <v-chip
-                    size="x-small"
-                    :color="bank.ist_aktiv ? 'success' : 'grey'"
-                    variant="flat"
-                  >
-                    {{ bank.ist_aktiv ? 'Aktiv' : 'Inaktiv' }}
-                  </v-chip>
-                </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-                <v-divider class="my-3" />
+          </v-row>
+        </v-window-item>
 
-                <!-- DETAILS AU FORMAT "CONTACT ROW" -->
-                <div class="contact-fields">
-                  <div class="contact-row">
-                    <div class="contact-icon">
-                      <v-icon size="16">mdi-account-outline</v-icon>
+        <!-- FINANZEN -->
+        <v-window-item value="finance">
+          <v-row class="ma-0 section-row">
+
+            <v-col cols="12" md="6" lg="5">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-cash-multiple"
+                  color="grey"
+                  title="Vergütung"
+                  subtitle="Steuer & Soziales"
+                />
+                <v-card-text class="pa-3">
+                  <div class="contact-fields">
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-percent-outline</v-icon></div>
+                      <div class="contact-label">Steuerklasse</div>
+                      <div class="contact-value">{{ employee.steuerklasse || '—' }}</div>
                     </div>
-                    <div class="contact-label">Kontoinhaber</div>
-                    <div class="contact-value">{{ bank.kontoinhaber || '—' }}</div>
-                  </div>
-
-                  <div class="contact-row">
-                    <div class="contact-icon">
-                      <v-icon size="16">mdi-identifier</v-icon>
+                    <v-divider class="item-divider" />
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-church</v-icon></div>
+                      <div class="contact-label">Konfession</div>
+                      <div class="contact-value">{{ employee.konfession || '—' }}</div>
                     </div>
-                    <div class="contact-label">IBAN</div>
-                    <div class="contact-value">{{ bank.iban }}</div>
-                  </div>
-
-                  <div v-if="bank.bic" class="contact-row">
-                    <div class="contact-icon">
-                      <v-icon size="16">mdi-bank-outline</v-icon>
-                    </div>
-                    <div class="contact-label">BIC</div>
-                    <div class="contact-value">{{ bank.bic }}</div>
-                  </div>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- 4. VERSICHERUNG -->
-        <v-col v-if="employee.versicherung_gesellschaft" cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-shield-check-outline"
-              color="green"
-              title="Versicherung"
-              subtitle="Versicherungsinformationen"
-            />
-            <v-card-text class="pa-3">
-              <div class="contact-fields">
-                <div v-for="field in insuranceFields" :key="field.label" class="contact-row">
-                  <div class="contact-icon">
-                    <v-icon size="16">{{ field.icon }}</v-icon>
-                  </div>
-                  <div class="contact-label">{{ field.label }}</div>
-                  <div class="contact-value">{{ field.value || '—' }}</div>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- 5. QUALIFIKATIONEN -->
-        <v-col v-if="employee.qualifications?.length" cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-school-outline"
-              color="orange"
-              title="Qualifikationen"
-              subtitle="Ausbildungen, Abschlüsse und Zertifikate"
-            />
-            <v-card-text class="pa-3">
-              <div class="qualification-grid">
-                <div
-                  v-for="q in employee.qualifications"
-                  :key="q.id"
-                  class="qualification-card"
-                >
-                  <div class="qualification-icon">
-                    <v-icon size="20">mdi-certificate-outline</v-icon>
-                  </div>
-                  <div class="qualification-content">
-                    <div class="qualification-title">{{ q.bezeichnung }}</div>
-                    <div class="qualification-institution">
-                      {{ q.institution || 'Keine Institution angegeben' }}
-                    </div>
-                    <div class="qualification-meta">
-                      <span v-if="q.abschlussdatum">
-                        <v-icon size="14">mdi-calendar-outline</v-icon>
-                        {{ formatDate(q.abschlussdatum) }}
-                      </span>
-                      <span v-if="q.note">
-                        <v-icon size="14">mdi-star-outline</v-icon>
-                        Note: {{ q.note }}
-                      </span>
+                    <v-divider class="item-divider" />
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-shield-outline</v-icon></div>
+                      <div class="contact-label">Sozialversicherung</div>
+                      <div class="contact-value">{{ employee.versicherung_nummer || '—' }}</div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-        <!-- 6. DOKUMENTE -->
-        <v-col v-if="employee.documents?.length" cols="12" md="6" lg="4">
-          <v-card class="modern-card h-100">
-            <EmployeeSectionHeader
-              icon="mdi-file-document-outline"
-              color="blue"
-              title="Dokumente"
-              subtitle="Dokumente und Nachweise"
-            />
-            <v-card-text class="pa-3">
-              <div class="document-list">
-                <a
-                  v-for="doc in employee.documents"
-                  :key="doc.id"
-                  :href="doc.datei_pfad || undefined"
-                  :target="doc.datei_pfad ? '_blank' : undefined"
-                  class="document-item"
-                >
-                  <div class="document-icon">
-                    <v-icon size="18">mdi-file-document-outline</v-icon>
+            <v-col cols="12" md="6" lg="7">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-bank-outline"
+                  color="grey"
+                  title="Bankverbindungen"
+                  :subtitle="employee.bank_accounts?.length ? `${employee.bank_accounts.length} Konto(en)` : 'Keine Bankverbindung'"
+                />
+                <v-card-text class="pa-3">
+                  <div v-if="employee.bank_accounts?.length" class="bank-list">
+                    <template v-for="(bank, i) in employee.bank_accounts" :key="bank.id">
+                      <div class="bank-card">
+                        <div class="bank-top">
+                          <div class="bank-logo"><v-icon size="22">mdi-bank</v-icon></div>
+                          <div class="flex-grow-1 ml-2">
+                            <div class="bank-owner">{{ bank.kontoinhaber }}</div>
+                            <div class="bank-name">{{ bank.bankname || 'Bankverbindung' }}</div>
+                          </div>
+                          <v-chip size="x-small" variant="flat" class="chip-grey">
+                            {{ bank.ist_aktiv ? 'Aktiv' : 'Inaktiv' }}
+                          </v-chip>
+                        </div>
+                        <v-divider class="my-3" />
+                        <div class="contact-fields">
+                          <div class="contact-row">
+                            <div class="contact-icon"><v-icon size="16">mdi-account-outline</v-icon></div>
+                            <div class="contact-label">Kontoinhaber</div>
+                            <div class="contact-value">{{ bank.kontoinhaber || '—' }}</div>
+                          </div>
+                          <v-divider class="item-divider" />
+                          <div class="contact-row">
+                            <div class="contact-icon"><v-icon size="16">mdi-identifier</v-icon></div>
+                            <div class="contact-label">IBAN</div>
+                            <div class="contact-value">{{ bank.iban }}</div>
+                          </div>
+                          <template v-if="bank.bic">
+                            <v-divider class="item-divider" />
+                            <div class="contact-row">
+                              <div class="contact-icon"><v-icon size="16">mdi-bank-outline</v-icon></div>
+                              <div class="contact-label">BIC</div>
+                              <div class="contact-value">{{ bank.bic }}</div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                      <v-divider v-if="i < employee.bank_accounts.length - 1" class="item-divider" />
+                    </template>
                   </div>
-                  <div class="document-content">
-                    <div class="document-name">{{ doc.name }}</div>
-                    <div class="document-meta">
-                      <span>{{ doc.typ }}</span>
-                      <span v-if="doc.gueltig_bis">
-                        <v-icon size="13">mdi-calendar-clock-outline</v-icon>
-                        gültig bis {{ formatDate(doc.gueltig_bis) }}
-                      </span>
-                    </div>
+                  <div v-else class="empty-state">
+                    <v-icon size="36">mdi-bank-off-outline</v-icon>
+                    <div class="mt-2">Keine Bankverbindung hinterlegt</div>
                   </div>
-                  <v-icon v-if="doc.datei_pfad" size="18" class="document-arrow">
-                    mdi-open-in-new
-                  </v-icon>
-                </a>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
+                </v-card-text>
+              </v-card>
+            </v-col>
 
-      </v-row>
+          </v-row>
+        </v-window-item>
 
-      <!-- =========================
-           BOTTOM ACTION
-      ========================== -->
+        <!-- KARRIERE -->
+        <v-window-item value="career">
+          <v-row class="ma-0 section-row">
 
-      <div class="bottom-actions mt-2">
+            <v-col cols="12" md="6" v-if="employee.qualifications?.length">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-school-outline"
+                  color="grey"
+                  title="Qualifikationen"
+                  :subtitle="`${employee.qualifications.length} Einträge`"
+                />
+                <v-card-text class="pa-3">
+                  <div class="qualification-list">
+                    <template v-for="(q, i) in employee.qualifications" :key="q.id">
+                      <div class="qualification-card">
+                        <div class="qualification-icon"><v-icon size="20">mdi-certificate-outline</v-icon></div>
+                        <div class="qualification-content">
+                          <div class="qualification-title">{{ q.bezeichnung }}</div>
+                          <div class="qualification-institution">{{ q.institution || 'Keine Institution angegeben' }}</div>
+                          <div class="qualification-meta">
+                            <span v-if="q.abschlussdatum">
+                              <v-icon size="14">mdi-calendar-outline</v-icon>
+                              {{ formatDate(q.abschlussdatum) }}
+                            </span>
+                            <span v-if="q.note">
+                              <v-icon size="14">mdi-star-outline</v-icon>
+                              Note: {{ q.note }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <v-divider v-if="i < employee.qualifications.length - 1" class="item-divider" />
+                    </template>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="6" v-if="employee.documents?.length">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-file-document-outline"
+                  color="grey"
+                  title="Dokumente"
+                  :subtitle="`${employee.documents.length} Dateien`"
+                />
+                <v-card-text class="pa-3">
+                  <div class="document-list">
+                    <template v-for="(doc, i) in employee.documents" :key="doc.id">
+                      <a
+                        :href="doc.datei_pfad || undefined"
+                        :target="doc.datei_pfad ? '_blank' : undefined"
+                        class="document-item"
+                      >
+                        <div class="document-icon"><v-icon size="18">mdi-file-document-outline</v-icon></div>
+                        <div class="document-content">
+                          <div class="document-name">{{ doc.name }}</div>
+                          <div class="document-meta">
+                            <span>{{ doc.typ }}</span>
+                            <span v-if="doc.gueltig_bis">
+                              <v-icon size="13">mdi-calendar-clock-outline</v-icon>
+                              gültig bis {{ formatDate(doc.gueltig_bis) }}
+                            </span>
+                          </div>
+                        </div>
+                        <v-icon v-if="doc.datei_pfad" size="18" class="document-arrow">mdi-open-in-new</v-icon>
+                      </a>
+                      <v-divider v-if="i < employee.documents.length - 1" class="item-divider" />
+                    </template>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+          </v-row>
+        </v-window-item>
+
+      </v-window>
+
+      <!-- BOTTOM ACTION -->
+      <div class="bottom-actions mt-3">
         <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="router.back()">
           Zurück
         </v-btn>
-        <v-btn color="primary" prepend-icon="mdi-pencil-outline" @click="goToEdit">
+        <v-btn
+          variant="flat"
+          prepend-icon="mdi-pencil-outline"
+          class="edit-button-hero"
+          @click="goToEdit"
+        >
           Mitarbeiter bearbeiten
         </v-btn>
       </div>
 
     </template>
-
   </v-container>
-
 </template>
 
-
 <script setup>
-
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
@@ -458,34 +515,42 @@ const error = ref(null)
 const photoError = ref(false)
 const supervisorPhotoError = ref(false)
 
+const activeTab = ref('personal')
 
-// ============================================================
-// COMPUTED
-// ============================================================
+/* ============================================================
+   COMPUTED
+============================================================ */
 
 const fullName = computed(() =>
   employee.value ? `${employee.value.vorname} ${employee.value.nachname}` : ''
 )
 
+const initials = computed(() => {
+  const e = employee.value
+  if (!e) return '—'
+  return `${e.vorname?.[0] || ''}${e.nachname?.[0] || ''}`.toUpperCase()
+})
+
+/* ✅ heroInfo — version directe, sans condition */
 const heroInfo = computed(() => {
   const e = employee.value
   if (!e) return []
   return [
-    {
-      icon: 'mdi-calendar-account',
-      label: 'Eintritt',
-      value: formatDate(e.einstellungsdatum)
-    },
-    {
-      icon: 'mdi-clock-outline',
-      label: 'Arbeitszeit',
-      value: e.wochenarbeitszeit ? `${e.wochenarbeitszeit} h / Woche` : '—'
-    },
-    {
-      icon: 'mdi-account-supervisor-outline',
-      label: 'Vorgesetzter',
-      value: e.vorgesetzter || '—'
-    }
+    { icon: 'mdi-calendar-account', label: 'Eintritt', value: formatDate(e.einstellungsdatum) },
+    { icon: 'mdi-calendar-remove-outline', label: 'Austritt', value: formatDate(e.austrittsdatum) },
+    { icon: 'mdi-clock-outline', label: 'Arbeitszeit', value: e.wochenarbeitszeit ? `${e.wochenarbeitszeit} h / Woche` : '—' },
+    { icon: 'mdi-account-supervisor-outline', label: 'Vorgesetzter', value: e.vorgesetzter || '—' }
+  ]
+})
+
+const kpis = computed(() => {
+  const e = employee.value
+  if (!e) return []
+  return [
+    { icon: 'mdi-map-marker-multiple-outline', label: 'Adressen', value: e.addresses?.length || 0 },
+    { icon: 'mdi-bank-outline', label: 'Bankkonten', value: e.bank_accounts?.length || 0 },
+    { icon: 'mdi-school-outline', label: 'Qualifikationen', value: e.qualifications?.length || 0 },
+    { icon: 'mdi-file-document-outline', label: 'Dokumente', value: e.documents?.length || 0 }
   ]
 })
 
@@ -498,13 +563,7 @@ const personalFields = computed(() => {
     { icon: 'mdi-cake-variant', label: 'Geburtsdatum', value: formatDate(e.geburtsdatum) },
     { icon: 'mdi-calendar-account', label: 'Einstellungsdatum', value: formatDate(e.einstellungsdatum) },
     { icon: 'mdi-handshake-outline', label: 'Vertragsart', value: e.vertragsart || '—' },
-    {
-      icon: 'mdi-timer-outline',
-      label: 'Wochenarbeitszeit',
-      value: e.wochenarbeitszeit ? `${e.wochenarbeitszeit} h` : '—'
-    },
-    { icon: 'mdi-percent-outline', label: 'Steuerklasse', value: e.steuerklasse || '—' },
-    { icon: 'mdi-church', label: 'Konfession', value: e.konfession || '—' }
+    { icon: 'mdi-timer-outline', label: 'Wochenarbeitszeit', value: e.wochenarbeitszeit ? `${e.wochenarbeitszeit} h` : '—' }
   ]
 })
 
@@ -524,27 +583,20 @@ const insuranceFields = computed(() => {
   if (!e) return []
   return [
     { icon: 'mdi-shield-outline', label: 'Typ', value: e.versicherung_typ },
-    {
-      icon: 'mdi-office-building-outline',
-      label: 'Gesellschaft',
-      value: e.versicherung_gesellschaft
-    },
+    { icon: 'mdi-office-building-outline', label: 'Gesellschaft', value: e.versicherung_gesellschaft },
     { icon: 'mdi-identifier', label: 'Versicherungsnummer', value: e.versicherung_nummer }
   ]
 })
 
-
-// ============================================================
-// HELPERS
-// ============================================================
+/* ============================================================
+   HELPERS
+============================================================ */
 
 const formatDate = (date) => {
   if (!date) return '—'
   try {
     return new Date(date).toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
+      day: '2-digit', month: '2-digit', year: 'numeric'
     })
   } catch {
     return date
@@ -553,30 +605,21 @@ const formatDate = (date) => {
 
 const isUuid = (id) => /^[0-9a-f-]{36}$/i.test(id)
 
-
-// ============================================================
-// LOAD EMPLOYEE
-// ============================================================
+/* ============================================================
+   LOAD EMPLOYEE
+============================================================ */
 
 const loadEmployee = async () => {
   loading.value = true
   error.value = null
-
   try {
     const identifier = route.params.uid || route.params.id
     const param = isUuid(identifier) ? 'uid' : 'id'
     const { data } = await axios.get(`/api/employees_get.php?${param}=${identifier}`)
-
     if (!data.success) throw new Error(data.error || 'Unbekannter Fehler')
-
     const emp = data.employee
-
-    // Normalisation des noms de champs photo
     if (emp?.foto_pfad && !emp.photo) emp.photo = emp.foto_pfad
-    if (emp?.vorgesetzter_photo && !emp.vorgesetzter_foto) {
-      emp.vorgesetzter_foto = emp.vorgesetzter_photo
-    }
-
+    if (emp?.vorgesetzter_photo && !emp.vorgesetzter_foto) emp.vorgesetzter_foto = emp.vorgesetzter_photo
     employee.value = emp
   } catch (e) {
     console.error(e)
@@ -586,25 +629,21 @@ const loadEmployee = async () => {
   }
 }
 
-
-// ============================================================
-// EDIT
-// ============================================================
+/* ============================================================
+   ACTIONS
+============================================================ */
 
 const goToEdit = () => {
   const uid = employee.value?.uid || route.params.uid || route.params.id
   router.push(`/employees/edit/${uid}`)
 }
 
-
-// ============================================================
-// INIT
-// ============================================================
+const mailEmployee = () => {
+  if (employee.value?.email) window.location.href = `mailto:${employee.value.email}`
+}
 
 onMounted(loadEmployee)
-
 </script>
-
 
 <style scoped>
 
@@ -613,73 +652,62 @@ onMounted(loadEmployee)
 ============================================================ */
 
 .employee-page {
-  --sidebar-1: #2c2d2e;
-  --sidebar-2: #232324;
-  --sidebar-3: #101011;
-
-  --accent-blue: #191b1d;
-  --accent-blue-bg: #e8f4fb;
-
-  --accent-green: #159447;
-  --accent-green-bg: #e8f8ef;
-
-  --accent-purple: #7655c8;
-  --accent-purple-bg: #f0ebff;
-
-  --accent-orange: #d87818;
-  --accent-orange-bg: #fff2e4;
-
-  --text-main: #172033;
-  --text-muted: #8a94a4;
+  --text-main: #0f172a;
   --text-soft: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
 
-  --border: #e5eaf0;
+  --grey-icon: #475569;
+  --grey-icon-bg: #f1f5f9;
+
+  --border: #e5e9f0;
+  --border-strong: #d5dbe4;
 
   --surface: #ffffff;
   --background: #f6f8fb;
 
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.06);
+
   max-width: 1600px;
   margin: 0 auto;
-
   background: var(--background);
   min-height: 100vh;
-
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
 }
 
-
 /* ============================================================
-   ESPACEMENTS RÉDUITS
+   ESPACEMENTS
 ============================================================ */
 
 .employee-page .v-row {
   margin: 0 !important;
-  row-gap: 4px !important;
+  row-gap: 10px !important;
 }
 
 .employee-page .v-col {
-  padding: 2px !important;
+  padding: 5px !important;
 }
 
 .employee-page .section-row {
   margin: 0 !important;
-  row-gap: 4px !important;
+  row-gap: 10px !important;
 }
 
-.hero-card {
-  margin-bottom: 6px !important;
-}
+.hero-card { margin-bottom: 4px !important; }
 
 .bottom-actions {
-  margin-top: 8px !important;
-  padding-top: 0 !important;
-  padding-bottom: 6px !important;
+  margin-top: 4px !important;
+  padding: 8px 2px 4px !important;
 }
 
-
 /* ============================================================
-   HERO HEADER (titre + bouton intégrés)
+   HERO HEADER
 ============================================================ */
 
 .hero-header {
@@ -687,54 +715,78 @@ onMounted(loadEmployee)
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
-.hero-overline {
-  color: rgba(255, 255, 255, 0.7) !important;
-  letter-spacing: 0.1em;
-  font-size: 0.7rem !important;
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hero-title {
-  margin: 2px 0 0;
+  margin: 10px 0 0;
   font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 750;
   letter-spacing: -0.03em;
-  color: #ffffff;
+  color: var(--text-main);
   line-height: 1.15;
 }
 
 .hero-subtitle {
-  margin-top: 4px;
-  font-size: 0.86rem;
-  color: rgba(255, 255, 255, 0.72);
+  margin-top: 6px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
 }
 
 .hero-divider {
-  margin: 14px 0 18px;
-  opacity: 0.18;
-  border-color: rgba(255, 255, 255, 0.4) !important;
+  margin: 18px 0 22px;
+  border-color: var(--border) !important;
+  opacity: 1;
 }
 
-/* Bouton Bearbeiten adapté au fond sombre */
-.edit-button-hero {
-  min-width: 150px;
-  border-radius: 8px;
+/* ============================================================
+   HERO ACTIONS
+============================================================ */
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hero-action-btn {
   text-transform: none;
   font-weight: 600;
-  color: #172033 !important;
-  background: #ffffff !important;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: var(--radius-md) !important;
+}
+
+.edit-button-hero {
+  min-width: 150px;
+  height: 44px !important;
+  border-radius: var(--radius-md) !important;
+  text-transform: none;
+  font-weight: 600;
+  color: #ffffff !important;
+  background: #1e293b !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .edit-button-hero:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35) !important;
-  background: #f5f7fa !important;
+  background: #0f172a !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.28) !important;
 }
-
 
 /* ============================================================
    GENERAL CARD
@@ -742,40 +794,41 @@ onMounted(loadEmployee)
 
 .modern-card {
   border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
+  border-radius: var(--radius-lg) !important;
   background: var(--surface) !important;
-  box-shadow:
-    0 1px 3px rgba(15, 23, 42, 0.03),
-    0 4px 12px rgba(15, 23, 42, 0.04) !important;
+  box-shadow: var(--shadow-sm) !important;
   overflow: hidden;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
+.modern-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  border-color: var(--border-strong) !important;
+}
 
 /* ============================================================
-   HERO
+   HERO — FOND BLANC
 ============================================================ */
 
 .hero-card {
   position: relative;
   overflow: hidden;
-  border-radius: 10px !important;
-  color: white;
-  background: linear-gradient(
-    135deg,
-    var(--sidebar-1) 0%,
-    var(--sidebar-2) 45%,
-    var(--sidebar-3) 100%
-  ) !important;
-  box-shadow: 0 10px 28px rgba(12, 72, 129, 0.22) !important;
+  border-radius: var(--radius-lg) !important;
+  color: var(--text-main);
+  background: linear-gradient(135deg, #ffffff 0%, #fbfcfe 55%, #f4f7fb 100%) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-md) !important;
 }
 
 .hero-background {
   position: absolute;
   inset: 0;
-  opacity: 0.16;
+  z-index: 0;
+  opacity: 0.7;
+  pointer-events: none;
   background-image:
-    radial-gradient(circle at 85% 20%, white 0, transparent 32%),
-    radial-gradient(circle at 10% 100%, white 0, transparent 30%);
+    radial-gradient(circle at 88% 18%, rgba(15, 23, 42, 0.04) 0, transparent 38%),
+    radial-gradient(circle at 8% 100%, rgba(15, 23, 42, 0.03) 0, transparent 34%);
 }
 
 .hero-glow {
@@ -784,12 +837,9 @@ onMounted(loadEmployee)
   right: -20%;
   width: 60%;
   height: 220%;
+  z-index: 0;
   pointer-events: none;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.14) 0%,
-    transparent 60%
-  );
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.05) 0%, transparent 60%);
   filter: blur(30px);
 }
 
@@ -798,40 +848,8 @@ onMounted(loadEmployee)
   z-index: 1;
 }
 
-
 /* ============================================================
-   ADDRESS HEADER (dans la carte Kontakt)
-============================================================ */
-
-.address-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.address-header .address-icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  color: var(--accent-green);
-  background: var(--accent-green-bg);
-}
-
-.address-header-title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-soft);
-  line-height: 1.2;
-}
-
-
-/* ============================================================
-   EMPLOYEE / SUPERVISOR HIERARCHY
+   HIERARCHY
 ============================================================ */
 
 .employee-hierarchy {
@@ -850,12 +868,12 @@ onMounted(loadEmployee)
 }
 
 .person-label {
-  margin-bottom: 6px;
-  color: rgba(255, 255, 255, 0.68);
+  margin-bottom: 8px;
+  color: var(--text-faint);
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 
 .avatar-wrapper {
@@ -868,9 +886,9 @@ onMounted(loadEmployee)
 }
 
 .employee-avatar {
-  background: rgba(0, 0, 0, 0.25);
-  border: 5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
+  background: #f1f5f9;
+  border: 4px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--border), 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
 .employee-photo {
@@ -879,38 +897,20 @@ onMounted(loadEmployee)
   object-fit: cover;
 }
 
-.status-dot {
-  position: absolute;
-  right: 6px;
-  bottom: 10px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 3px solid #ffffff;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+.avatar-initials {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: -0.02em;
 }
-
-.status-active {
-  background: #22c55e;
-}
-
-.status-inactive {
-  background: #ef4444;
-}
-
-
-/* ============================================================
-   VERTICAL LINE
-============================================================ */
 
 .hierarchy-line {
   position: relative;
   width: 2px;
-  height: 30px;
-  margin: 4px 0;
+  height: 32px;
+  margin: 6px 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(to bottom, var(--border-strong), transparent);
 }
 
 .hierarchy-line::after {
@@ -918,43 +918,35 @@ onMounted(loadEmployee)
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+  background: #cbd5e1;
+  box-shadow: 0 0 0 4px #ffffff;
 }
 
-
-/* ============================================================
-   SUPERVISOR
-============================================================ */
-
-.supervisor-block {
-  padding-top: 1px;
-}
+.supervisor-block { padding-top: 2px; }
 
 .supervisor-avatar {
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.25);
-  border: 3px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  background: #f1f5f9;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--border), 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .supervisor-name {
   max-width: 150px;
-  margin-top: 6px;
-  color: #ffffff;
-  font-size: 0.75rem;
+  margin-top: 8px;
+  color: var(--text-main);
+  font-size: 0.78rem;
   font-weight: 650;
   line-height: 1.25;
   text-align: center;
 }
 
-
 /* ============================================================
-   EMPLOYEE INFORMATION
+   EMPLOYEE INFO
 ============================================================ */
 
 .employee-name {
@@ -963,39 +955,39 @@ onMounted(loadEmployee)
   line-height: 1.15;
   font-weight: 750;
   letter-spacing: -0.025em;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .status-chip {
   font-weight: 700;
   color: white !important;
+  letter-spacing: 0.02em;
 }
 
 .employee-number {
   display: inline-flex;
   align-items: center;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-muted);
   font-size: 0.86rem;
 }
 
 .employee-number strong {
-  color: white;
+  color: var(--text-main);
   margin-left: 4px;
 }
 
 .employee-position {
   font-size: 1rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
 .employee-department {
   display: inline-flex;
   align-items: center;
   font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-muted);
 }
-
 
 /* ============================================================
    HERO INFO GRID
@@ -1004,49 +996,163 @@ onMounted(loadEmployee)
 .hero-info-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .hero-info-item {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(6px);
-  transition: background 0.25s ease, transform 0.25s ease;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .hero-info-item:hover {
-  background: rgba(0, 0, 0, 0.35);
-  transform: translateX(2px);
+  transform: translateX(3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
 .hero-info-icon {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  margin-right: 9px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-sm);
+  margin-right: 10px;
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
 }
 
 .hero-info-label {
   font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.68);
-  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .hero-info-value {
-  margin-top: 1px;
-  font-size: 0.86rem;
+  margin-top: 2px;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-main);
 }
 
+/* ============================================================
+   KPI MINI
+============================================================ */
+
+.kpi-mini-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kpi-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 6px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  min-width: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-mini:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+.kpi-mini-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
+  flex-shrink: 0;
+}
+
+.kpi-mini-icon .v-icon {
+  font-size: 22px !important;
+}
+
+.kpi-mini-value {
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.kpi-mini-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ============================================================
+   TABS
+============================================================ */
+
+.profile-tabs {
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 4px;
+}
+
+.profile-tabs :deep(.v-tab) {
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0;
+  border-radius: var(--radius-md);
+  min-height: 42px;
+  color: #64748b;
+}
+
+.profile-tabs :deep(.v-tab--selected) {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.profile-tabs :deep(.v-tab__slider) {
+  display: none;
+}
+
+/* ============================================================
+   LIGNES DE SÉPARATION
+============================================================ */
+
+.item-divider {
+  margin: 2px 0 !important;
+  border-color: var(--border) !important;
+  opacity: 1 !important;
+}
 
 /* ============================================================
    CONTACT FIELDS
@@ -1055,37 +1161,36 @@ onMounted(loadEmployee)
 .contact-fields {
   display: flex;
   flex-direction: column;
-  gap: 3px;
 }
 
 .contact-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 5px;
-  transition: background 0.2s ease;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.18s ease;
 }
 
 .contact-row:hover {
-  background: #f7f9fc;
+  background: #fafbfd;
 }
 
 .contact-icon {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
-  color: var(--accent-blue);
-  background: var(--accent-blue-bg);
+  border-radius: var(--radius-sm);
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
   font-size: 15px;
 }
 
 .contact-label {
-  flex: 0 0 100px;
+  flex: 0 0 110px;
   color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 600;
@@ -1094,44 +1199,45 @@ onMounted(loadEmployee)
 .contact-value {
   flex: 1;
   min-width: 0;
-  color: #1f2937;
-  font-size: 0.83rem;
+  color: var(--text-main);
+  font-size: 0.82rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Valeurs longues (IBAN, etc.) : autoriser le retour à la ligne */
 .bank-card .contact-value {
   white-space: normal;
   word-break: break-all;
   font-variant-numeric: tabular-nums;
 }
 
+/* ============================================================
+   CHIPS GRIS
+============================================================ */
+
+.chip-grey {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  font-weight: 700;
+}
 
 /* ============================================================
    ADDRESS
 ============================================================ */
 
-.address-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.address-list { display: flex; flex-direction: column; }
 
 .address-item {
-  padding: 10px;
-  border: 1px solid #e8edf2;
-  border-radius: 6px;
-  background: #fafbfd;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  transition: background 0.2s ease;
 }
 
-.address-item:hover {
-  border-color: #cbe6d6;
-  background: #f6fbf8;
-}
+.address-item:hover { background: #fafbfd; }
 
 .address-main {
   color: var(--text-main);
@@ -1157,46 +1263,37 @@ onMounted(loadEmployee)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #9aa4b2;
+  color: var(--text-faint);
   font-size: 0.85rem;
 }
-
 
 /* ============================================================
    BANK
 ============================================================ */
 
+.bank-list { display: flex; flex-direction: column; }
+
 .bank-card {
-  padding: 12px;
-  border: 1px solid #e7eaf0;
-  border-radius: 6px;
-  background: #fafbfc;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  transition: background 0.2s ease;
 }
 
-.bank-card + .bank-card {
-  margin-top: 6px;
-}
+.bank-card:hover { background: #fafbfd; }
 
-.bank-card:hover {
-  border-color: #dcd0f5;
-  background: #faf8ff;
-}
-
-.bank-top {
-  display: flex;
-  align-items: center;
-}
+.bank-top { display: flex; align-items: center; }
 
 .bank-logo {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  color: var(--accent-purple);
-  background: var(--accent-purple-bg);
+  border-radius: var(--radius-sm);
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
 }
 
 .bank-owner {
@@ -1211,124 +1308,101 @@ onMounted(loadEmployee)
   font-size: 0.74rem;
 }
 
-
 /* ============================================================
    QUALIFICATIONS
 ============================================================ */
 
-.qualification-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-}
+.qualification-list { display: flex; flex-direction: column; }
 
 .qualification-card {
   display: flex;
-  padding: 10px;
-  border: 1px solid #e8edf2;
-  border-radius: 6px;
-  background: #fafbfd;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  transition: background 0.2s ease;
 }
 
-.qualification-card:hover {
-  border-color: #f5d8b3;
-  background: #fffaf4;
-}
+.qualification-card:hover { background: #fafbfd; }
 
 .qualification-icon {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  color: var(--accent-orange);
-  background: var(--accent-orange-bg);
+  border-radius: var(--radius-sm);
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
 }
 
-.qualification-content {
-  min-width: 0;
-  margin-left: 10px;
-}
+.qualification-content { min-width: 0; margin-left: 12px; }
 
 .qualification-title {
   color: var(--text-main);
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
 .qualification-institution {
-  margin-top: 1px;
-  color: #7d8795;
+  margin-top: 2px;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
 .qualification-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 5px;
-  color: #7d8795;
+  gap: 12px;
+  margin-top: 6px;
+  color: var(--text-muted);
   font-size: 0.72rem;
 }
 
 .qualification-meta span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
-
 
 /* ============================================================
    DOCUMENTS
 ============================================================ */
 
-.document-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.document-list { display: flex; flex-direction: column; }
 
 .document-item {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  background: #fafbfd;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: inherit;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
 }
 
-.document-item:hover {
-  background: #eff7fc;
-  border-color: #cbe5f5;
-  transform: translateX(2px);
-}
+.document-item:hover { background: #fafbfd; }
 
 .document-icon {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  color: var(--accent-blue);
-  background: var(--accent-blue-bg);
+  border-radius: var(--radius-sm);
+  color: var(--grey-icon) !important;
+  background: var(--grey-icon-bg) !important;
 }
 
-.document-content {
-  min-width: 0;
-  margin-left: 10px;
-}
+.document-content { min-width: 0; margin-left: 12px; }
 
 .document-name {
   color: var(--text-main);
-  font-size: 0.83rem;
+  font-size: 0.84rem;
   font-weight: 700;
 }
 
@@ -1336,7 +1410,7 @@ onMounted(loadEmployee)
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 2px;
+  margin-top: 3px;
   color: var(--text-muted);
   font-size: 0.72rem;
 }
@@ -1344,20 +1418,19 @@ onMounted(loadEmployee)
 .document-meta span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .document-arrow {
   margin-left: auto;
-  color: #9ba5b3;
+  color: var(--text-faint);
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
 .document-item:hover .document-arrow {
-  color: var(--accent-blue);
+  color: var(--text-soft);
   transform: translate(2px, -2px);
 }
-
 
 /* ============================================================
    BOTTOM ACTIONS
@@ -1367,14 +1440,14 @@ onMounted(loadEmployee)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 2px 14px;
+  padding: 8px 2px 14px;
 }
 
 .bottom-actions .v-btn {
   text-transform: none;
   font-weight: 600;
+  border-radius: var(--radius-md) !important;
 }
-
 
 /* ============================================================
    LOADING
@@ -1383,111 +1456,75 @@ onMounted(loadEmployee)
 .loading-card {
   max-width: 620px;
   margin: 60px auto;
+  border-radius: var(--radius-lg) !important;
 }
-
 
 /* ============================================================
    RESPONSIVE
 ============================================================ */
 
 @media (max-width: 960px) {
-  .hero-info-grid {
-    margin-top: 8px;
-  }
+  .hero-info-grid { margin-top: 10px; }
 }
 
 @media (max-width: 600px) {
+  .employee-page { padding: 8px !important; }
+  .employee-page .v-col { padding: 4px !important; }
+  .employee-page .v-row { row-gap: 8px !important; }
 
-  .employee-page {
-    padding: 6px !important;
-  }
-
-  .employee-page .v-col {
-    padding: 2px !important;
-  }
-
-  .employee-page .v-row {
-    row-gap: 4px !important;
-  }
-
-  /* Header Hero en colonne sur mobile */
   .hero-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 12px;
   }
 
-  .edit-button-hero {
-    width: 100%;
+  .hero-actions { width: 100%; }
+  .hero-actions .v-btn { flex: 1; }
+  .edit-button-hero { width: 100%; }
+
+  .hero-card { border-radius: var(--radius-md) !important; }
+  .hero-content { padding: 18px 14px !important; }
+  .employee-name { font-size: 1.45rem; }
+
+  .employee-hierarchy { min-width: 130px; }
+  .avatar-wrapper { width: 120px; height: 120px; }
+  .employee-avatar { width: 110px !important; height: 110px !important; }
+  .hierarchy-line { height: 24px; }
+  .supervisor-avatar { width: 58px !important; height: 58px !important; }
+
+  .kpi-mini-row { gap: 6px; margin-top: 6px; }
+  .kpi-mini { padding: 10px 4px; gap: 4px; }
+  .kpi-mini-icon { width: 30px; height: 30px; }
+  .kpi-mini-icon .v-icon { font-size: 18px !important; }
+  .kpi-mini-value { font-size: 1rem; }
+  .kpi-mini-label { font-size: 0.6rem; letter-spacing: 0; }
+
+  .modern-card { border-radius: var(--radius-md) !important; }
+
+  .profile-tabs :deep(.v-tab) {
+    min-width: auto;
+    padding: 0 10px;
+    font-size: 0.78rem;
   }
 
-  .hero-card {
-    border-radius: 8px !important;
-  }
-
-  .hero-content {
-    padding: 16px 14px !important;
-  }
-
-  .employee-name {
-    font-size: 1.45rem;
-  }
-
-  .employee-hierarchy {
-    min-width: 130px;
-  }
-
-  .avatar-wrapper {
-    width: 120px;
-    height: 120px;
-  }
-
-  .employee-avatar {
-    width: 110px !important;
-    height: 110px !important;
-  }
-
-  .status-dot {
-    right: 4px;
-    bottom: 6px;
-    width: 20px;
-    height: 20px;
-  }
-
-  .hierarchy-line {
-    height: 24px;
-  }
-
-  .supervisor-avatar {
-    width: 58px !important;
-    height: 58px !important;
-  }
-
-  .modern-card {
-    border-radius: 6px !important;
-  }
-
-  .contact-label {
-    flex: 0 0 90px;
-    font-size: 0.7rem;
-  }
-
-  .contact-value {
-    font-size: 0.8rem;
-  }
-
-  .contact-row {
-    padding: 5px 7px;
-  }
+  .contact-label { flex: 0 0 95px; font-size: 0.7rem; }
+  .contact-value { font-size: 0.8rem; }
+  .contact-row { padding: 6px 6px; }
 
   .bottom-actions {
     flex-direction: column-reverse;
-    gap: 6px;
+    gap: 8px;
   }
+  .bottom-actions .v-btn { width: 100%; }
+}
 
-  .bottom-actions .v-btn {
-    width: 100%;
-  }
+@media (max-width: 400px) {
+  .kpi-mini-row { gap: 4px; }
+  .kpi-mini { padding: 8px 2px; }
+  .kpi-mini-icon { width: 26px; height: 26px; }
+  .kpi-mini-icon .v-icon { font-size: 16px !important; }
+  .kpi-mini-value { font-size: 0.9rem; }
+  .kpi-mini-label { font-size: 0.54rem; }
 }
 
 </style>

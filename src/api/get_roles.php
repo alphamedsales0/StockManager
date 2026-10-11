@@ -1,37 +1,10 @@
 <?php
 // api/get_roles.php
 // ============================================================
-// CORS — compatible avec cookies de session
+// Liste des rôles
 // ============================================================
-$allowed_origins = [
-    'https://alpha-med-care.com',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000'
-];
 
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-if (in_array($origin, $allowed_origins, true)) {
-    // ✅ Origine autorisée + credentials
-    header("Access-Control-Allow-Origin: $origin");
-    header('Access-Control-Allow-Credentials: true');
-} else {
-    // Fallback sans credentials
-    header('Access-Control-Allow-Origin: *');
-}
-
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-header('Content-Type: application/json; charset=utf-8');
-
-// ✅ Répondre immédiatement aux requêtes OPTIONS (preflight)
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit(0);
-}
-
+require_once __DIR__ . '/cors.php';           // ✅ CORS en PREMIER (gère OPTIONS + headers)
 require_once __DIR__ . '/database_connect.php';
 
 if (!isset($pdo) || !$pdo) {
@@ -51,8 +24,8 @@ try {
 
     echo json_encode([
         'success' => true,
-        'roles' => $roles,
-        'count' => count($roles)
+        'roles'   => $roles,
+        'count'   => count($roles)
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (Exception $e) {

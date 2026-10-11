@@ -13,6 +13,7 @@ CREATE TABLE employees (
     position VARCHAR(100) NULL,
     abteilung VARCHAR(100) NULL,
     einstellungsdatum DATE NULL,
+    austrittsdatum DATE NULL DEFAULT NULL,
     geburtsdatum DATE NULL,
     gehalt DECIMAL(12,2) NULL,
     notfall_kontakt_name VARCHAR(100) NULL,
@@ -33,6 +34,7 @@ CREATE TABLE employees (
     INDEX idx_abteilung (abteilung),
     INDEX idx_position (position),
     INDEX idx_einstellungsdatum (einstellungsdatum),
+    INDEX idx_austrittsdatum (austrittsdatum),
     INDEX idx_mitarbeiter_nummer (mitarbeiter_nummer)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

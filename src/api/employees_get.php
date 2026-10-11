@@ -1,8 +1,9 @@
 <?php
 // employees_get.php
 // Récupère un employé et toutes ses données associées (par uid OU par id)
-// Dernière mise à jour : 2025-09-10
+// Dernière mise à jour : 2026-10-11
 // ✅ Adapté à la structure : employees.uid + tables enfants avec mitarbeiter_uid
+// ✅ Inclut automatiquement austrittsdatum via SELECT e.*
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -20,7 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/database_connect.php';
 
-// ---------- Récupération de l'identifiant (uid prioritaire, id en fallback) ----------
 $uid = $_GET['uid'] ?? '';
 $id  = $_GET['id']  ?? 0;
 
@@ -31,7 +31,6 @@ if (!$uid && !$id) {
 }
 
 try {
-    // ---------- 1. Employé + user ----------
     if ($uid) {
         if (!preg_match('/^[0-9a-f\-]{36}$/i', $uid)) {
             http_response_code(400);
@@ -83,7 +82,6 @@ try {
         exit;
     }
 
-    // Le champ principal pour le front
     $employeeUid = $employee['uid'];
 
     // ---------- 2. Adresses actives ----------
@@ -139,7 +137,6 @@ try {
     $stmtVers->execute([$employeeUid]);
     $versicherung = $stmtVers->fetch(PDO::FETCH_ASSOC) ?: null;
 
-    // Aplatir les champs de versicherung dans l'objet principal (comme attendu par le front)
     if ($versicherung) {
         $employee['versicherung_typ']             = $versicherung['versicherungstyp'];
         $employee['versicherung_gesellschaft']    = $versicherung['versicherungsgesellschaft'];

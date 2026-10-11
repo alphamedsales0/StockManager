@@ -1,0 +1,9 @@
+2026-09-20 20:46:22 - === DEBUT send_verification_code.php ===
+2026-09-20 20:46:22 - PHPMailer trouvé dans : /homepages/40/d4299030961/htdocs/api/../phpmailer/src/
+2026-09-20 20:46:22 - PHPMailer chargé avec succès
+2026-09-20 20:46:22 - config.php trouvé dans : /homepages/40/d4299030961/htdocs/api/../config.php
+2026-09-20 20:46:22 - Email récupéré du body: tamagni2002@yahoo.fr
+2026-09-20 20:46:22 - Email utilisé: tamagni2002@yahoo.fr
+2026-09-20 20:46:22 - Code généré: 649392
+2026-09-20 20:46:22 - Email envoyé à tamagni2002@yahoo.fr
+2026-09-20 20:46:22 - === FIN ===

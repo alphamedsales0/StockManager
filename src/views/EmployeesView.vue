@@ -1,4 +1,3 @@
-
 <template>
   <v-container fluid class="pa-4 pa-md-6">
 
@@ -190,6 +189,7 @@
 
       <v-divider />
 
+      <!-- ✅ AJOUT : @click:row ouvre les détails -->
       <v-data-table
         :headers="headers"
         :items="filteredEmployees"
@@ -201,6 +201,7 @@
         loading-text="Mitarbeiter werden geladen..."
         no-data-text="Keine Mitarbeiter vorhanden"
         items-per-page-text="Einträge pro Seite"
+        @click:row="onRowClick"
       >
         <!-- PHOTO -->
         <template #item.photo="{ item }">
@@ -375,8 +376,6 @@ const router = useRouter()
 
 const employees = ref([])
 const loading = ref(false)
-
-// FIX: Diese Variable hat im bisherigen Code gefehlt.
 const error = ref(null)
 
 const search = ref('')
@@ -393,8 +392,6 @@ const snackbarColor = ref('success')
 // API CONFIGURATION
 // =====================================================
 
-// Nutzt die konfigurierte API-Basis, sofern vorhanden.
-// Ohne Konfiguration wird /api verwendet.
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_BASE ||
@@ -534,8 +531,6 @@ const loadEmployees = async () => {
 
 const isActive = (employee) => {
   const value = employee?.is_active
-
-  // PHP/PDO kann BOOLEAN-Werte als 1 oder "1" zurückgeben.
   return value === true || value === 1 || value === '1'
 }
 
@@ -556,18 +551,14 @@ const getPhoto = (employee) => {
     return null
   }
 
-  // Absolute URL beibehalten.
   if (/^https?:\/\//i.test(photo)) {
     return photo
   }
 
-  // Protokollrelative URL.
   if (photo.startsWith('//')) {
     return `${window.location.protocol}${photo}`
   }
 
-  // Relative Bildpfade relativ zum aktuellen Host auflösen.
-  // Bei Bedarf den tatsächlichen Upload-Pfad in PHP zurückgeben.
   if (photo.startsWith('/')) {
     return photo
   }
@@ -577,7 +568,6 @@ const getPhoto = (employee) => {
 
 const onImageError = (employee) => {
   const uid = employee.employee_uid || employee.uid
-
   if (!uid) return
 
   const updated = new Set(failedImages.value)
@@ -671,9 +661,6 @@ const departmentsCount = computed(() => {
 // =====================================================
 // NAVIGATION
 // =====================================================
-// =====================================================
-// NAVIGATION
-// =====================================================
 
 const getEmployeeUid = (employee) => {
   return employee.employee_uid || employee.uid || null
@@ -706,6 +693,12 @@ const editEmployee = (employee) => {
     console.error('[EditEmployee] Erreur de navigation:', err)
     notify('Die Bearbeitungsseite konnte nicht geöffnet werden.', 'error')
   })
+}
+
+// ✅ NOUVEAU : clic sur la ligne → ouvre les détails
+// Signature Vuetify 3 : (event, { item })
+const onRowClick = (event, { item }) => {
+  openDetail(item)
 }
 
 // =====================================================
@@ -747,7 +740,9 @@ onMounted(() => {
   border-radius: 0 0 18px 18px;
 }
 
+/* ✅ Curseur main sur les lignes cliquables */
 .employee-table :deep(tbody tr) {
+  cursor: pointer;
   transition: background-color 0.2s ease;
 }
 

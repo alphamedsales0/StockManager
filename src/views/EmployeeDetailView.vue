@@ -85,7 +85,7 @@
                 <div class="person-block">
                   <div class="person-label">Mitarbeiter</div>
                   <div class="avatar-wrapper">
-                    <v-avatar size="130" class="employee-avatar">
+                    <v-avatar size="160" class="employee-avatar">
                       <img
                         v-if="employee.photo && !photoError"
                         :src="employee.photo"
@@ -102,7 +102,7 @@
                   <div class="hierarchy-line"></div>
                   <div class="person-block supervisor-block">
                     <div class="person-label">Vorgesetzter</div>
-                    <v-avatar size="68" class="supervisor-avatar">
+                    <v-avatar size="84" class="supervisor-avatar">
                       <img
                         v-if="employee.vorgesetzter_foto && !supervisorPhotoError"
                         :src="employee.vorgesetzter_foto"
@@ -110,7 +110,7 @@
                         class="employee-photo"
                         @error="supervisorPhotoError = true"
                       />
-                      <v-icon v-else size="34" color="grey-darken-2">mdi-account-tie-outline</v-icon>
+                      <v-icon v-else size="40" color="grey-darken-2">mdi-account-tie-outline</v-icon>
                     </v-avatar>
                     <div class="supervisor-name">{{ employee.vorgesetzter }}</div>
                   </div>
@@ -118,48 +118,90 @@
               </div>
             </v-col>
 
-            <!-- NAME / INFOS -->
-            <v-col cols="12" md class="text-center text-md-left">
-              <div class="employee-info-list">
+            <!-- ✅ BLOC INFOS — ALIGNEMENT EN COLONNES -->
+            <v-col cols="12" md class="employee-info-column">
+              <div class="employee-info-block">
 
-                <div class="employee-info-row">
-                  <span class="employee-info-label">Nachname:</span>
-                  <span class="employee-info-value">{{ employee.nachname || '—' }}</span>
+                <!-- Ligne 1 : Statut -->
+                <div class="info-row info-row-single">
+                  <div class="info-col">
+                    <div class="info-col-label">Status</div>
+                    <div class="info-col-value">
+                      <v-chip
+                        :color="employee.is_active ? 'success' : 'error'"
+                        variant="flat"
+                        size="small"
+                        class="status-chip"
+                      >
+                        <v-icon start size="14">
+                          {{ employee.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}
+                        </v-icon>
+                        {{ employee.is_active ? 'Aktiv' : 'Inaktiv' }}
+                      </v-chip>
+                    </div>
+                  </div>
                 </div>
 
-                <div class="employee-info-row">
-                  <span class="employee-info-label">Vorname:</span>
-                  <span class="employee-info-value">{{ employee.vorname || '—' }}</span>
+                <v-divider class="employee-divider" />
+
+                <!-- Ligne 2 : Vorname / Position / Benutzername -->
+                <div class="info-row">
+                  <div class="info-col">
+                    <div class="info-col-label">Vorname</div>
+                    <div class="info-col-value">{{ employee.vorname || '—' }}</div>
+                  </div>
+
+                  <div class="info-col">
+                    <div class="info-col-label">Position</div>
+                    <div class="info-col-value">{{ employee.position || '—' }}</div>
+                  </div>
+
+                  <div class="info-col">
+                    <div class="info-col-label">Benutzername</div>
+                    <div class="info-col-value">{{ employee.username || '—' }}</div>
+                  </div>
                 </div>
 
-                <div class="employee-info-row">
-                  <span class="employee-info-label">Status:</span>
-                  <v-chip
-                    :color="employee.is_active ? 'success' : 'error'"
-                    variant="flat"
-                    size="small"
-                    class="status-chip"
-                  >
-                    <v-icon start size="14">
-                      {{ employee.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}
-                    </v-icon>
-                    {{ employee.is_active ? 'Aktiv' : 'Inaktiv' }}
-                  </v-chip>
+                <v-divider class="employee-divider" />
+
+                <!-- Ligne 3 : Nachname / Vorname / Mitarbeiter-Nr. -->
+                <div class="info-row">
+                  <div class="info-col">
+                    <div class="info-col-label">Nachname</div>
+                    <div class="info-col-value">{{ employee.nachname || '—' }}</div>
+                  </div>
+
+                  <div class="info-col">
+                    <div class="info-col-label">Vorname</div>
+                    <div class="info-col-value">{{ employee.vorname || '—' }}</div>
+                  </div>
+
+                  <div class="info-col">
+                    <div class="info-col-label">Mitarbeiter-Nr.</div>
+                    <div class="info-col-value info-col-mono">
+                      {{ employee.mitarbeiter_nummer || '—' }}
+                    </div>
+                  </div>
                 </div>
 
-                <div class="employee-info-row">
-                  <span class="employee-info-label">Mitarbeiter-Nr.:</span>
-                  <span class="employee-info-value">{{ employee.mitarbeiter_nummer || '—' }}</span>
-                </div>
+                <v-divider class="employee-divider" />
 
-                <div class="employee-info-row" v-if="employee.position">
-                  <span class="employee-info-label">Position:</span>
-                  <span class="employee-info-value">{{ employee.position }}</span>
-                </div>
+                <!-- Ligne 4 : Position / Abteilung / Benutzername -->
+                <div class="info-row">
+                  <div class="info-col">
+                    <div class="info-col-label">Position</div>
+                    <div class="info-col-value">{{ employee.position || '—' }}</div>
+                  </div>
 
-                <div class="employee-info-row" v-if="employee.abteilung">
-                  <span class="employee-info-label">Abteilung:</span>
-                  <span class="employee-info-value">{{ employee.abteilung }}</span>
+                  <div class="info-col">
+                    <div class="info-col-label">Abteilung</div>
+                    <div class="info-col-value">{{ employee.abteilung || '—' }}</div>
+                  </div>
+
+                  <div class="info-col">
+                    <div class="info-col-label">Benutzername</div>
+                    <div class="info-col-value">{{ employee.username || '—' }}</div>
+                  </div>
                 </div>
 
               </div>
@@ -545,7 +587,6 @@ const initials = computed(() => {
   return `${e.vorname?.[0] || ''}${e.nachname?.[0] || ''}`.toUpperCase()
 })
 
-/* ✅ heroInfo — version directe, sans condition */
 const heroInfo = computed(() => {
   const e = employee.value
   if (!e) return []
@@ -617,12 +658,9 @@ const formatDate = (date) => {
   }
 }
 
-const isUuid = (id) => /^[0-9a-f-]{36}$/i.test(id)
-
 /* ============================================================
    LOAD EMPLOYEE
 ============================================================ */
-
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -714,11 +752,9 @@ const loadEmployee = async () => {
   }
 }
 
-
 /* ============================================================
    ACTIONS
 ============================================================ */
-
 
 const goToEdit = async () => {
   const uid =
@@ -737,7 +773,6 @@ const goToEdit = async () => {
 
   console.log('[goToEdit] UID:', uid)
   console.log('[goToEdit] Ziel:', target)
-  console.log('[goToEdit] Router:', router.resolve(target).fullPath)
 
   try {
     await router.push(target)
@@ -745,7 +780,6 @@ const goToEdit = async () => {
     console.error('[goToEdit] Navigation fehlgeschlagen:', err)
   }
 }
-
 
 const mailEmployee = () => {
   if (employee.value?.email) window.location.href = `mailto:${employee.value.email}`
@@ -958,7 +992,7 @@ onMounted(loadEmployee)
 }
 
 /* ============================================================
-   HIERARCHY
+   HIERARCHY — AVATAR AGRANDI
 ============================================================ */
 
 .employee-hierarchy {
@@ -966,7 +1000,7 @@ onMounted(loadEmployee)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 150px;
+  min-width: 180px;
 }
 
 .person-block {
@@ -977,7 +1011,7 @@ onMounted(loadEmployee)
 }
 
 .person-label {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
   font-size: 0.65rem;
   font-weight: 700;
@@ -987,37 +1021,48 @@ onMounted(loadEmployee)
 
 .avatar-wrapper {
   position: relative;
-  width: 144px;
-  height: 144px;
+  width: 176px;
+  height: 176px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+/* ✅ Avatar principal — sans border-radius (image non coupée) */
 .employee-avatar {
   background: #f1f5f9;
-  border: 4px solid #ffffff;
+  border: 3px solid #ffffff;
+  border-radius: 0 !important;
   box-shadow: 0 0 0 1px var(--border), 0 12px 28px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.employee-avatar :deep(.v-avatar__content),
+.employee-avatar :deep(img) {
+  border-radius: 0 !important;
 }
 
 .employee-photo {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 0 !important;
+  display: block;
 }
 
 .avatar-initials {
-  font-size: 2.2rem;
+  font-size: 2.6rem;
   font-weight: 700;
   color: #475569;
   letter-spacing: -0.02em;
 }
 
+/* ✅ Ligne hiérarchique */
 .hierarchy-line {
   position: relative;
   width: 2px;
-  height: 32px;
-  margin: 6px 0;
+  height: 28px;
+  margin: 4px 0;
   border-radius: 999px;
   background: linear-gradient(to bottom, var(--border-strong), transparent);
 }
@@ -1037,83 +1082,103 @@ onMounted(loadEmployee)
 
 .supervisor-block { padding-top: 2px; }
 
+/* ✅ Avatar vorgesetzter — sans border-radius, taille augmentée */
 .supervisor-avatar {
   overflow: hidden;
   background: #f1f5f9;
-  border: 3px solid #ffffff;
+  border: 2px solid #ffffff;
+  border-radius: 0 !important;
   box-shadow: 0 0 0 1px var(--border), 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
+.supervisor-avatar :deep(.v-avatar__content),
+.supervisor-avatar :deep(img) {
+  border-radius: 0 !important;
+}
+
 .supervisor-name {
-  max-width: 150px;
-  margin-top: 8px;
+  max-width: 180px;
+  margin-top: 6px;
   color: var(--text-main);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 650;
   line-height: 1.25;
   text-align: center;
 }
 
 /* ============================================================
-   EMPLOYEE INFO (LABEL + VALUE)
+   EMPLOYEE INFO — ALIGNEMENT EN COLONNES
 ============================================================ */
 
-.employee-info-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.employee-info-row {
+.employee-info-column {
   display: flex;
   align-items: center;
-  gap: 8px;
-  line-height: 1.4;
 }
 
-.employee-info-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
+.employee-info-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.employee-info-value {
-  font-size: 0.9rem;
+.info-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 16px;
+  padding: 6px 0;
+  width: 100%;
+  align-items: start;
+}
+
+.info-row-single {
+  grid-template-columns: 1fr;
+}
+
+.info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info-col-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  line-height: 1.2;
+}
+
+.info-col-value {
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.info-col-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+}
+
+.employee-divider {
+  margin: 0 !important;
+  border-color: var(--border) !important;
+  opacity: 1;
+  width: 100%;
 }
 
 .status-chip {
   font-weight: 700;
   color: white !important;
   letter-spacing: 0.02em;
-}
-
-.employee-number {
-  display: inline-flex;
-  align-items: center;
-  color: var(--text-muted);
-  font-size: 0.86rem;
-}
-
-.employee-number strong {
-  color: var(--text-main);
-  margin-left: 4px;
-}
-
-.employee-position {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.employee-department {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.88rem;
-  color: var(--text-muted);
 }
 
 /* ============================================================
@@ -1123,13 +1188,13 @@ onMounted(loadEmployee)
 .hero-info-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .hero-info-item {
   display: flex;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: var(--radius-md);
   background: #ffffff;
   border: 1px solid var(--border);
@@ -1144,8 +1209,8 @@ onMounted(loadEmployee)
 }
 
 .hero-info-icon {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1177,8 +1242,8 @@ onMounted(loadEmployee)
 .kpi-mini-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -1188,8 +1253,8 @@ onMounted(loadEmployee)
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 12px 6px;
+  gap: 4px;
+  padding: 10px 4px;
   border-radius: var(--radius-md);
   background: #ffffff;
   border: 1px solid var(--border);
@@ -1206,8 +1271,8 @@ onMounted(loadEmployee)
 }
 
 .kpi-mini-icon {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1218,11 +1283,11 @@ onMounted(loadEmployee)
 }
 
 .kpi-mini-icon .v-icon {
-  font-size: 22px !important;
+  font-size: 20px !important;
 }
 
 .kpi-mini-value {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 750;
   color: var(--text-main);
   letter-spacing: -0.02em;
@@ -1230,7 +1295,7 @@ onMounted(loadEmployee)
 }
 
 .kpi-mini-label {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--text-muted);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1591,7 +1656,21 @@ onMounted(loadEmployee)
 ============================================================ */
 
 @media (max-width: 960px) {
-  .hero-info-grid { margin-top: 10px; }
+  .hero-info-grid { margin-top: 8px; }
+
+  .employee-info-column {
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+
+  .info-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 12px;
+  }
+
+  .info-row-single {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 600px) {
@@ -1612,19 +1691,25 @@ onMounted(loadEmployee)
   .hero-card { border-radius: var(--radius-md) !important; }
   .hero-content { padding: 18px 14px !important; }
 
-  .employee-hierarchy { min-width: 130px; }
-  .avatar-wrapper { width: 120px; height: 120px; }
-  .employee-avatar { width: 110px !important; height: 110px !important; }
-  .hierarchy-line { height: 24px; }
-  .supervisor-avatar { width: 58px !important; height: 58px !important; }
+  .employee-hierarchy { min-width: 150px; }
+  .avatar-wrapper { width: 144px; height: 144px; }
+  .employee-avatar { width: 132px !important; height: 132px !important; }
+  .hierarchy-line { height: 22px; }
+  .supervisor-avatar { width: 72px !important; height: 72px !important; }
 
-  .employee-info-list { align-items: center; }
-  .employee-info-row { justify-content: center; }
+  .info-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    padding: 6px 0;
+  }
+
+  .info-col-label { font-size: 0.62rem; }
+  .info-col-value { font-size: 0.85rem; }
 
   .kpi-mini-row { gap: 6px; margin-top: 6px; }
-  .kpi-mini { padding: 10px 4px; gap: 4px; }
-  .kpi-mini-icon { width: 30px; height: 30px; }
-  .kpi-mini-icon .v-icon { font-size: 18px !important; }
+  .kpi-mini { padding: 8px 4px; gap: 4px; }
+  .kpi-mini-icon { width: 28px; height: 28px; }
+  .kpi-mini-icon .v-icon { font-size: 16px !important; }
   .kpi-mini-value { font-size: 1rem; }
   .kpi-mini-label { font-size: 0.6rem; letter-spacing: 0; }
 
@@ -1654,6 +1739,11 @@ onMounted(loadEmployee)
   .kpi-mini-icon .v-icon { font-size: 16px !important; }
   .kpi-mini-value { font-size: 0.9rem; }
   .kpi-mini-label { font-size: 0.54rem; }
+
+  .info-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 
 </style>

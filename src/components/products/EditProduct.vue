@@ -58,7 +58,6 @@
 
           <v-card-text>
             <v-row>
-              <!-- COLONNE GAUCHE : PRODUKTIDENTIFIKATION -->
               <v-col cols="12" md="6" class="pr-md-4">
                 <div class="section-header mb-3">
                   <v-icon size="18" color="primary" class="mr-2">mdi-tag-multiple</v-icon>
@@ -202,7 +201,6 @@
                 </v-row>
               </v-col>
 
-              <!-- COLONNE DROITE : PREIS & VERFÜGBARKEIT -->
               <v-col cols="12" md="6" class="pl-md-4">
                 <div class="section-header mb-3">
                   <v-icon size="18" color="primary" class="mr-2">mdi-cash-multiple</v-icon>
@@ -464,7 +462,7 @@
                   <div v-else class="file-input-wrapper mb-1">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
                       @change="onFileSelected($event, idx)"
                       class="file-input"
                     />
@@ -472,16 +470,51 @@
                     <span v-else class="file-placeholder">Keine Datei ausgewählt</span>
                   </div>
 
+                  <!-- ✅ SÉLECTEUR DE COULEUR PAR IMAGE -->
+                  <v-select
+                    v-model="img.farbe_schluessel"
+                    :items="farbenListe"
+                    item-title="bezeichnung"
+                    item-value="schluessel"
+                    label="Farbe"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    clearable
+                    class="mb-1"
+                  >
+                    <template #item="{ props, item }">
+                      <v-list-item v-bind="props">
+                        <template #prepend>
+                          <span
+                            class="farbe-swatch-mini"
+                            :style="{ backgroundColor: item.raw.hex_code }"
+                          ></span>
+                        </template>
+                      </v-list-item>
+                    </template>
+                    <template #selection="{ item }">
+                      <span class="d-flex align-center ga-2">
+                        <span
+                          class="farbe-swatch-mini"
+                          :style="{ backgroundColor: item.raw.hex_code }"
+                        ></span>
+                        {{ item.raw.bezeichnung }}
+                      </span>
+                    </template>
+                  </v-select>
+
                   <div class="d-flex align-center mt-1">
-                    <v-select
-                      v-model="img.type"
-                      :items="imageTypeOptions"
-                      label="Typ"
-                      variant="outlined"
-                      density="compact"
-                      hide-details
-                      class="mr-2 flex-grow-1"
-                    />
+                  <v-select
+  v-model="img.type"
+  :items="imageTypeOptions"
+  label="Typ"
+  variant="outlined"
+  density="compact"
+  hide-details
+  class="mr-2 flex-grow-1"
+  @update:model-value="onImageTypeChange(idx, $event)"
+/>
                     <v-btn icon variant="text" color="error" @click="removeImage(idx)">
                       <v-icon>mdi-delete</v-icon>
                     </v-btn>
@@ -700,7 +733,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import GuideDrawer from '../../components/dashboard/GuideDrawer.vue'
-// ✅ FIX : import de toRelativePath
 import { apiUrl, imageUrl, toRelativePath } from '@/config/api'
 
 // ============================================================
@@ -815,6 +847,9 @@ const typeMap = {
   'gallery': 'gallery'
 }
 
+// ✅ Normalise une clé de couleur
+const normKey = (v) => (v ?? '').toString().trim().toLowerCase()
+
 // ============================================================
 // BRANDS
 // ============================================================
@@ -824,6 +859,17 @@ const loadBrands = async () => {
     if (res.data.success) brands.value = res.data.items
   } catch (e) {
     console.error('Fehler beim Laden der Marken:', e)
+  }
+}
+
+const onImageTypeChange = (idx, newType) => {
+  if (newType === 'main') {
+    // Un seul "Hauptbild" : retire le type main des autres
+    allImages.value.forEach((img, i) => {
+      if (i !== idx && img.type === 'main') {
+        img.type = 'gallery'
+      }
+    })
   }
 }
 
@@ -947,31 +993,55 @@ const loadProduct = async () => {
         id: null,
         url: main,
         type: 'main',
+        // ✅ Fallback : si le main n'a pas de couleur, prend la couleur du produit
+        farbe_schluessel: normKey(a.color) || '',
         method: 'url',
         file: null,
         fileName: ''
       })
     }
 
-    ;(res.data.product.images || []).forEach(img => {
-      const fullUrl = buildImageUrl(img.url)
-      if (fullUrl && fullUrl !== main) {
-        images.push({
-          id: img.id || null,
-          url: fullUrl,
-          type: typeMap[img.type] || 'gallery',
-          method: 'url',
-          file: null,
-          fileName: ''
-        })
+   ;(res.data.product.images || []).forEach(img => {
+  const fullUrl = buildImageUrl(img.url)
+  if (fullUrl && fullUrl !== main) {
+    // ✅ Priorité : couleur en base > détection depuis le nom de fichier > couleur du produit
+    let farbe = normKey(img.farbe_schluessel)
+
+    // Si pas de couleur en base, essaie de la déduire du nom de fichier
+    if (!farbe) {
+      const filename = (img.url || '').toLowerCase()
+      const knownColors = ['weiss', 'schwarz', 'anthrazit', 'grau', 'silber', 'rot', 'blau', 'gruen']
+      for (const kc of knownColors) {
+        if (filename.includes(kc)) {
+          farbe = kc
+          break
+        }
       }
+    }
+
+    // En dernier recours seulement : couleur du produit (si c'est un main)
+    if (!farbe && img.type === 'haupt' && a.color) {
+      farbe = normKey(a.color)
+    }
+
+    images.push({
+      id: img.id || null,
+      url: fullUrl,
+      type: typeMap[img.type] || 'gallery',
+      farbe_schluessel: farbe || '',
+      method: 'url',
+      file: null,
+      fileName: ''
     })
+  }
+})
 
     if (!images.some(i => i.type === 'main')) {
       images.unshift({
         id: null,
         url: main,
         type: 'main',
+        farbe_schluessel: normKey(a.color) || '',
         method: 'url',
         file: null,
         fileName: ''
@@ -994,8 +1064,13 @@ const loadProduct = async () => {
 // ============================================================
 const addImage = () => {
   allImages.value.push({
-    id: null, url: '', type: 'gallery',
-    method: 'url', file: null, fileName: ''
+    id: null,
+    url: '',
+    type: 'gallery',
+    farbe_schluessel: '',
+    method: 'url',
+    file: null,
+    fileName: ''
   })
 }
 
@@ -1005,7 +1080,7 @@ const removeImage = (idx) => {
     const next = allImages.value.find((im, i) => i !== idx && im.url)
     if (next) next.type = 'main'
     else allImages.value.push({
-      id: null, url: '', type: 'main',
+      id: null, url: '', type: 'main', farbe_schluessel: '',
       method: 'url', file: null, fileName: ''
     })
   }
@@ -1027,9 +1102,18 @@ const onFileSelected = (event, idx) => {
   const file = event.target.files[0]
   if (!file) return
 
-  const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  // ✅ AVIF ajouté
+  const allowed = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/avif'
+  ]
+
   if (!allowed.includes(file.type)) {
-    alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP) sind erlaubt.')
+    alert('Nur Bilddateien (JPEG, PNG, GIF, WEBP, AVIF) sind erlaubt.')
     event.target.value = ''
     return
   }
@@ -1072,11 +1156,20 @@ const submit = async () => {
     return
   }
 
+  // ✅ Fallback : si le main n'a pas de couleur, force celle du produit
+  if (!mainImageObj.farbe_schluessel && product.color) {
+    mainImageObj.farbe_schluessel = normKey(product.color)
+  }
+
+  // Uploads
   const uploads = allImages.value
     .filter(i => i.method === 'upload' && i.file)
     .map(async (img) => {
       const fd = new FormData()
       fd.append('image', img.file)
+      fd.append('color', img.farbe_schluessel || '')
+      fd.append('type',  img.type || 'gallery')
+
       try {
         const r = await axios.post(apiUrl('/upload_image.php'), fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -1084,6 +1177,10 @@ const submit = async () => {
         })
         if (r.data.success) {
           img.url = r.data.url
+          // ✅ Auto-remplit la couleur si détectée côté back
+          if (!img.farbe_schluessel && r.data.detected_color) {
+            img.farbe_schluessel = r.data.detected_color
+          }
           img.file = null
           img.fileName = ''
           img.method = 'url'
@@ -1107,18 +1204,38 @@ const submit = async () => {
     return
   }
 
-  // ✅ FIX : utilise toRelativePath (idempotent, robuste)
   product.main_image = toRelativePath(mainImageObj.url)
 
-  const galleryImages = allImages.value
-    .filter(i => i.type !== 'main')
-    .map((i, idx) => ({
-      id: i.id || null,
-      url: toRelativePath(i.url),   // ✅ FIX
-      image_order: idx + 1,
-      type: i.type || 'gallery',
-      article_name: product.name
-    }))
+  // ✅ Toutes les images (main inclus) + fallback couleur
+ const allImagesPayload = allImages.value.map((i, idx) => {
+  let farbe = normKey(i.farbe_schluessel)
+
+  // Fallback 1 : main sans couleur → couleur produit
+  if (!farbe && i.type === 'main' && product.color) {
+    farbe = normKey(product.color)
+  }
+
+  // ✅ Fallback 2 : déduire depuis le nom de fichier
+  if (!farbe && i.url) {
+    const filename = i.url.toLowerCase()
+    const knownColors = ['weiss', 'schwarz', 'anthrazit', 'grau', 'silber', 'rot', 'blau', 'gruen']
+    for (const kc of knownColors) {
+      if (filename.includes(kc)) {
+        farbe = kc
+        break
+      }
+    }
+  }
+
+  return {
+    id: i.id || null,
+    url: toRelativePath(i.url),
+    image_order: idx + 1,
+    type: i.type || 'gallery',
+    article_name: product.name,
+    farbe_schluessel: farbe || null
+  }
+})
 
   product.price = parseFloat(product.price) || 0
   product.offer_price = (product.offer_price === null || product.offer_price === '')
@@ -1141,7 +1258,7 @@ const submit = async () => {
     article: { ...product },
     specifics: { ...specifics },
     shipping: { ...shipping },
-    images: galleryImages
+    images: allImagesPayload     // ✅ Toutes les images
   }
 
   submitting.value = true

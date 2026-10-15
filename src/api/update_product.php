@@ -76,7 +76,6 @@ function addVerlauf(PDO $dbh, int $artikelId, string $aktion, ?string $feld = nu
         $benutzer = $_SERVER['PHP_AUTH_USER'] ?? ($_SERVER['REMOTE_USER'] ?? 'System');
         $stmt->execute([$artikelId, $benutzer, $aktion, $feld, $alter, $neuer, $beschreibung]);
     } catch (Exception $e) {
-        // On ne bloque pas l'update si le log échoue
         error_log('addVerlauf failed: ' . $e->getMessage());
     }
 }
@@ -91,7 +90,7 @@ try {
     $dbh->beginTransaction();
 
     // ============================================================
-    // 0. Charger l'état ACTUEL pour comparer (log de l'historique)
+    // 0. Charger l'état ACTUEL
     // ============================================================
     $oldStmt = $dbh->prepare("SELECT * FROM artikel WHERE id = ?");
     $oldStmt->execute([$productId]);
@@ -151,7 +150,7 @@ try {
     ];
 
     // ============================================================
-    // 3. Log des changements de champs principaux
+    // 3. Log des changements
     // ============================================================
     $labelMap = [
         'bezeichnung'        => 'Name',
@@ -186,9 +185,7 @@ try {
         if (!array_key_exists($field, $old)) continue;
 
         $oldValue = $old[$field];
-        // Comparaison souple (les booléens "0"/"1" vs int)
         if ((string)$oldValue !== (string)$newValue) {
-            // On ignore les changements triviaux (null vs '')
             if (($oldValue === null && $newValue === '') || ($oldValue === '' && $newValue === null)) {
                 continue;
             }
@@ -206,7 +203,6 @@ try {
         }
     }
 
-    // Log de l'action globale
     addVerlauf(
         $dbh,
         $productId,
@@ -288,7 +284,7 @@ try {
     ]);
 
     // ============================================================
-    // 6. artikel_bilder
+    // 6. artikel_bilder — AVEC farbe_schluessel
     // ============================================================
     $keepIds = [];
     foreach ($imagesData as $img) {
@@ -307,22 +303,33 @@ try {
     $order = 1;
     foreach ($imagesData as $img) {
         if (empty($img['url'])) continue;
+
         $bildUrl = $img['url'];
         $typ = $img['type'] ?? 'galerie';
         if ($typ === 'main')    $typ = 'haupt';
         if ($typ === 'gallery') $typ = 'galerie';
         if (!in_array($typ, ['haupt','galerie','detail'], true)) $typ = 'galerie';
 
+        // ✅ Récupère la couleur associée à l'image
+        $farbeSchluessel = null;
+        if (!empty($img['farbe_schluessel'])) {
+            $farbeSchluessel = trim((string)$img['farbe_schluessel']);
+        } elseif (!empty($img['farbe'])) {              // fallback compat
+            $farbeSchluessel = trim((string)$img['farbe']);
+        } elseif (!empty($img['color'])) {              // fallback compat
+            $farbeSchluessel = trim((string)$img['color']);
+        }
+
         if (!empty($img['id'])) {
             $upd = $dbh->prepare("UPDATE artikel_bilder
-                                  SET bild_url = ?, bild_typ = ?, bild_reihenfolge = ?
+                                  SET bild_url = ?, bild_typ = ?, bild_reihenfolge = ?, farbe_schluessel = ?
                                   WHERE id = ? AND artikel_id = ?");
-            $upd->execute([$bildUrl, $typ, $order, (int)$img['id'], $productId]);
+            $upd->execute([$bildUrl, $typ, $order, $farbeSchluessel, (int)$img['id'], $productId]);
         } else {
             $ins = $dbh->prepare("INSERT INTO artikel_bilder
-                                  (artikel_id, bild_url, bild_typ, bild_reihenfolge)
-                                  VALUES (?, ?, ?, ?)");
-            $ins->execute([$productId, $bildUrl, $typ, $order]);
+                                  (artikel_id, bild_url, bild_typ, bild_reihenfolge, farbe_schluessel)
+                                  VALUES (?, ?, ?, ?, ?)");
+            $ins->execute([$productId, $bildUrl, $typ, $order, $farbeSchluessel]);
         }
         $order++;
     }

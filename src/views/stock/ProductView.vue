@@ -568,6 +568,9 @@ const duplicating = ref(false)
 // ============================================================
 const buildImageUrl = (path) => imageUrl(path)
 
+// ✅ Normalise une clé de couleur : string, trim, lowercase
+const normKey = (v) => (v ?? '').toString().trim().toLowerCase()
+
 const formatPrice = (v) => {
   if (v === null || v === undefined || isNaN(v)) return '—'
   return new Intl.NumberFormat('de-DE', {
@@ -672,15 +675,43 @@ const specsClean = computed(() => {
   return out
 })
 
+// ============================================================
+// ✅ FILTRE ROBUSTE PAR COULEUR
+// ============================================================
+// ✅ Déduit la couleur depuis le nom de fichier
+const inferColorFromFilename = (url) => {
+  if (!url) return null
+  const filename = url.toLowerCase()
+  const knownColors = [
+    'weiss', 'schwarz', 'anthrazit', 'grau', 'silber',
+    'rot', 'blau', 'gruen', 'gelb', 'orange',
+    'braun', 'beige', 'rosa', 'lila', 'violett',
+    'gold', 'chrom', 'pink', 'tuerkis', 'bordeaux'
+  ]
+  for (const kc of knownColors) {
+    if (filename.includes(kc)) return kc
+  }
+  return null
+}
 const imagesForCurrentFarbe = computed(() => {
   if (!selectedFarbe.value) return allImages.value
 
-  const farbeKey = selectedFarbe.value.schluessel
+  const farbeKey = normKey(selectedFarbe.value.schluessel)
+  if (!farbeKey) return allImages.value
 
-  const filtered = allImages.value.filter(img => {
-    if (!img.farbe_schluessel) return true
-    return img.farbe_schluessel === farbeKey
+  let filtered = allImages.value.filter(img => {
+    // Priorité 1 : couleur en base
+    if (img.farbe_schluessel) {
+      return normKey(img.farbe_schluessel) === farbeKey
+    }
+    // Priorité 2 : déduire du nom de fichier
+    const inferred = inferColorFromFilename(img.url)
+    return inferred === farbeKey
   })
+
+  if (filtered.length === 0) {
+    filtered = [...allImages.value]
+  }
 
   const farbeImgUrl = selectedFarbe.value.bild_url
   if (farbeImgUrl) {
@@ -731,6 +762,7 @@ const loadProduct = async () => {
     specifics.value = res.data.product.specifics || {}
     shipping.value = res.data.product.shipping || shipping.value
 
+    // ✅ Images : normalise farbe_schluessel
     const images = []
     ;(res.data.product.images || []).forEach(img => {
       const url = buildImageUrl(img.url)
@@ -738,30 +770,51 @@ const loadProduct = async () => {
       images.push({
         url,
         type: img.type,
-        farbe_schluessel: img.farbe_schluessel || null
+        farbe_schluessel: img.farbe_schluessel ? normKey(img.farbe_schluessel) : null
       })
     })
 
+    // Fallback : si aucune image de galerie, on utilise le main_image
     if (images.length === 0 && a.main_image) {
-      images.push({
-        url: buildImageUrl(a.main_image),
-        type: 'main',
-        farbe_schluessel: null
-      })
+      const mainUrl = buildImageUrl(a.main_image)
+      if (mainUrl) {
+        images.push({
+          url: mainUrl,
+          type: 'main',
+          farbe_schluessel: null
+        })
+      }
     }
 
     allImages.value = images
 
-    farben.value = res.data.product.farben || []
+    // ✅ Farben : normalise schluessel
+    farben.value = (res.data.product.farben || []).map(f => ({
+      ...f,
+      schluessel: normKey(f.schluessel)
+    }))
 
+    // Sélectionne la couleur standard par défaut
     if (farben.value.length) {
       const standard = farben.value.find(f => f.ist_standard) || farben.value[0]
       selectedFarbe.value = standard
     }
 
+    // Reset l'image principale pour recalculer
     setTimeout(() => {
       mainImageUrl.value = ''
     }, 0)
+
+    // ============================================================
+    // DEBUG (à retirer en prod)
+    // ============================================================
+    if (import.meta.env.DEV) {
+      console.log('[ProductView] Images:', images.map(i => ({
+        url: i.url.split('/').pop(),
+        farbe: i.farbe_schluessel
+      })))
+      console.log('[ProductView] Farben:', farben.value.map(f => f.schluessel))
+    }
 
   } catch (e) {
     console.error(e)
@@ -776,7 +829,7 @@ const loadProduct = async () => {
 // ============================================================
 const selectFarbe = (farbe) => {
   selectedFarbe.value = farbe
-  mainImageUrl.value = ''
+  mainImageUrl.value = ''   // reset pour reprendre la 1ère image de la couleur
 }
 
 // ============================================================
@@ -912,6 +965,8 @@ watch(activeTab, (val) => {
 // ============================================================
 onMounted(loadProduct)
 </script>
+
+
 <style scoped>
 .product-view-container {
   padding: 16px;

@@ -58,9 +58,7 @@
 
           <v-card-text>
             <v-row>
-              <!-- ============================================== -->
               <!-- COLONNE GAUCHE : PRODUKTIDENTIFIKATION -->
-              <!-- ============================================== -->
               <v-col cols="12" md="6" class="pr-md-4">
                 <div class="section-header mb-3">
                   <v-icon size="18" color="primary" class="mr-2">mdi-tag-multiple</v-icon>
@@ -79,7 +77,6 @@
                     />
                   </v-col>
 
-                  <!-- MARKEN : select + bouton d'ajout -->
                   <v-col cols="12">
                     <div class="d-flex ga-2 align-start">
                       <v-select
@@ -157,7 +154,6 @@
                     />
                   </v-col>
 
-                  <!-- FARBE : select avec pastille -->
                   <v-col cols="12" sm="6">
                     <v-select
                       v-model="product.color"
@@ -206,9 +202,7 @@
                 </v-row>
               </v-col>
 
-              <!-- ============================================== -->
               <!-- COLONNE DROITE : PREIS & VERFÜGBARKEIT -->
-              <!-- ============================================== -->
               <v-col cols="12" md="6" class="pl-md-4">
                 <div class="section-header mb-3">
                   <v-icon size="18" color="primary" class="mr-2">mdi-cash-multiple</v-icon>
@@ -706,7 +700,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import GuideDrawer from '../../components/dashboard/GuideDrawer.vue'
-import { apiUrl, imageUrl } from '@/config/api'
+// ✅ FIX : import de toRelativePath
+import { apiUrl, imageUrl, toRelativePath } from '@/config/api'
 
 // ============================================================
 // ROUTER & STATE
@@ -1112,13 +1107,14 @@ const submit = async () => {
     return
   }
 
-  product.main_image = mainImageObj.url.replace(import.meta.env.VITE_IMAGE_BASE_URL || 'https://alpha-med-care.com', '')
+  // ✅ FIX : utilise toRelativePath (idempotent, robuste)
+  product.main_image = toRelativePath(mainImageObj.url)
 
   const galleryImages = allImages.value
     .filter(i => i.type !== 'main')
     .map((i, idx) => ({
       id: i.id || null,
-      url: i.url.replace(import.meta.env.VITE_IMAGE_BASE_URL || 'https://alpha-med-care.com', ''),
+      url: toRelativePath(i.url),   // ✅ FIX
       image_order: idx + 1,
       type: i.type || 'gallery',
       article_name: product.name
@@ -1250,9 +1246,6 @@ onMounted(() => {
 .file-name { font-size: .9rem; color: #333; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .file-placeholder { color: #999; font-size: .9rem; margin-left: 4px; }
 
-/* ============================================================
-   SECTIONS ALLGEMEINE INFORMATIONEN
-   ============================================================ */
 .section-header {
   display: flex;
   align-items: center;
@@ -1277,7 +1270,6 @@ onMounted(() => {
   border: 1px dashed #e0e0e0;
 }
 
-/* Pastille de couleur dans le select */
 .farbe-swatch-mini {
   display: inline-block;
   width: 18px;
@@ -1287,7 +1279,6 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* Responsive */
 @media (max-width: 960px) {
   .pr-md-4,
   .pl-md-4 {

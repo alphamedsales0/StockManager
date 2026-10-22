@@ -2,8 +2,11 @@
 
 export const useValidationRules = () => {
   const required = (v) => !!v || 'Pflichtfeld erforderlich'
+
   const email = (v) => /.+@.+\..+/.test(v) || 'Ungültige E-Mail-Adresse'
+
   const phone = (v) => !v || /^[0-9+\s()-]+$/.test(v) || 'Ungültige Telefonnummer'
+
   const number = (v) => !v || /^\d+(\.\d+)?$/.test(v) || 'Nur Zahlen erlaubt'
 
   const alphanumeric = (v) =>
@@ -11,6 +14,7 @@ export const useValidationRules = () => {
     'Nur Buchstaben, Zahlen, Leerzeichen, - und / erlaubt'
 
   const minLength = (len) => (v) => !v || v.length >= len || `Mindestens ${len} Zeichen`
+
   const maxLength = (len) => (v) => !v || v.length <= len || `Maximal ${len} Zeichen`
 
   const iban = (v) => {
@@ -22,6 +26,36 @@ export const useValidationRules = () => {
     return true
   }
 
+  // ============================================================
+  // ✅ VALIDATION DE DATES
+  // ============================================================
+
+  /**
+   * Vérifie qu'une date est >= à une date de référence.
+   * @param {string|null} startDate - Date de référence (ex: einstellungsdatum)
+   * @param {string} message - Message d'erreur affiché
+   * @returns {(v: string) => true|string}
+   */
+  const dateAfter = (
+    startDate,
+    message = 'Datum muss nach dem Startdatum liegen'
+  ) => {
+    return (v) => {
+      if (!v || !startDate) return true
+      return new Date(v) >= new Date(startDate) || message
+    }
+  }
+
+  /**
+   * Règle spécifique : austrittsdatum doit être >= einstellungsdatum.
+   * @param {string|null} eintrittsdatum
+   */
+  const austrittNachEintritt = (eintrittsdatum) =>
+    dateAfter(
+      eintrittsdatum,
+      'Austrittsdatum muss nach dem Einstellungsdatum liegen'
+    )
+
   return {
     required,
     email,
@@ -30,6 +64,8 @@ export const useValidationRules = () => {
     alphanumeric,
     minLength,
     maxLength,
-    iban
+    iban,
+    dateAfter,
+    austrittNachEintritt
   }
 }

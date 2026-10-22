@@ -735,8 +735,7 @@ const currentMainImage = computed(() => {
 
 const shopUrl = computed(() => {
   if (!product.value?.slug) return null
-  const cat = (product.value.category || '').replace(/-/g, '/')
-  return `${SHOP_BASE_URL}/shop/${cat}/${product.value.slug}`
+  return `${SHOP_BASE_URL}/shop/artikel/${product.value.slug}`
 })
 
 // ============================================================

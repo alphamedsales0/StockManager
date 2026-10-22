@@ -1,8 +1,12 @@
 <?php
 // employees_update.php
 // Met à jour toutes les données d'un employé (identifié par son uid)
-// Dernière mise à jour : 2025-09-10
-// ✅ Adapté à la structure : employees.uid + tables enfants avec mitarbeiter_uid
+// Dernière mise à jour : 2026-10-18
+// ✅ austrittsdatum avec validation >= einstellungsdatum
+// ✅ Adresse acceptée en objet (adresse) ou tableau (addresses)
+// ✅ Chemins uploads via DOCUMENT_ROOT
+// ✅ Validation MIME + taille photo + suppression ancienne photo
+// ✅ Logging détaillé
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -20,7 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/database_connect.php';
 
-// ----- Récupération de l'identifiant public -----
+// ============================================================
+// 1. UID
+// ============================================================
 $employeeUid = $_GET['uid'] ?? '';
 
 if (!$employeeUid || !preg_match('/^[0-9a-f\-]{36}$/i', $employeeUid)) {
@@ -29,7 +35,9 @@ if (!$employeeUid || !preg_match('/^[0-9a-f\-]{36}$/i', $employeeUid)) {
     exit;
 }
 
-// ----- Lecture de l'entrée (multipart OU JSON) -----
+// ============================================================
+// 2. INPUT (multipart OU JSON)
+// ============================================================
 $input = [];
 if (!empty($_POST['employee'])) {
     $input = json_decode($_POST['employee'], true) ?? [];
@@ -40,13 +48,29 @@ if (!empty($_POST['employee'])) {
 
 file_put_contents(
     __DIR__ . '/debug.log',
-    date('Y-m-d H:i:s') . " UPDATE INPUT [{$employeeUid}]: " . json_encode($input) . "\n",
+    date('Y-m-d H:i:s') . " UPDATE INPUT [{$employeeUid}]: " . json_encode($input, JSON_UNESCAPED_UNICODE) . "\n",
     FILE_APPEND
 );
 
-// ----- Vérifier que l'employé existe et récupérer benutzer_id -----
+// ============================================================
+// 3. VALIDATION austrittsdatum >= einstellungsdatum
+// ============================================================
+if (!empty($input['austrittsdatum']) && !empty($input['einstellungsdatum'])) {
+    if (strtotime($input['austrittsdatum']) < strtotime($input['einstellungsdatum'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Austrittsdatum muss nach dem Einstellungsdatum liegen'
+        ]);
+        exit;
+    }
+}
+
+// ============================================================
+// 4. EMPLOYÉ EXISTE ?
+// ============================================================
 $stmt = $pdo->prepare("
-    SELECT u.id AS benutzer_id, e.id AS mitarbeiter_id
+    SELECT u.id AS benutzer_id, e.id AS mitarbeiter_id, e.foto_pfad
     FROM users u
     INNER JOIN employees e ON e.benutzer_id = u.id
     WHERE e.uid = ?
@@ -60,32 +84,30 @@ if (!$row) {
     exit;
 }
 
-$benutzer_id = (int)$row['benutzer_id'];
+$benutzer_id        = (int)$row['benutzer_id'];
+$oldPhotoPublicPath = $row['foto_pfad'] ?? null;
 
 $pdo->beginTransaction();
 
 try {
     // =========================================================
-    // 1. Mise à jour de la table users
+    // 1. UPDATE USERS
     // =========================================================
     $updates = [];
     $params  = [];
 
-    // Email (validé)
     $email = trim($input['email'] ?? '');
     if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $updates[] = "email = ?";
         $params[]  = $email;
     }
 
-    // Mot de passe (seulement si fourni)
     $password = $input['password'] ?? null;
     if ($password) {
         $updates[] = "password_hash = ?";
         $params[]  = password_hash($password, PASSWORD_DEFAULT);
     }
 
-    // Nom complet (reconstruit depuis vorname/nachname)
     $vorname  = $input['vorname']  ?? null;
     $nachname = $input['nachname'] ?? null;
     if ($vorname !== null || $nachname !== null) {
@@ -94,14 +116,13 @@ try {
         $current = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
         $newVorname  = $vorname  ?? $current['vorname'];
         $newNachname = $nachname ?? $current['nachname'];
-        $fullname = trim($newVorname . ' ' . $newNachname);
+        $fullname    = trim($newVorname . ' ' . $newNachname);
         if (!empty($fullname)) {
             $updates[] = "name = ?";
             $params[]  = $fullname;
         }
     }
 
-    // Rôle (whitelist)
     $allowedRoles = ['employee', 'manager', 'admin', 'technician'];
     $role = $input['role'] ?? null;
     if ($role && in_array($role, $allowedRoles, true)) {
@@ -118,7 +139,7 @@ try {
     }
 
     // =========================================================
-    // 2. Mise à jour de la table employees
+    // 2. UPDATE EMPLOYEES (avec austrittsdatum)
     // =========================================================
     $stmt = $pdo->prepare("
         UPDATE employees SET
@@ -129,6 +150,7 @@ try {
             position = ?,
             abteilung = ?,
             einstellungsdatum = ?,
+            austrittsdatum = ?,
             geburtsdatum = ?,
             gehalt = ?,
             notfall_kontakt_name = ?,
@@ -151,6 +173,7 @@ try {
         $input['position'] ?? null,
         $input['abteilung'] ?? null,
         !empty($input['einstellungsdatum']) ? $input['einstellungsdatum'] : null,
+        !empty($input['austrittsdatum'])    ? $input['austrittsdatum']    : null,
         !empty($input['geburtsdatum'])      ? $input['geburtsdatum']      : null,
         !empty($input['gehalt'])            ? $input['gehalt']            : null,
         $input['notfall_kontakt_name']    ?? null,
@@ -166,7 +189,7 @@ try {
     ]);
 
     // =========================================================
-    // 3. Adresses : on remplace (DELETE + INSERT)
+    // 3. ADRESSES (remplacement complet)
     // =========================================================
     $stmt = $pdo->prepare("DELETE FROM employees_addresses WHERE mitarbeiter_uid = ? AND ist_aktiv = 1");
     $stmt->execute([$employeeUid]);
@@ -174,9 +197,15 @@ try {
     $addressesToSave = [];
     if (isset($input['addresses']) && is_array($input['addresses'])) {
         $addressesToSave = $input['addresses'];
-    } elseif (isset($input['adresse']) && !empty($input['adresse']['strasse'])) {
+    } elseif (isset($input['adresse']) && is_array($input['adresse']) && !empty($input['adresse']['strasse'])) {
         $addressesToSave = [$input['adresse']];
     }
+
+    file_put_contents(
+        __DIR__ . '/debug.log',
+        date('Y-m-d H:i:s') . " UPDATE ADDRESSES TO SAVE: " . json_encode($addressesToSave, JSON_UNESCAPED_UNICODE) . "\n",
+        FILE_APPEND
+    );
 
     if (!empty($addressesToSave)) {
         $stmt = $pdo->prepare("
@@ -184,8 +213,15 @@ try {
                 mitarbeiter_uid, adresstyp, strasse, hausnummer, plz, stadt, land, ist_aktiv
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        foreach ($addressesToSave as $addr) {
-            if (empty($addr['strasse']) || empty($addr['hausnummer'])) continue;
+        foreach ($addressesToSave as $index => $addr) {
+            if (empty($addr['strasse']) || empty($addr['hausnummer'])) {
+                file_put_contents(
+                    __DIR__ . '/debug.log',
+                    date('Y-m-d H:i:s') . " ⚠️ UPDATE ADRESSE #{$index} IGNORÉE\n",
+                    FILE_APPEND
+                );
+                continue;
+            }
             $stmt->execute([
                 $employeeUid,
                 $addr['adresstyp'] ?? 'primär',
@@ -196,11 +232,16 @@ try {
                 $addr['land']  ?? 'Deutschland',
                 isset($addr['ist_aktiv']) ? (int)$addr['ist_aktiv'] : 1
             ]);
+            file_put_contents(
+                __DIR__ . '/debug.log',
+                date('Y-m-d H:i:s') . " ✅ UPDATE ADRESSE #{$index} INSÉRÉE\n",
+                FILE_APPEND
+            );
         }
     }
 
     // =========================================================
-    // 4. Comptes bancaires : remplacement complet
+    // 4. BANK ACCOUNTS (remplacement complet)
     // =========================================================
     if (isset($input['bank_accounts']) && is_array($input['bank_accounts'])) {
         $stmt = $pdo->prepare("DELETE FROM employee_bank_accounts WHERE mitarbeiter_uid = ?");
@@ -216,7 +257,7 @@ try {
             $stmt->execute([
                 $employeeUid,
                 $account['kontoinhaber'] ?? null,
-                $account['iban'],
+                preg_replace('/\s+/', '', strtoupper($account['iban'])),
                 $account['bic']      ?? null,
                 $account['bankname'] ?? null,
                 !empty($account['ist_aktiv']) ? 1 : 0
@@ -225,7 +266,7 @@ try {
     }
 
     // =========================================================
-    // 5. Qualifications : remplacement complet
+    // 5. QUALIFICATIONS (remplacement complet)
     // =========================================================
     if (isset($input['qualifications']) && is_array($input['qualifications'])) {
         $stmt = $pdo->prepare("DELETE FROM employee_qualifications WHERE mitarbeiter_uid = ?");
@@ -253,7 +294,7 @@ try {
     }
 
     // =========================================================
-    // 6. Versicherung : remplacement (une seule ligne active)
+    // 6. VERSICHERUNG (remplacement, une seule ligne active)
     // =========================================================
     if (isset($input['versicherung_gesellschaft']) || isset($input['versicherung_nummer'])) {
         $stmt = $pdo->prepare("DELETE FROM mitarbeiter_versicherungen WHERE mitarbeiter_uid = ?");
@@ -277,16 +318,15 @@ try {
     }
 
     // =========================================================
-    // 7. Documents : mise à jour avec upload (si fourni)
+    // 7. DOCUMENTS
     // =========================================================
     if (isset($input['documents']) && is_array($input['documents'])) {
-        $uploadDir = __DIR__ . '/uploads/employees/' . $employeeUid . '/';
+        $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+        $uploadDir = $docRoot . '/uploads/employees/' . $employeeUid . '/';
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
+            mkdir($uploadDir, 0755, true);
         }
 
-        // On ne supprime PAS les documents existants — on en ajoute ou on met à jour
-        // Stratégie simple : on supprime les lignes dont le nom correspond, puis on réinsère
         $stmtDel = $pdo->prepare("DELETE FROM employee_documents WHERE mitarbeiter_uid = ? AND name = ?");
         $stmtIns = $pdo->prepare("
             INSERT INTO employee_documents (
@@ -297,16 +337,15 @@ try {
         foreach ($input['documents'] as $index => $doc) {
             if (empty($doc['name']) || empty($doc['typ'])) continue;
 
-            $fileKey = 'document_' . $index;
+            $fileKey  = 'document_' . $index;
             $filePath = $doc['datei_pfad'] ?? '';
 
-            // Si un nouveau fichier a été uploadé, on l'enregistre
             if (isset($_FILES[$fileKey]) && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
-                $file = $_FILES[$fileKey];
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $file    = $_FILES[$fileKey];
+                $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                 $newName = uniqid() . '.' . $ext;
-                $targetPath = $uploadDir . $newName;
-                if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                $target  = $uploadDir . $newName;
+                if (move_uploaded_file($file['tmp_name'], $target)) {
                     $filePath = '/uploads/employees/' . $employeeUid . '/' . $newName;
                 }
             }
@@ -323,25 +362,75 @@ try {
     }
 
     // =========================================================
-    // 8. Photo de profil (si uploadée)
+    // 8. PHOTO
     // =========================================================
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
-        $photoDir = __DIR__ . '/uploads/employees/' . $employeeUid . '/';
-        if (!is_dir($photoDir)) mkdir($photoDir, 0777, true);
+        $file = $_FILES['photo'];
 
-        $ext = pathinfo($_FILES['photo']['name'], PATHINFO_EXTENSION);
-        $photoName = 'profile.' . $ext;
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $allowedMimes = [
+            'image/jpeg' => 'jpg',
+            'image/png'  => 'png',
+            'image/webp' => 'webp',
+            'image/gif'  => 'gif',
+        ];
+
+        if (!isset($allowedMimes[$mime])) {
+            throw new Exception('Ungültiges Bildformat (nur JPG, PNG, WebP, GIF).');
+        }
+        $ext = $allowedMimes[$mime];
+
+        if ($file['size'] > 5 * 1024 * 1024) {
+            throw new Exception('Datei zu groß (max. 5 MB).');
+        }
+
+        $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+        if (empty($docRoot)) {
+            throw new Exception('DOCUMENT_ROOT nicht definiert.');
+        }
+
+        $uploadsDir = $docRoot . '/uploads/';
+        if (!is_dir($uploadsDir)) {
+            mkdir($uploadsDir, 0755, true);
+        }
+
+        $employeesDir = $uploadsDir . 'employees/';
+        if (!is_dir($employeesDir)) {
+            mkdir($employeesDir, 0755, true);
+        }
+
+        $photoDir = $employeesDir . $employeeUid . '/';
+        if (!is_dir($photoDir)) {
+            mkdir($photoDir, 0755, true);
+        }
+
+        // Supprimer l'ancienne photo
+        if (!empty($oldPhotoPublicPath)) {
+            $oldPhotoFullPath = $docRoot . $oldPhotoPublicPath;
+            if (is_file($oldPhotoFullPath)) {
+                @unlink($oldPhotoFullPath);
+            }
+        }
+
+        $photoName  = 'profil_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         $targetPath = $photoDir . $photoName;
 
-        if (move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath)) {
-            $stmt = $pdo->prepare("UPDATE employees SET foto_pfad = ? WHERE uid = ?");
-            $stmt->execute([
-                '/uploads/employees/' . $employeeUid . '/' . $photoName,
-                $employeeUid
-            ]);
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            throw new Exception('Fehler beim Speichern des Fotos.');
         }
+
+        $photoPublicPath = '/uploads/employees/' . $employeeUid . '/' . $photoName;
+
+        $stmt = $pdo->prepare("UPDATE employees SET foto_pfad = ? WHERE uid = ?");
+        $stmt->execute([$photoPublicPath, $employeeUid]);
     }
 
+    // =========================================================
+    // COMMIT
+    // =========================================================
     $pdo->commit();
 
     echo json_encode([
@@ -351,7 +440,9 @@ try {
     ]);
 
 } catch (PDOException $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     file_put_contents(__DIR__ . '/debug.log', "PDO EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
 
     if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
@@ -362,7 +453,9 @@ try {
         echo json_encode(['success' => false, 'error' => 'Datenbankfehler: ' . $e->getMessage()]);
     }
 } catch (Throwable $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     file_put_contents(__DIR__ . '/debug.log', "GENERAL EXCEPTION: " . $e->getMessage() . "\n", FILE_APPEND);
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Allgemeiner Fehler: ' . $e->getMessage()]);

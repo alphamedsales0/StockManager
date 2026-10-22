@@ -54,25 +54,46 @@
             </div>
 
             <div class="hero-actions">
-              <v-btn
-                v-if="employee.email"
-                variant="tonal"
-                prepend-icon="mdi-email-outline"
-                class="hero-action-btn"
-                @click="mailEmployee"
-              >
-                E-Mail
-              </v-btn>
-              <v-btn
-                size="large"
-                variant="flat"
-                prepend-icon="mdi-pencil-outline"
-                class="edit-button-hero"
-                @click="goToEdit"
-              >
-                Bearbeiten
-              </v-btn>
-            </div>
+  <v-btn
+    variant="text"
+    prepend-icon="mdi-arrow-left"
+    class="hero-back-btn"
+    @click="router.back()"
+  >
+    Zurück
+  </v-btn>
+
+  <v-btn
+    v-if="employee.email"
+    variant="tonal"
+    prepend-icon="mdi-email-outline"
+    class="hero-action-btn"
+    @click="mailEmployee"
+  >
+    E-Mail
+  </v-btn>
+
+  <v-btn
+  v-if="permissionStore.isAdmin"
+  variant="tonal"
+  color="error"
+  prepend-icon="mdi-delete-outline"
+  class="hero-action-btn"
+  @click="confirmDelete"
+>
+  Löschen
+</v-btn>
+
+  <v-btn
+    size="large"
+    variant="flat"
+    prepend-icon="mdi-pencil-outline"
+    class="edit-button-hero"
+    @click="goToEdit"
+  >
+    Bearbeiten
+  </v-btn>
+</div>
           </div>
 
           <v-divider class="hero-divider" />
@@ -543,15 +564,84 @@
         <v-btn variant="text" prepend-icon="mdi-arrow-left" @click="router.back()">
           Zurück
         </v-btn>
-        <v-btn
-          variant="flat"
-          prepend-icon="mdi-pencil-outline"
-          class="edit-button-hero"
-          @click="goToEdit"
-        >
-          Mitarbeiter bearbeiten
-        </v-btn>
+
+        <div class="d-flex ga-2 flex-wrap">
+         <v-btn
+  v-if="permissionStore.isAdmin"
+  variant="tonal"
+  color="error"
+  prepend-icon="mdi-delete-outline"
+  :loading="deleting"
+  @click="confirmDelete"
+>
+  Mitarbeiter löschen
+</v-btn>
+
+          <v-btn
+            variant="flat"
+            prepend-icon="mdi-pencil-outline"
+            class="edit-button-hero"
+            @click="goToEdit"
+          >
+            Mitarbeiter bearbeiten
+          </v-btn>
+        </div>
       </div>
+
+      <!-- DELETE CONFIRM DIALOG -->
+      <v-dialog v-model="deleteDialog" max-width="480" persistent>
+        <v-card class="rounded-xl">
+          <v-card-title class="d-flex align-center pa-5">
+            <v-avatar color="error" size="42" class="mr-3">
+              <v-icon>mdi-alert-circle-outline</v-icon>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold">Mitarbeiter löschen?</div>
+              <div class="text-caption text-medium-emphasis">
+                Diese Aktion kann nicht rückgängig gemacht werden.
+              </div>
+            </div>
+          </v-card-title>
+
+          <v-card-text class="pa-5 pt-2">
+            <p class="mb-2">
+              Du bist dabei, folgenden Mitarbeiter <strong>endgültig zu löschen</strong>:
+            </p>
+            <v-alert type="warning" variant="tonal" density="compact" class="mb-2">
+              <div class="font-weight-bold">{{ fullName }}</div>
+              <div class="text-caption">
+                {{ employee?.mitarbeiter_nummer || '–' }}
+                · {{ employee?.email || 'Keine E-Mail' }}
+              </div>
+            </v-alert>
+            <p class="text-body-2 text-error">
+              Alle zugehörigen Daten (Adressen, Bankkonten, Qualifikationen,
+              Dokumente, Versicherung) sowie das Benutzerkonto und die
+              hochgeladenen Dateien werden gelöscht.
+            </p>
+          </v-card-text>
+
+          <v-card-actions class="pa-5 pt-0">
+            <v-spacer />
+            <v-btn
+              variant="text"
+              :disabled="deleting"
+              @click="deleteDialog = false"
+            >
+              Abbrechen
+            </v-btn>
+            <v-btn
+              color="error"
+              variant="flat"
+              prepend-icon="mdi-delete"
+              :loading="deleting"
+              @click="deleteEmployee"
+            >
+              Endgültig löschen
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
     </template>
   </v-container>
@@ -561,9 +651,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmployeeSectionHeader from './EmployeeSectionHeader.vue'
+import { usePermissionStore } from '@/stores/permission'   // ✅ AJOUT
 
 const route = useRoute()
 const router = useRouter()
+const permissionStore = usePermissionStore()
 
 const employee = ref(null)
 const loading = ref(true)
@@ -572,6 +664,12 @@ const photoError = ref(false)
 const supervisorPhotoError = ref(false)
 
 const activeTab = ref('personal')
+
+// Delete state
+const deleteDialog = ref(false)
+const deleting = ref(false)
+
+
 
 /* ============================================================
    COMPUTED
@@ -673,9 +771,7 @@ const loadEmployee = async () => {
   error.value = null
 
   try {
-    const identifier = String(
-      route.params.uid || route.params.id || ''
-    )
+    const identifier = String(route.params.uid || route.params.id || '')
 
     if (!identifier) {
       throw new Error('Die Mitarbeiter-UID fehlt in der URL.')
@@ -691,20 +787,13 @@ const loadEmployee = async () => {
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      },
+      headers: { Accept: 'application/json' },
       credentials: 'omit',
       cache: 'no-store'
     })
 
     const contentType = response.headers.get('content-type') || ''
     const raw = await response.text()
-
-    console.log('[Employee details] URL:', url)
-    console.log('[Employee details] Status:', response.status)
-    console.log('[Employee details] Content-Type:', contentType)
-    console.log('[Employee details] Antwort:', raw.slice(0, 1000))
 
     if (!contentType.includes('application/json')) {
       throw new Error(
@@ -713,7 +802,6 @@ const loadEmployee = async () => {
     }
 
     let data
-
     try {
       data = JSON.parse(raw)
     } catch {
@@ -743,7 +831,6 @@ const loadEmployee = async () => {
     employee.value = emp
     photoError.value = false
     supervisorPhotoError.value = false
-
   } catch (e) {
     console.error('[Employee details] Fehler:', e)
     error.value = e.message || 'Fehler beim Laden des Mitarbeiters.'
@@ -771,9 +858,6 @@ const goToEdit = async () => {
 
   const target = `/employees/edit/${encodeURIComponent(String(uid))}`
 
-  console.log('[goToEdit] UID:', uid)
-  console.log('[goToEdit] Ziel:', target)
-
   try {
     await router.push(target)
   } catch (err) {
@@ -783,6 +867,80 @@ const goToEdit = async () => {
 
 const mailEmployee = () => {
   if (employee.value?.email) window.location.href = `mailto:${employee.value.email}`
+}
+
+/* ============================================================
+   DELETE EMPLOYEE
+============================================================ */
+
+const confirmDelete = () => {
+  // ✅ Admin uniquement
+  if (!permissionStore.isAdmin) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  deleteDialog.value = true
+}
+
+const deleteEmployee = async () => {
+  // ✅ Guard final
+  if (!permissionStore.isAdmin) {
+    permissionStore.showAccessDenied()
+    deleteDialog.value = false
+    return
+  }
+
+  const uid =
+    employee.value?.employee_uid ||
+    employee.value?.uid ||
+    route.params.uid ||
+    route.params.id
+
+  if (!uid) {
+    error.value = 'UID introuvable – Löschen nicht möglich.'
+    return
+  }
+
+  deleting.value = true
+
+  try {
+    const url = `${API_BASE}/employees_delete.php?uid=${encodeURIComponent(uid)}`
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        ...(localStorage.getItem('token')
+          ? { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          : {})
+      },
+      credentials: 'include',
+      cache: 'no-store'
+    })
+
+    // ✅ 403 → dialogue Access Denied
+    if (response.status === 403) {
+      permissionStore.showAccessDenied()
+      deleteDialog.value = false
+      return
+    }
+
+    const raw = await response.text()
+    let data = null
+    try { data = JSON.parse(raw) } catch { /* ignore */ }
+
+    if (!response.ok || !data || data.success !== true) {
+      throw new Error(data?.error || `HTTP ${response.status}`)
+    }
+
+    deleteDialog.value = false
+    await router.push('/employees')
+  } catch (err) {
+    console.error('[DeleteEmployee]', err)
+    error.value = `Löschen fehlgeschlagen: ${err.message}`
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(loadEmployee)
@@ -913,6 +1071,17 @@ onMounted(loadEmployee)
   border-radius: var(--radius-md) !important;
 }
 
+.hero-back-btn {
+  text-transform: none;
+  font-weight: 600;
+  border-radius: var(--radius-md) !important;
+  color: var(--text-soft) !important;
+}
+
+.hero-back-btn:hover {
+  background: #f1f5f9 !important;
+}
+
 .edit-button-hero {
   min-width: 150px;
   height: 44px !important;
@@ -1028,7 +1197,6 @@ onMounted(loadEmployee)
   justify-content: center;
 }
 
-/* ✅ Avatar principal — sans border-radius (image non coupée) */
 .employee-avatar {
   background: #f1f5f9;
   border: 3px solid #ffffff;
@@ -1057,7 +1225,6 @@ onMounted(loadEmployee)
   letter-spacing: -0.02em;
 }
 
-/* ✅ Ligne hiérarchique */
 .hierarchy-line {
   position: relative;
   width: 2px;
@@ -1082,7 +1249,6 @@ onMounted(loadEmployee)
 
 .supervisor-block { padding-top: 2px; }
 
-/* ✅ Avatar vorgesetzter — sans border-radius, taille augmentée */
 .supervisor-avatar {
   overflow: hidden;
   background: #f1f5f9;

@@ -61,17 +61,17 @@ session_set_cookie_params([
 ]);
 session_start();
 
-require_once 'database.php';
+require_once 'database_connect.php';
 require_once 'send_welcome_email.php';
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-function generateKundennummer($dbh) {
+function generateKundennummer($pdo) {
     do {
         $kundennummer = 'K' . date('Ymd') . '-' . str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-        $stmt = $dbh->prepare("SELECT id FROM kunden WHERE kundennummer = ?");
+        $stmt = $pdo->prepare("SELECT id FROM kunden WHERE kundennummer = ?");
         $stmt->execute([$kundennummer]);
     } while ($stmt->fetch());
     return $kundennummer;
@@ -172,35 +172,35 @@ try {
         }
 
         // Vérif email unique
-        $stmt = $dbh->prepare("SELECT id FROM kunden_authentifizierung WHERE email = ?");
+        $stmt = $pdo->prepare("SELECT id FROM kunden_authentifizierung WHERE email = ?");
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
             throw new Exception('Diese E-Mail-Adresse ist bereits registriert.');
         }
 
-        $dbh->beginTransaction();
+        $pdo->beginTransaction();
 
-        $kundennummer = generateKundennummer($dbh);
-        $stmt = $dbh->prepare("INSERT INTO kunden (kundennummer, person_type) VALUES (?, ?)");
+        $kundennummer = generateKundennummer($pdo);
+        $stmt = $pdo->prepare("INSERT INTO kunden (kundennummer, person_type) VALUES (?, ?)");
         $stmt->execute([$kundennummer, $personType]);
-        $kundeId = $dbh->lastInsertId();
+        $kundeId = $pdo->lastInsertId();
 
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $dbh->prepare("INSERT INTO kunden_authentifizierung (kunde_id, email, passwort_hash, agb_accepted, datenschutz_accepted) VALUES (?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO kunden_authentifizierung (kunde_id, email, passwort_hash, agb_accepted, datenschutz_accepted) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$kundeId, $email, $passwordHash, $agbAccepted, $datenschutzAccepted]);
 
-        $stmt = $dbh->prepare("INSERT INTO kunden_kommunikation (kunde_id, typ, wert, ist_standard) VALUES (?, ?, ?, 1)");
+        $stmt = $pdo->prepare("INSERT INTO kunden_kommunikation (kunde_id, typ, wert, ist_standard) VALUES (?, ?, ?, 1)");
         $stmt->execute([$kundeId, $phoneType, $phone]);
 
         if ($personType === 'Privatkunde') {
-            $stmt = $dbh->prepare("INSERT INTO kunden_personendaten (kunde_id, anrede, vorname, nachname) VALUES (?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO kunden_personendaten (kunde_id, anrede, vorname, nachname) VALUES (?, ?, ?, ?)");
             $stmt->execute([$kundeId, $anrede, $firstName, $lastName]);
         } else {
-            $stmt = $dbh->prepare("INSERT INTO kunden_gewerbedaten (kunde_id, firma, zusatz, kontakt, hrb_register_nummer, hrb_gerichtsstand) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO kunden_gewerbedaten (kunde_id, firma, zusatz, kontakt, hrb_register_nummer, hrb_gerichtsstand) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$kundeId, $firma, $zusatz, $kontakt, $hrbRegister, $hrbGericht]);
         }
 
-        $stmt = $dbh->prepare("
+        $stmt = $pdo->prepare("
             INSERT INTO kunden_adressen 
             (kunde_id, typ, strasse, hausnummer, adresszusatz, plz, ort, bundesland, land, postfach, ist_standard) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -219,7 +219,7 @@ try {
             $address['ist_standard'] ?? 1
         ]);
 
-               $dbh->commit();
+        $pdo->commit();
 
         // --- Session ---
         $_SESSION['user_id']         = $kundeId;
@@ -278,7 +278,7 @@ try {
             throw new Exception('Email und Passwort erforderlich.');
         }
 
-        $stmt = $dbh->prepare("
+        $stmt = $pdo->prepare("
             SELECT k.id, k.person_type, a.email, a.passwort_hash,
                    p.anrede, p.vorname, p.nachname,
                    g.firma, g.kontakt
@@ -296,11 +296,11 @@ try {
         }
 
         // Téléphone standard
-        $stmtPhone = $dbh->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' AND ist_standard = 1");
+        $stmtPhone = $pdo->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' AND ist_standard = 1");
         $stmtPhone->execute([$user['id']]);
         $phone = $stmtPhone->fetchColumn();
         if (!$phone) {
-            $stmtPhone = $dbh->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' ORDER BY ist_standard DESC, id LIMIT 1");
+            $stmtPhone = $pdo->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' ORDER BY ist_standard DESC, id LIMIT 1");
             $stmtPhone->execute([$user['id']]);
             $phone = $stmtPhone->fetchColumn();
         }
@@ -327,7 +327,7 @@ try {
         }
         $userId = $_SESSION['user_id'];
 
-        $stmt = $dbh->prepare("
+        $stmt = $pdo->prepare("
             SELECT k.id, k.person_type, a.email,
                    p.anrede, p.vorname, p.nachname,
                    g.firma, g.kontakt
@@ -344,11 +344,11 @@ try {
             throw new Exception('Benutzer nicht gefunden.');
         }
 
-        $stmtPhone = $dbh->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' AND ist_standard = 1");
+        $stmtPhone = $pdo->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' AND ist_standard = 1");
         $stmtPhone->execute([$userId]);
         $phone = $stmtPhone->fetchColumn();
         if (!$phone) {
-            $stmtPhone = $dbh->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' ORDER BY ist_standard DESC, id LIMIT 1");
+            $stmtPhone = $pdo->prepare("SELECT wert FROM kunden_kommunikation WHERE kunde_id = ? AND typ = 'Telefon' ORDER BY ist_standard DESC, id LIMIT 1");
             $stmtPhone->execute([$userId]);
             $phone = $stmtPhone->fetchColumn();
         }
@@ -366,70 +366,70 @@ try {
         }
         $userId = $_SESSION['user_id'];
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden WHERE id = ?");
         $stmt->execute([$userId]);
         $kunde = $stmt->fetch();
         if (!$kunde) {
             throw new Exception('Kunde nicht gefunden.');
         }
 
-        $stmt = $dbh->prepare("SELECT id, email, agb_accepted, datenschutz_accepted, letzte_anmeldung FROM kunden_authentifizierung WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT id, email, agb_accepted, datenschutz_accepted, letzte_anmeldung FROM kunden_authentifizierung WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $auth = $stmt->fetch();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_personendaten WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_personendaten WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $person = $stmt->fetch();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_gewerbedaten WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_gewerbedaten WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $gewerbe = $stmt->fetch() ?: null;
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_identifikation WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_identifikation WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $ident = $stmt->fetch();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_klassifizierung WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_klassifizierung WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $klass = $stmt->fetch();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_adressen WHERE kunde_id = ? ORDER BY ist_standard DESC");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_adressen WHERE kunde_id = ? ORDER BY ist_standard DESC");
         $stmt->execute([$userId]);
         $addresses = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_kommunikation WHERE kunde_id = ? ORDER BY ist_standard DESC");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_kommunikation WHERE kunde_id = ? ORDER BY ist_standard DESC");
         $stmt->execute([$userId]);
         $kommunikation = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_bankverbindung WHERE kunde_id = ? ORDER BY ist_standard DESC");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_bankverbindung WHERE kunde_id = ? ORDER BY ist_standard DESC");
         $stmt->execute([$userId]);
         $bank = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_rechnungsdaten WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_rechnungsdaten WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $rechnung = $stmt->fetch();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_preisgruppen WHERE kunde_id = ? ORDER BY prioritaet");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_preisgruppen WHERE kunde_id = ? ORDER BY prioritaet");
         $stmt->execute([$userId]);
         $preisgruppen = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_artikelrabatte WHERE kunde_id = ? ORDER BY stufe");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_artikelrabatte WHERE kunde_id = ? ORDER BY stufe");
         $stmt->execute([$userId]);
         $artikelrabatte = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_mahngebuehren WHERE kunde_id = ? ORDER BY stufe");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_mahngebuehren WHERE kunde_id = ? ORDER BY stufe");
         $stmt->execute([$userId]);
         $mahngebuehren = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_skonto WHERE kunde_id = ? ORDER BY stufe");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_skonto WHERE kunde_id = ? ORDER BY stufe");
         $stmt->execute([$userId]);
         $skonti = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_bemerkungen WHERE kunde_id = ? ORDER BY erstellt_am DESC");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_bemerkungen WHERE kunde_id = ? ORDER BY erstellt_am DESC");
         $stmt->execute([$userId]);
         $bemerkungen = $stmt->fetchAll();
 
-        $stmt = $dbh->prepare("SELECT * FROM kunden_zusatzfelder WHERE kunde_id = ?");
+        $stmt = $pdo->prepare("SELECT * FROM kunden_zusatzfelder WHERE kunde_id = ?");
         $stmt->execute([$userId]);
         $zusatzfelder = $stmt->fetchAll();
 
@@ -500,15 +500,15 @@ try {
     }
 
 } catch (Exception $e) {
-    if (isset($dbh) && $dbh->inTransaction()) {
-        $dbh->rollBack();
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
     }
     $response['success'] = false;
     $response['message'] = $e->getMessage();
     error_log("Auth API error: " . $e->getMessage());
 } catch (Throwable $e) {
-    if (isset($dbh) && $dbh->inTransaction()) {
-        $dbh->rollBack();
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
     }
     $response['success'] = false;
     $response['message'] = 'Serverfehler: ' . $e->getMessage();

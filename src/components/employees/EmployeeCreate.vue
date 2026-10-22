@@ -1,19 +1,26 @@
 <template>
   <v-container fluid class="pa-6">
     <!-- ================= HEADER ================= -->
-    <v-card class="mb-6 rounded-xl" elevation="3">
-      <v-card-title class="d-flex align-center pa-6">
-        <v-avatar color="primary" size="52" class="mr-4">
-          <v-icon size="30">mdi-account-plus</v-icon>
-        </v-avatar>
-        <div>
-          <h1 class="text-h5 font-weight-bold">Neuer Mitarbeiter</h1>
-          <p class="text-body-2 text-medium-emphasis mb-0">
-            Mitarbeiterkonto und persönliche Daten erstellen
-          </p>
-        </div>
-      </v-card-title>
-    </v-card>
+  <v-card-title class="d-flex align-center flex-wrap ga-3 pa-5 pa-md-6">
+  <v-btn
+    variant="text"
+    icon="mdi-arrow-left"
+    aria-label="Zurück zur Mitarbeiterliste"
+    class="back-button"
+    @click="goBack"
+  />
+
+  <v-avatar color="primary" size="52" class="mr-2">
+    <v-icon size="30">mdi-account-plus</v-icon>
+  </v-avatar>
+
+  <div>
+    <h1 class="text-h5 font-weight-bold">Neuer Mitarbeiter</h1>
+    <p class="text-body-2 text-medium-emphasis mb-0">
+      Mitarbeiterkonto und persönliche Daten erstellen
+    </p>
+  </div>
+</v-card-title>
 
     <!-- ================= FORMULAIRE ================= -->
     <v-form ref="form" @submit.prevent="submit">
@@ -113,6 +120,10 @@ const photoUploadRef = ref(null)
 const snackbar      = ref(false)
 const snackbarText  = ref('')
 const snackbarColor = ref('success')
+
+const goBack = () => {
+  router.back()
+}
 
 /* =====================================================
    SUBMIT — Création d'un employé
@@ -280,5 +291,15 @@ const submit = async () => {
 .v-btn {
   text-transform: none;
   font-weight: 600;
+}
+.back-button {
+  text-transform: none;
+  font-weight: 600;
+  color: #475569 !important;
+  border-radius: 10px !important;
+}
+
+.back-button:hover {
+  background: #f1f5f9 !important;
 }
 </style>

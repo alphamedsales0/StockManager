@@ -9,14 +9,14 @@
         <div>
           <h1 class="text-h5 font-weight-bold">Mitarbeiter bearbeiten</h1>
           <p class="text-body-2 text-medium-emphasis mb-0">
-            {{ employee?.vorname }} {{ employee?.nachname }} —
-            <span class="font-monospace">{{ employee?.mitarbeiter_nummer }}</span>
+            {{ store.employee.vorname }} {{ store.employee.nachname }} —
+            <span class="font-monospace">{{ store.employee.mitarbeiter_nummer }}</span>
           </p>
         </div>
       </v-card-title>
     </v-card>
 
-    <v-form ref="form" @submit.prevent="submit" v-if="employee">
+    <v-form ref="form" @submit.prevent="submit" v-if="loaded">
       <v-row>
         <!-- Linke Spalte -->
         <v-col cols="12" md="6">
@@ -25,7 +25,7 @@
           <EmployeeInsuranceCard />
           <EmployeePhotoUpload
             ref="photoUploadRef"
-            :existing-photo="employee.foto_pfad"
+            :existing-photo="store.employee.foto_pfad"
           />
         </v-col>
 
@@ -147,8 +147,9 @@ const store = useEmployeeStore()
 
 const form = ref(null)
 const loading = ref(false)
+const loaded = ref(false)
 const photoUploadRef = ref(null)
-const employee = ref(null)
+
 const loadError = ref(null)
 const rawResponse = ref(null)
 
@@ -172,7 +173,7 @@ const fetchEmployee = async () => {
   rawResponse.value = null
 
   try {
-    // ✅ Cache-buster pour éviter tout cache navigateur/service worker
+    // Cache-buster
     const url = `/api/employees_get.php?uid=${encodeURIComponent(uid)}&_t=${Date.now()}`
     console.log('[EditEmployee] GET', url)
 
@@ -185,23 +186,20 @@ const fetchEmployee = async () => {
     })
 
     console.log('[EditEmployee] Status:', response.status)
-    console.log('[EditEmployee] Content-Type:', response.headers['content-type'])
     console.log('[EditEmployee] response.data:', response.data)
 
-    // Vérifie le type de contenu : si c'est du HTML, on prévient clairement
+    // Vérifie le Content-Type
     const contentType = response.headers['content-type'] || ''
     if (!contentType.includes('application/json')) {
       rawResponse.value = String(response.data).slice(0, 2000)
       loadError.value =
         "Le serveur a répondu avec du HTML au lieu de JSON. " +
-        "Videz le cache du navigateur (F12 → Application → Clear site data) " +
-        "puis rechargez avec Ctrl+Shift+R."
+        "Videz le cache du navigateur (F12 → Application → Clear site data)."
       return
     }
 
     if (response.status !== 200 || response.data?.success !== true) {
       rawResponse.value = JSON.stringify(response.data, null, 2)
-
       loadError.value =
         response.data?.error ||
         response.data?.message ||
@@ -211,12 +209,13 @@ const fetchEmployee = async () => {
 
     const data = response.data.employee
 
-    // ---------- Adresse primaire ----------
+    // ---------- Adresse primaire (objet) ----------
     const addresses = data.addresses || []
     const primary =
       addresses.find(a => a.adresstyp === 'primär') ||
       addresses[0] ||
       {}
+
     data.adresse = {
       strasse:    primary.strasse    || '',
       hausnummer: primary.hausnummer || '',
@@ -225,22 +224,21 @@ const fetchEmployee = async () => {
       land:       primary.land       || 'Deutschland'
     }
 
-    // ---------- Tableaux enfants (sécurité) ----------
+    // ---------- Sécurité : tableaux ----------
     data.bank_accounts  = data.bank_accounts  || []
     data.qualifications = data.qualifications || []
     data.documents      = data.documents      || []
 
-    // ---------- Store Pinia ----------
+    // ---------- ✅ Store Pinia : remplit l'objet réactif ----------
     store.setEmployee(data)
-    employee.value = store.employee
 
-    if (!employee.value) {
-      loadError.value = "Le store Pinia n'a pas retourné d'employé."
-    } else {
-      console.log('[EditEmployee] ✅ Employé chargé:', employee.value.vorname)
-    }
+  
+
+    // ✅ Active le formulaire
+    loaded.value = true
+
   } catch (error) {
-    console.error('[EditEmployee] Fehler:', error)
+    console.error('[EditEmployee] fetchEmployee error:', error)
 
     rawResponse.value = JSON.stringify(
       {
@@ -275,8 +273,15 @@ const submit = async () => {
     const uid = route.params.uid
     const formData = new FormData()
 
+    // ✅ Payload = store.employee direct (déjà réactif et rempli)
     const payload = { ...store.employee }
     if (!payload.password) delete payload.password
+
+    // 🔍 DEBUG TEMPORAIRE
+    console.log('=== PAYLOAD UPDATE ===')
+    console.log('adresse:', JSON.stringify(payload.adresse, null, 2))
+    console.log('Full payload:', JSON.stringify(payload, null, 2))
+
     formData.append('employee', JSON.stringify(payload))
 
     if (photoUploadRef.value && photoUploadRef.value.photoFile) {

@@ -1,9 +1,21 @@
 <template>
   <v-card class="mb-5 rounded-xl" elevation="2">
-    <v-card-title>
+    <v-card-title class="d-flex align-center">
       <v-icon color="primary" class="mr-2">mdi-briefcase-outline</v-icon>
       Berufliche Daten
+
+      <!-- ✅ Badge "Ausgetreten" -->
+      <v-chip
+        v-if="employee.austrittsdatum"
+        color="warning"
+        size="small"
+        class="ml-auto"
+        prepend-icon="mdi-exit-to-app"
+      >
+        Ausgetreten am {{ formatDate(employee.austrittsdatum) }}
+      </v-chip>
     </v-card-title>
+
     <v-card-text>
       <!-- Position (Combobox dynamique depuis la BDD) -->
       <v-combobox
@@ -110,7 +122,7 @@
         </v-select>
       </div>
 
-      <!-- Einstellungsdatum & Geburtsdatum -->
+      <!-- ✅ Einstellungsdatum / Austrittsdatum / Geburtsdatum -->
       <v-row>
         <v-col cols="12" sm="6">
           <v-text-field
@@ -121,6 +133,22 @@
             prepend-inner-icon="mdi-calendar-start"
           />
         </v-col>
+
+        <v-col cols="12" sm="6">
+          <v-text-field
+            v-model="employee.austrittsdatum"
+            label="Austrittsdatum"
+            type="date"
+            variant="outlined"
+            prepend-inner-icon="mdi-calendar-end"
+            :rules="austrittRules"
+            :min="employee.einstellungsdatum || undefined"
+            clearable
+            persistent-hint
+            hint="Leer lassen, wenn der Mitarbeiter noch im Unternehmen ist"
+          />
+        </v-col>
+
         <v-col cols="12" sm="6">
           <v-text-field
             v-model="employee.geburtsdatum"
@@ -148,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useEmployeeStore } from '../../stores/employeeStore'
 import { useValidationRules } from '../../composables/useValidationRules'
 import axios from 'axios'
@@ -156,6 +184,29 @@ import axios from 'axios'
 const store = useEmployeeStore()
 const employee = store.employee
 const rules = useValidationRules()
+
+// ============================================================
+// ✅ RÈGLE RÉACTIVE : se revalide dès que einstellungsdatum change
+// ============================================================
+const austrittRules = computed(() => [
+  rules.austrittNachEintritt(employee.einstellungsdatum)
+])
+
+// ============================================================
+// ✅ Helper d'affichage de date (badge "Ausgetreten")
+// ============================================================
+const formatDate = (val) => {
+  if (!val) return ''
+  try {
+    return new Date(val).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  } catch {
+    return val
+  }
+}
 
 // ============================================================
 // UTILISATEURS (Vorgesetzte/r)
@@ -202,7 +253,7 @@ const fetchRoles = async () => {
     }
   } catch (error) {
     console.error('Fehler beim Laden der Rollen:', error)
-    roles.value = []   // ✅ Aucun fallback → l'utilisateur doit choisir en BDD
+    roles.value = [] // ✅ Aucun fallback → l'utilisateur doit choisir en BDD
   } finally {
     loadingRoles.value = false
   }
@@ -233,7 +284,6 @@ const loadPositions = async () => {
 }
 
 const onPositionChange = async (val) => {
-  // Normalisation : le combobox peut renvoyer un objet ou un string
   let name = val
   if (typeof val === 'object' && val !== null) {
     name = val.name ?? val.title ?? ''
@@ -243,7 +293,6 @@ const onPositionChange = async (val) => {
   const trimmed = name.trim()
   if (trimmed === '') return
 
-  // Vérifie si elle existe déjà (comparaison insensible à la casse)
   const exists = positions.value.some(
     p => p.name?.toLowerCase() === trimmed.toLowerCase()
   )
@@ -255,11 +304,10 @@ const onPositionChange = async (val) => {
     return
   }
 
-  // Sinon → création en BDD
   try {
     const res = await axios.post('/api/add_position_stock.php', { name: trimmed })
     if (res.data.success) {
-      positions.value.push(res.data.item) // { id, name }
+      positions.value.push(res.data.item)
       employee.position = res.data.item.name
       console.log('✅ Position angelegt:', res.data.item.name)
     } else {
@@ -268,7 +316,6 @@ const onPositionChange = async (val) => {
   } catch (error) {
     if (error.response?.status === 409) {
       console.warn('Position existiert bereits')
-      // On recharge la liste pour être synchro
       await loadPositions()
       employee.position = trimmed
     } else {

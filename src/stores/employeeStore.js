@@ -1,53 +1,118 @@
 // stores/employeeStore.js
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { reactive } from 'vue'
 
 export const useEmployeeStore = defineStore('employee', () => {
-  const employee = ref({
+  // ✅ reactive : l'objet est directement accessible sans .value
+  const employee = reactive({
+    // Identité
     email: '',
     vorname: '',
     nachname: '',
     telefon: '',
     mobil: '',
+
+    // Berufliche Daten
     position: '',
     abteilung: '',
     einstellungsdatum: '',
+    austrittsdatum: '',
     geburtsdatum: '',
     gehalt: null,
-    notfall_kontakt_name: '',
-    notfall_kontakt_telefon: '',
+    role: '',
+    vorgesetzter: '',
+
+    // Documents administratifs
     steuer_id: '',
     sozialversicherungsnummer: '',
     vertragsart: '',
     wochenarbeitszeit: null,
     steuerklasse: '1',
     konfession: 'keine',
-    role: '',                        // ✅ keine Vorauswahl mehr
-    vorgesetzter: '',
+
+    // Notfallkontakt
+    notfall_kontakt_name: '',
+    notfall_kontakt_telefon: '',
+
+    // Versicherung
     versicherung_typ: 'Krankenversicherung',
     versicherung_gesellschaft: '',
     versicherung_nummer: '',
     versicherung_gueltig_ab: '',
     versicherung_gueltig_bis: '',
     versicherung_beitrag: null,
-    bank_accounts: [],
-    qualifications: [],
-    documents: [],
+
+    // Adresse (objet unique pour le formulaire)
     adresse: {
       strasse: '',
       hausnummer: '',
       plz: '',
       stadt: '',
       land: 'Deutschland'
-    }
+    },
+
+    // Adresses multiples (venant du backend)
+    addresses: [],
+
+    // Tableaux
+    bank_accounts: [],
+    qualifications: [],
+    documents: [],
+
+    // Champs issus du backend (lecture seule)
+    uid: '',
+    benutzer_id: null,
+    user_uid: '',
+    mitarbeiter_nummer: '',
+    username: '',
+    is_active: true,
+    foto_pfad: null,
+    photo: null,
+    vorgesetzter_foto: null,
+    addresses: []
   })
 
+  /**
+   * ✅ Fusionne les données dans l'employé sans casser la réactivité.
+   * - Préserve la structure des objets imbriqués (adresse)
+   * - Gère les tableaux (remplacement)
+   */
   const setEmployee = (data) => {
-    employee.value = { ...employee.value, ...data }
+    if (!data || typeof data !== 'object') return
+
+    Object.keys(data).forEach((key) => {
+      const value = data[key]
+
+      // Cas spécial : adresse (objet)
+      if (key === 'adresse' && value && typeof value === 'object') {
+        employee.adresse = {
+          strasse:    value.strasse    ?? employee.adresse.strasse,
+          hausnummer: value.hausnummer ?? employee.adresse.hausnummer,
+          plz:        value.plz        ?? employee.adresse.plz,
+          stadt:      value.stadt      ?? employee.adresse.stadt,
+          land:       value.land       ?? employee.adresse.land
+        }
+        return
+      }
+
+      // Tableaux : remplacement
+      if (Array.isArray(value)) {
+        employee[key] = [...value]
+        return
+      }
+
+      // Cas standard : assignation directe
+      if (key in employee || !key.startsWith('_')) {
+        employee[key] = value
+      }
+    })
   }
 
+  /**
+   * ✅ Reset complet de l'employé (pour nouveau formulaire)
+   */
   const resetEmployee = () => {
-    employee.value = {
+    Object.assign(employee, {
       email: '',
       vorname: '',
       nachname: '',
@@ -56,35 +121,46 @@ export const useEmployeeStore = defineStore('employee', () => {
       position: '',
       abteilung: '',
       einstellungsdatum: '',
+      austrittsdatum: '',
       geburtsdatum: '',
       gehalt: null,
-      notfall_kontakt_name: '',
-      notfall_kontakt_telefon: '',
+      role: '',
+      vorgesetzter: '',
       steuer_id: '',
       sozialversicherungsnummer: '',
       vertragsart: '',
       wochenarbeitszeit: null,
       steuerklasse: '1',
       konfession: 'keine',
-      role: '',                      // ✅ reset sans valeur par défaut
-      vorgesetzter: '',
+      notfall_kontakt_name: '',
+      notfall_kontakt_telefon: '',
       versicherung_typ: 'Krankenversicherung',
       versicherung_gesellschaft: '',
       versicherung_nummer: '',
       versicherung_gueltig_ab: '',
       versicherung_gueltig_bis: '',
       versicherung_beitrag: null,
-      bank_accounts: [],
-      qualifications: [],
-      documents: [],
       adresse: {
         strasse: '',
         hausnummer: '',
         plz: '',
         stadt: '',
         land: 'Deutschland'
-      }
-    }
+      },
+      addresses: [],
+      bank_accounts: [],
+      qualifications: [],
+      documents: [],
+      uid: '',
+      benutzer_id: null,
+      user_uid: '',
+      mitarbeiter_nummer: '',
+      username: '',
+      is_active: true,
+      foto_pfad: null,
+      photo: null,
+      vorgesetzter_foto: null
+    })
   }
 
   return { employee, setEmployee, resetEmployee }

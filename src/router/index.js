@@ -69,7 +69,6 @@ const routes = [
     component: () => import('../components/products/Brands.vue'),
     meta: { requiresAuth: true }
   },
-
   // ============================================================
   // KUNDEN
   // ============================================================
@@ -77,6 +76,12 @@ const routes = [
     path: '/customers',
     name: 'Kunden',
     component: () => import('../views/KundenView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/customers/all',
+    name: 'KundenAll',
+    component: () => import('../views/KundenAllView.vue'),   // ✅ NOUVELLE ROUTE
     meta: { requiresAuth: true }
   },
   {

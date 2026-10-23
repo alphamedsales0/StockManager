@@ -182,33 +182,47 @@
 
     <!-- ================= TABLE ================= -->
     <v-card class="table-card" elevation="0">
-      <div class="table-header">
-        <div>
-          <div class="table-title">Kundenübersicht</div>
-          <div class="table-subtitle">
-            Alle Kundenprofile in einer Tabelle
-          </div>
-        </div>
+     <div class="table-header">
+  <div>
+    <div class="table-title">Kundenübersicht</div>
+    <div class="table-subtitle">
+  Erste 10 Kunden – klicken Sie auf „Alle ansehen" für die vollständige Liste
+</div>
+  </div>
 
-        <v-chip variant="tonal" color="primary" class="table-chip">
-          <v-icon start size="14">mdi-account-multiple-outline</v-icon>
-          {{ filteredKunden.length }} Kunden
-        </v-chip>
-      </div>
+  <div class="table-header-actions">
+    <v-chip variant="tonal" color="primary" class="table-chip">
+      <v-icon start size="14">mdi-account-multiple-outline</v-icon>
+      {{ filteredKunden.length }} Kunden
+    </v-chip>
+
+    <v-btn
+  variant="tonal"
+  color="primary"
+  size="small"
+  prepend-icon="mdi-format-list-bulleted"
+  append-icon="mdi-arrow-right"
+  class="show-all-btn"
+  @click="goToAllKunden"
+>
+  Alle ansehen
+</v-btn>
+  </div>
+</div>
 
       <v-divider />
 
-      <v-data-table
-        :headers="headers"
-        :items="filteredKunden"
-        :loading="loading"
-        :items-per-page="10"
-        hover
-        class="customer-table"
-        loading-text="Kunden werden geladen..."
-        no-data-text="Keine Kunden vorhanden"
-        items-per-page-text="Einträge pro Seite"
-      >
+     <v-data-table
+  :headers="headers"
+  :items="filteredKunden"
+  :loading="loading"
+  :items-per-page="10"
+  hover
+  class="customer-table"
+  loading-text="Kunden werden geladen..."
+  no-data-text="Keine Kunden vorhanden"
+  items-per-page-text="Einträge pro Seite"
+>
         <template #item="{ item, columns }">
           <tr class="clickable-row" @click="openDetail(item)">
             <td
@@ -473,6 +487,12 @@ const deleteDialog = ref(false)
 const deleting = ref(false)
 const selectedItem = ref(null)
 
+
+
+const goToAllKunden = () => {
+  router.push('/customers/all')
+}
+
 // =====================================================
 // PERMISSIONS
 // =====================================================
@@ -662,6 +682,20 @@ onMounted(loadKunden)
   margin: 0 auto;
   background: var(--background);
   min-height: 100vh;
+}
+
+.table-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.show-all-btn {
+  text-transform: none;
+  font-weight: 600;
+  border-radius: var(--radius-md) !important;
+  height: 36px !important;
 }
 
 /* ============================================================
@@ -1000,6 +1034,11 @@ onMounted(loadKunden)
   .hero-header-actions > * { flex: 1; }
 }
 @media (max-width: 600px) {
+
+  .table-header-actions {
+  width: 100%;
+  justify-content: space-between;
+}
   .customers-page { padding: 8px !important; }
   .hero-header-content { padding: 20px 16px !important; }
   .hero-stats { gap: 6px; font-size: 0.76rem; }

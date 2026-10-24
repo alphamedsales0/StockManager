@@ -4,6 +4,7 @@ import AllTickets from '../views/AllTickets.vue'
 import { usePermissionStore } from '../stores/permission'
 import { useAuthStore } from '../stores/auth'
 import { getRouteKey } from '../config/permissions'
+import ActivitiesView from '@/views/ActivitiesView.vue'
 
 const routes = [
   // ============================================================
@@ -25,6 +26,13 @@ const routes = [
     component: () => import('../views/DashboardView.vue'),
   },
 
+  {
+    path: '/activities',
+    name: 'Activities',
+    component: ActivitiesView,
+    meta: { requiresAuth: true }
+  },
+
   // ============================================================
   // PRODUKTE
   // ============================================================
@@ -33,42 +41,49 @@ const routes = [
     name: 'ProductsList',
     component: () => import('../views/ProductsList.vue')
   },
+
   {
     path: '/products/view/:id',
     name: 'ProductView',
     component: () => import('../views/stock/ProductView.vue'),
     meta: { requiresAuth: true }
   },
+
   {
     path: '/products/edit/:id',
     name: 'EditProduct',
     component: () => import('../components/products/EditProduct.vue'),
     meta: { requiresAuth: true }
   },
+
   {
     path: '/products/add',
     name: 'AddProduct',
     component: () => import('../views/AddProduct.vue'),
     meta: { requiresAuth: true }
   },
+
   {
     path: '/categories',
     name: 'CategoriesList',
     component: () => import('../views/CategoriesList.vue'),
     meta: { requiresAuth: true }
   },
+
   {
     path: '/article-types',
     name: 'ArticleTypesList',
     component: () => import('../views/ArticleTypesList.vue'),
     meta: { requiresAuth: true }
   },
+
   {
     path: '/brands',
     name: 'Brands',
     component: () => import('../components/products/Brands.vue'),
     meta: { requiresAuth: true }
   },
+
   // ============================================================
   // KUNDEN
   // ============================================================
@@ -78,6 +93,7 @@ const routes = [
     component: () => import('../views/KundenView.vue'),
     meta: { requiresAuth: true }
   },
+  
   {
     path: '/customers/all',
     name: 'KundenAll',

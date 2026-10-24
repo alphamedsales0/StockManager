@@ -57,7 +57,6 @@
                   {{ filteredProducts.length }} Produkt(e) gefiltert
                 </v-list-subheader>
 
-                <!-- Sélection multiple -->
                 <template v-if="selectedIds.length">
                   <v-list-item @click="exportSelectedCsv">
                     <template #prepend>
@@ -73,7 +72,6 @@
                   <v-divider class="my-1" />
                 </template>
 
-                <!-- Export client -->
                 <v-list-item @click="exportCsv(filteredProducts)">
                   <template #prepend>
                     <v-icon color="success">mdi-file-delimited</v-icon>
@@ -84,7 +82,6 @@
                   </v-list-item-subtitle>
                 </v-list-item>
 
-                <!-- ✅ Export serveur (tous produits) -->
                 <v-list-item @click="exportAllCsvServer">
                   <template #prepend>
                     <v-icon color="primary">mdi-file-delimited-outline</v-icon>
@@ -178,14 +175,15 @@
     </v-row>
 
     <!-- ============================================================ -->
-    <!-- FILTRES -->
+    <!-- FILTRES (ordre optimisé) -->
     <!-- ============================================================ -->
     <v-row class="mb-3">
       <v-col cols="12">
         <v-card variant="flat" class="filter-card" rounded="lg">
           <v-card-text class="pa-2 pa-sm-3">
             <v-row dense align="center" class="mx-0">
-              <v-col cols="12" sm="5" md="3" class="px-1">
+              <!-- Recherche -->
+              <v-col cols="12" sm="4" md="3" class="px-1">
                 <v-text-field
                   v-model="search"
                   prepend-inner-icon="mdi-magnify"
@@ -198,7 +196,9 @@
                   @update:model-value="onFilterChange"
                 />
               </v-col>
-              <v-col cols="6" sm="3" md="2" class="px-1">
+
+              <!-- Kategorie -->
+              <v-col cols="6" sm="2" md="2" class="px-1">
                 <v-select
                   v-model="selectedCategory"
                   :items="categoryOptions"
@@ -213,6 +213,23 @@
                   @update:model-value="onFilterChange"
                 />
               </v-col>
+
+              <!-- ✅ Zustand (Neu / Gebraucht) -->
+              <v-col cols="6" sm="2" md="2" class="px-1">
+                <v-select
+                  v-model="usedFilter"
+                  :items="usedOptions"
+                  label="Zustand"
+                  variant="solo-filled"
+                  density="compact"
+                  hide-details
+                  clearable
+                  rounded="lg"
+                  @update:model-value="onFilterChange"
+                />
+              </v-col>
+
+              <!-- Lager -->
               <v-col cols="6" sm="2" md="2" class="px-1">
                 <v-select
                   v-model="stockFilter"
@@ -225,7 +242,9 @@
                   rounded="lg"
                 />
               </v-col>
-              <v-col cols="6" sm="1" md="2" class="px-1">
+
+              <!-- Sortierung -->
+              <v-col cols="6" sm="2" md="2" class="px-1">
                 <v-select
                   v-model="sortBy"
                   :items="sortOptions"
@@ -236,9 +255,10 @@
                   rounded="lg"
                 />
               </v-col>
-              <v-col cols="6" sm="1" md="3" class="text-end px-1">
+
+              <!-- Actions -->
+              <v-col cols="12" sm="12" md="1" class="text-end px-1">
                 <div class="d-flex justify-end gap-1 flex-wrap">
-                  <!-- Bouton tout sélectionner -->
                   <v-btn
                     v-if="paginatedProducts.length"
                     variant="text"
@@ -292,6 +312,9 @@
         <strong>{{ filteredProducts.length }}</strong> von {{ products.length }} Produkten
         <span v-if="search">· Suche: "<strong>{{ search }}</strong>"</span>
         <span v-if="selectedCategory">· Kategorie: <strong>{{ selectedCategory }}</strong></span>
+        <span v-if="usedFilter !== null">
+          · Zustand: <strong>{{ usedFilter === 'new' ? 'Neu' : 'Gebraucht' }}</strong>
+        </span>
         <span v-if="stockFilter !== null && stockFilter !== undefined">
           · Lager: <strong>{{ stockFilter ? 'Auf Lager' : 'Nicht lagernd' }}</strong>
         </span>
@@ -347,7 +370,6 @@
           }"
           elevation="0"
         >
-          <!-- ✅ Checkbox de sélection -->
           <div class="selection-checkbox" @click.stop>
             <v-checkbox-btn
               :model-value="isSelected(product.id)"
@@ -695,12 +717,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { usePermissionStore } from '@/stores/permission'
 import { apiUrl, imageUrl } from '@/config/api'
 
 const router = useRouter()
+const route = useRoute()
 const permissionStore = usePermissionStore()
 
 // ============================================================
@@ -714,6 +737,7 @@ const lastUpdate = ref('')
 const search = ref('')
 const selectedCategory = ref(null)
 const stockFilter = ref(null)
+const usedFilter = ref(null)
 const sortBy = ref('default')
 const viewMode = ref('grid')
 
@@ -741,7 +765,6 @@ async function loadProducts() {
     if (!data.success) throw new Error(data.error || 'Erreur API')
     products.value = data.products || []
     imageErrors.value = {}
-    // Nettoie la sélection des IDs qui n'existent plus
     const existing = new Set(products.value.map(p => p.id))
     selectedIds.value = selectedIds.value.filter(id => existing.has(id))
   } catch (err) {
@@ -841,6 +864,13 @@ const stockOptions = [
   { title: 'Nicht lagernd', value: false }
 ]
 
+// ✅ Options du filtre Zustand
+const usedOptions = [
+  { title: 'Alle', value: null },
+  { title: 'Nur Neu', value: 'new' },
+  { title: 'Nur Gebraucht', value: 'used' }
+]
+
 const sortOptions = [
   { title: 'Standard', value: 'default' },
   { title: 'Name (A→Z)', value: 'name_asc' },
@@ -857,6 +887,12 @@ const filteredByCategoryAndStock = computed(() => {
   }
   if (stockFilter.value !== null && stockFilter.value !== undefined) {
     result = result.filter(p => p.inStock === stockFilter.value)
+  }
+  // ✅ Filtre Neu / Gebraucht
+  if (usedFilter.value === 'new') {
+    result = result.filter(p => !p.isUsed)
+  } else if (usedFilter.value === 'used') {
+    result = result.filter(p => p.isUsed)
   }
   return result
 })
@@ -895,23 +931,52 @@ const paginatedProducts = computed(() => {
 const onFilterChange = () => { currentPage.value = 1 }
 
 watch(stockFilter, () => { currentPage.value = 1 })
+watch(usedFilter, () => { currentPage.value = 1 })
 
 const hasActiveFilters = computed(() =>
   !!selectedCategory.value ||
   (stockFilter.value !== null && stockFilter.value !== undefined) ||
-  !!search.value
+  !!search.value ||
+  usedFilter.value !== null
 )
 
 function resetFilters() {
   search.value = ''
   selectedCategory.value = null
   stockFilter.value = null
+  usedFilter.value = null
   sortBy.value = 'default'
   onFilterChange()
 }
 
 function toggleViewMode() {
   viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
+}
+
+// ============================================================
+// ✅ Applique les filtres depuis l'URL (query params)
+// ============================================================
+function applyQueryFilters() {
+  const category = route.query.category
+  const used = route.query.used
+  const stock = route.query.stock
+
+  if (category) {
+    selectedCategory.value = category === 'accessories' ? 'rehabilitation_accessory' : category
+  }
+
+  if (used === '1') {
+    usedFilter.value = 'used'
+  } else if (used === '0') {
+    usedFilter.value = 'new'
+  }
+
+  // ✅ Support du filtre stock=out
+  if (stock === 'out') {
+    stockFilter.value = false   // inStock = false
+  } else if (stock === 'in') {
+    stockFilter.value = true
+  }
 }
 
 // ============================================================
@@ -939,11 +1004,9 @@ const somePageSelected = computed(() =>
 
 const toggleSelectAll = () => {
   if (allPageSelected.value) {
-    // Désélectionne les produits de la page
     const pageIds = new Set(paginatedProducts.value.map(p => p.id))
     selectedIds.value = selectedIds.value.filter(id => !pageIds.has(id))
   } else {
-    // Sélectionne tous les produits de la page
     const pageIds = paginatedProducts.value.map(p => p.id)
     const set = new Set([...selectedIds.value, ...pageIds])
     selectedIds.value = Array.from(set)
@@ -1089,7 +1152,7 @@ const exportSelectedCsv = () => {
 }
 
 // ============================================================
-// ✅ EXPORT CSV SERVEUR (tous les produits, avec filtres actifs)
+// ✅ EXPORT CSV SERVEUR
 // ============================================================
 const exportAllCsvServer = () => {
   if (!products.value.length) {
@@ -1122,7 +1185,8 @@ const exportJson = () => {
     filters: {
       search: search.value || null,
       category: selectedCategory.value || null,
-      stock: stockFilter.value ?? null
+      stock: stockFilter.value ?? null,
+      used: usedFilter.value
     },
     products: filteredProducts.value
   }
@@ -1168,7 +1232,22 @@ function editProduct(id) {
 const truncate = (str, len) =>
   str?.length > len ? str.slice(0, len) + '…' : str
 
-loadProducts()
+// ============================================================
+// ✅ INITIALISATION + WATCH URL
+// ============================================================
+onMounted(() => {
+  applyQueryFilters()
+  loadProducts()
+})
+
+// ✅ Re-applique les filtres si l'URL change (ex: depuis le Dashboard)
+watch(
+  () => route.query,
+  () => {
+    applyQueryFilters()
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -1179,7 +1258,7 @@ loadProducts()
   max-width: 1800px;
   margin: 0 auto;
   padding-top: 16px;
-  padding-bottom: 100px; /* espace pour la toolbar flottante */
+  padding-bottom: 100px;
 }
 
 .gap-1 { gap: 4px; }
@@ -1372,7 +1451,6 @@ loadProducts()
   background: #f5faff;
 }
 
-/* Checkbox sélection */
 .selection-checkbox {
   position: absolute;
   top: 6px;

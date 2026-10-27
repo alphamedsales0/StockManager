@@ -1,8 +1,6 @@
 <template>
   <div class="login-wrapper">
-    <!-- ============================================================ -->
-    <!-- ✅ OVERLAY LOADING -->
-    <!-- ============================================================ -->
+    <!-- OVERLAY LOADING -->
     <v-overlay
       v-model="isLoading"
       class="align-center justify-center login-loading-overlay"
@@ -35,9 +33,7 @@
     <v-container class="login-container">
       <v-card class="login-card" elevation="0" rounded="lg">
         <div class="card-grid">
-          <!-- ============================================================ -->
           <!-- PANNEAU GAUCHE : FORMULAIRE -->
-          <!-- ============================================================ -->
           <div class="form-panel">
             <div class="brand-header">
               <img :src="logoUrl" alt="StockManager Logo" class="logo-image-hero" />
@@ -222,9 +218,7 @@
             </transition>
           </div>
 
-          <!-- ============================================================ -->
           <!-- PANNEAU DROIT : VISUEL -->
-          <!-- ============================================================ -->
           <div class="visual-panel">
             <div class="visual-content">
               <div class="visual-icon-wrap">
@@ -277,22 +271,22 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useAuthStore } from '../../stores/auth'
-import { usePermissionStore } from '../../stores/permission'
-import { useNotificationStore } from '../../stores/notifications'
+import { useAuthStore } from '@/stores/auth'
+import { usePermissionStore } from '@/stores/permission'
+import { useNotificationStore } from '@/stores/notifications'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const permissionStore = usePermissionStore()
 const notificationStore = useNotificationStore()
 
-// ✅ URL du logo (adapter selon ton projet)
+// ✅ URL du logo
 const logoUrl = '/images/logo.png'
 
 // ============================================================
 // CONFIG LOADING
 // ============================================================
-const MIN_LOADING_DURATION = 800   // ms — durée minimale du loading
+const MIN_LOADING_DURATION = 800
 
 // ============================================================
 // STATE
@@ -315,7 +309,6 @@ const currentYear = new Date().getFullYear()
 // ============================================================
 // HELPERS
 // ============================================================
-// ✅ Garantit une durée minimale pour une promesse
 const withMinDuration = async (promise, minMs = MIN_LOADING_DURATION) => {
   const start = Date.now()
   try {
@@ -330,6 +323,27 @@ const withMinDuration = async (promise, minMs = MIN_LOADING_DURATION) => {
 }
 
 // ============================================================
+// ✅ DÉTERMINER LA PAGE D'ATTERRISSAGE SELON PERMISSIONS
+// ============================================================
+const getLandingPage = () => {
+  const priority = [
+    { path: '/',             perm: 'dashboard' },
+    { path: '/tickets',      perm: 'tickets' },
+    { path: '/products',     perm: 'products' },
+    { path: '/customers',    perm: 'customers' },
+    { path: '/employees',    perm: 'employees' },
+    { path: '/quotes',       perm: 'orders' },
+    { path: '/help',         perm: 'help' },
+  ]
+  for (const item of priority) {
+    if (permissionStore.can(item.perm)) {
+      return item.path
+    }
+  }
+  return '/access-denied'
+}
+
+// ============================================================
 // LIFECYCLE
 // ============================================================
 onMounted(() => {
@@ -341,7 +355,7 @@ onMounted(() => {
 })
 
 // ============================================================
-// LOGIN — ✅ sans flash
+// LOGIN
 // ============================================================
 const handleSignIn = async () => {
   loginError.value = ''
@@ -355,7 +369,6 @@ const handleSignIn = async () => {
   loadingText.value = 'Anmeldung läuft...'
   isLoading.value = true
 
-  // ✅ Texte évolutif pendant le loading
   const textTimer1 = setTimeout(() => {
     if (isLoading.value) loadingText.value = 'Verbindung wird hergestellt...'
   }, 400)
@@ -376,27 +389,36 @@ const handleSignIn = async () => {
     )
 
     if (response.data.success && response.data.user) {
+      // 1. Store user
       authStore.setUser(response.data.user)
       authStore.setLoggedIn(true)
 
+      // 2. Set role
       if (typeof permissionStore.setRole === 'function') {
         permissionStore.setRole(response.data.user.role)
       }
 
+      // 3. ✅ Charge les permissions AVANT redirection
+      if (typeof permissionStore.loadPermissions === 'function') {
+        await permissionStore.loadPermissions()
+      }
+
+      // 4. Remember me
       if (rememberMe.value) {
         localStorage.setItem('stock_manager_email', signInForm.value.email)
       } else {
         localStorage.removeItem('stock_manager_email')
       }
 
+      // 5. Notification
       notificationStore.showSuccess('Erfolgreich angemeldet', 'Willkommen zurück!')
       loginSuccess.value = true
 
-      const landing = permissionStore.can && permissionStore.can('dashboard')
-        ? '/'
-        : '/tickets'
+      // 6. ✅ Redirection intelligente
+      const landing = getLandingPage()
+      console.log('→ Redirection vers:', landing)
+      console.log('→ Permissions:', permissionStore.allowedKeys)
 
-      // ✅ Redirection IMMÉDIATE — pas de flash
       await router.push(landing)
     } else {
       loginError.value = response.data.message || 'E-Mail oder Passwort falsch'
@@ -405,7 +427,6 @@ const handleSignIn = async () => {
   } catch (error) {
     console.error('Login error:', error)
 
-    // ✅ Durée minimale même en cas d'erreur
     await withMinDuration(Promise.resolve(), MIN_LOADING_DURATION)
 
     if (error.response?.data?.message) {
@@ -422,8 +443,6 @@ const handleSignIn = async () => {
     clearTimeout(textTimer2)
     loadingText.value = 'Anmeldung läuft...'
 
-    // ✅ NE PAS remettre isLoading = false en cas de succès :
-    //    la vue va être démontée par router.push, l'overlay disparaîtra avec elle.
     if (!loginSuccess.value) {
       isLoading.value = false
     }
@@ -463,9 +482,9 @@ const handleResetPassword = async () => {
 </script>
 
 <style scoped>
-/* ============================================================
-   BASE — Bleu #116bd1
-   ============================================================ */
+/* ============================================================ */
+/* BASE */
+/* ============================================================ */
 .login-wrapper {
   min-height: 100vh;
   display: flex;
@@ -487,9 +506,7 @@ const handleResetPassword = async () => {
   z-index: 1;
 }
 
-/* ============================================================
-   ✅ LOGIN LOADING OVERLAY
-   ============================================================ */
+/* LOADING OVERLAY */
 .login-loading-overlay :deep(.v-overlay__scrim) {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -535,9 +552,7 @@ const handleResetPassword = async () => {
   letter-spacing: 0.2px;
 }
 
-/* ============================================================
-   ARRIÈRE-PLAN ANIMÉ
-   ============================================================ */
+/* BG SHAPES */
 .bg-shapes {
   position: absolute;
   inset: 0;
@@ -554,41 +569,10 @@ const handleResetPassword = async () => {
   animation: floatShape 20s ease-in-out infinite;
 }
 
-.shape-1 {
-  width: 500px;
-  height: 500px;
-  background: #116bd1;
-  top: -200px;
-  left: -150px;
-  animation-delay: 0s;
-}
-
-.shape-2 {
-  width: 400px;
-  height: 400px;
-  background: #0d54a3;
-  bottom: -150px;
-  right: -100px;
-  animation-delay: -7s;
-}
-
-.shape-3 {
-  width: 300px;
-  height: 300px;
-  background: #3b8ee0;
-  top: 40%;
-  right: 10%;
-  animation-delay: -14s;
-}
-
-.shape-4 {
-  width: 250px;
-  height: 250px;
-  background: #116bd1;
-  bottom: 20%;
-  left: 5%;
-  animation-delay: -3s;
-}
+.shape-1 { width: 500px; height: 500px; background: #116bd1; top: -200px; left: -150px; animation-delay: 0s; }
+.shape-2 { width: 400px; height: 400px; background: #0d54a3; bottom: -150px; right: -100px; animation-delay: -7s; }
+.shape-3 { width: 300px; height: 300px; background: #3b8ee0; top: 40%; right: 10%; animation-delay: -14s; }
+.shape-4 { width: 250px; height: 250px; background: #116bd1; bottom: 20%; left: 5%; animation-delay: -3s; }
 
 @keyframes floatShape {
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -597,9 +581,7 @@ const handleResetPassword = async () => {
   75% { transform: translate(20px, 20px) scale(1.02); }
 }
 
-/* ============================================================
-   CARTE PRINCIPALE
-   ============================================================ */
+/* CARD */
 .login-card {
   border-radius: 8px !important;
   overflow: hidden;
@@ -622,9 +604,7 @@ const handleResetPassword = async () => {
   min-height: 620px;
 }
 
-/* ============================================================
-   PANNEAU FORMULAIRE
-   ============================================================ */
+/* FORM PANEL */
 .form-panel {
   padding: 48px 44px;
   display: flex;
@@ -639,7 +619,6 @@ const handleResetPassword = async () => {
   margin-bottom: 32px;
 }
 
-/* ✅ Logo HERO */
 .logo-image-hero {
   display: block;
   margin: 0 auto 16px;
@@ -665,95 +644,29 @@ const handleResetPassword = async () => {
   font-weight: 600;
 }
 
-/* ============================================================
-   HEADER FORMULAIRE
-   ============================================================ */
-.form-inner {
-  width: 100%;
-}
+/* FORM */
+.form-inner { width: 100%; }
+.form-header { text-align: center; margin-bottom: 24px; }
+.form-title { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+.form-subtitle { font-size: 0.875rem; color: #64748b; margin: 0; line-height: 1.5; }
+.form-fields { display: flex; flex-direction: column; gap: 4px; }
+.field-group { margin-bottom: 14px; }
+.field-label { display: block; font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
 
-.form-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.form-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 6px;
-}
-
-.form-subtitle {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* ============================================================
-   CHAMPS
-   ============================================================ */
-.form-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.field-group {
-  margin-bottom: 14px;
-}
-
-.field-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 6px;
-}
-
-.modern-field :deep(.v-field) {
-  border-radius: 4px !important;
-  transition: all 0.2s ease;
-}
-
-.modern-field :deep(.v-field--focused) {
-  box-shadow: 0 0 0 3px rgba(17, 107, 209, 0.18);
-}
-
-.modern-field :deep(.v-field__input) {
-  font-size: 0.95rem;
-}
-
-.modern-field :deep(.v-field--focused .v-icon) {
-  color: #116bd1 !important;
-}
+.modern-field :deep(.v-field) { border-radius: 4px !important; transition: all 0.2s ease; }
+.modern-field :deep(.v-field--focused) { box-shadow: 0 0 0 3px rgba(17, 107, 209, 0.18); }
+.modern-field :deep(.v-field__input) { font-size: 0.95rem; }
+.modern-field :deep(.v-field--focused .v-icon) { color: #116bd1 !important; }
 
 .link-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  color: #116bd1;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.15s;
+  background: none; border: none; padding: 0;
+  color: #116bd1; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: color 0.15s;
 }
+.link-btn:hover { color: #0d54a3; text-decoration: underline; }
 
-.link-btn:hover {
-  color: #0d54a3;
-  text-decoration: underline;
-}
+.remember-checkbox :deep(.v-label) { font-size: 0.8rem; color: #64748b; opacity: 1; }
 
-.remember-checkbox :deep(.v-label) {
-  font-size: 0.8rem;
-  color: #64748b;
-  opacity: 1;
-}
-
-/* ============================================================
-   BOUTON SUBMIT
-   ============================================================ */
 .submit-btn {
   background: linear-gradient(135deg, #116bd1 0%, #3b8ee0 100%) !important;
   color: white !important;
@@ -766,19 +679,11 @@ const handleResetPassword = async () => {
   box-shadow: 0 8px 20px rgba(17, 107, 209, 0.35) !important;
   transition: all 0.25s ease !important;
 }
-
 .submit-btn:hover:not(.v-btn--loading):not(.v-btn--disabled) {
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(17, 107, 209, 0.45) !important;
 }
 
-.submit-btn:active:not(.v-btn--loading):not(.v-btn--disabled) {
-  transform: translateY(0);
-}
-
-/* ============================================================
-   FOOTER FORM
-   ============================================================ */
 .form-footer {
   text-align: center;
   margin-top: 20px;
@@ -789,44 +694,22 @@ const handleResetPassword = async () => {
   justify-content: center;
 }
 
-/* ============================================================
-   BOUTON RETOUR + ICÔNE CIRCLE
-   ============================================================ */
 .back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 4px;
-  transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; color: #64748b;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  padding: 6px 10px; border-radius: 4px; transition: all 0.15s;
 }
-
-.back-btn:hover {
-  background: #e6f0fb;
-  color: #116bd1;
-}
+.back-btn:hover { background: #e6f0fb; color: #116bd1; }
 
 .icon-circle {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto;
-  border-radius: 8px;
-  background: #e6f0fb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 56px; height: 56px; margin: 0 auto;
+  border-radius: 8px; background: #e6f0fb;
+  display: flex; align-items: center; justify-content: center;
   border: 2px solid #c7ddf7;
 }
 
-/* ============================================================
-   PANNEAU VISUEL — #116bd1
-   ============================================================ */
+/* VISUAL PANEL */
 .visual-panel {
   background: linear-gradient(135deg, #116bd1 0%, #0d54a3 50%, #3b8ee0 100%);
   position: relative;
@@ -836,7 +719,6 @@ const handleResetPassword = async () => {
   justify-content: center;
   padding: 48px 44px;
 }
-
 .visual-panel::before {
   content: '';
   position: absolute;
@@ -846,117 +728,42 @@ const handleResetPassword = async () => {
     radial-gradient(circle at 80% 70%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
   pointer-events: none;
 }
-
-.visual-content {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  color: white;
-  max-width: 340px;
-}
-
-.visual-icon-wrap {
-  margin-bottom: 24px;
-  animation: floatIcon 3s ease-in-out infinite;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.visual-logo {
-  width: 180px;
-  height: 180px;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
-  opacity: 0.95;
-}
+.visual-content { position: relative; z-index: 2; text-align: center; color: white; max-width: 340px; }
+.visual-icon-wrap { margin-bottom: 24px; animation: floatIcon 3s ease-in-out infinite; display: flex; align-items: center; justify-content: center; }
+.visual-logo { width: 180px; height: 180px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.95; }
 
 @keyframes floatIcon {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
 }
 
-.visual-title {
-  font-size: 1.75rem;
-  font-weight: 400;
-  line-height: 1.3;
-  margin: 0 0 12px;
-  color: white;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.visual-title strong {
-  font-weight: 800;
-}
-
-.visual-text {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 32px;
-}
-
-.visual-features {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  text-align: left;
-}
+.visual-title { font-size: 1.75rem; font-weight: 400; line-height: 1.3; margin: 0 0 12px; color: white; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+.visual-title strong { font-weight: 800; }
+.visual-text { font-size: 0.95rem; line-height: 1.6; color: rgba(255, 255, 255, 0.9); margin: 0 0 32px; }
+.visual-features { display: flex; flex-direction: column; gap: 12px; text-align: left; }
 
 .feature-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: flex; align-items: center; gap: 12px;
   padding: 10px 16px;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
-  backdrop-filter: blur(8px);
-  font-size: 0.875rem;
-  font-weight: 500;
+  border-radius: 6px; backdrop-filter: blur(8px);
+  font-size: 0.875rem; font-weight: 500;
   transition: all 0.2s;
 }
-
-.feature-item:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateX(4px);
-}
+.feature-item:hover { background: rgba(255, 255, 255, 0.2); transform: translateX(4px); }
 
 .feature-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
+  width: 32px; height: 32px; border-radius: 4px;
   background: rgba(255, 255, 255, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 
-.visual-shape {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  pointer-events: none;
-}
+.visual-shape { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.1); pointer-events: none; }
+.visual-shape-1 { width: 300px; height: 300px; top: -100px; right: -100px; }
+.visual-shape-2 { width: 200px; height: 200px; bottom: -80px; left: -80px; }
 
-.visual-shape-1 {
-  width: 300px;
-  height: 300px;
-  top: -100px;
-  right: -100px;
-}
-
-.visual-shape-2 {
-  width: 200px;
-  height: 200px;
-  bottom: -80px;
-  left: -80px;
-}
-
-/* ============================================================
-   COPYRIGHT
-   ============================================================ */
 .copyright-text {
   text-align: center;
   color: rgba(255, 255, 255, 0.5);
@@ -967,107 +774,41 @@ const handleResetPassword = async () => {
   z-index: 1;
 }
 
-/* ============================================================
-   TRANSITIONS
-   ============================================================ */
+/* TRANSITIONS */
 .slide-fade-enter-active,
 .slide-fade-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-.slide-fade-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.slide-fade-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
-}
+.slide-fade-enter-from { opacity: 0; transform: translateX(20px); }
+.slide-fade-leave-to { opacity: 0; transform: translateX(-20px); }
 
 .fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
+.fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
+.fade-leave-to { opacity: 0; }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
+/* RESPONSIVE */
 @media (max-width: 900px) {
-  .card-grid {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .visual-panel {
-    display: none;
-  }
-
-  .form-panel {
-    padding: 40px 32px;
-  }
+  .card-grid { grid-template-columns: 1fr; min-height: auto; }
+  .visual-panel { display: none; }
+  .form-panel { padding: 40px 32px; }
 }
 
 @media (max-width: 600px) {
-  .login-wrapper {
-    padding: 12px;
-  }
-
-  .form-panel {
-    padding: 32px 24px;
-  }
-
-  .brand-header {
-    margin-bottom: 24px;
-  }
-
-  .logo-image-hero {
-    width: 90px;
-    height: 90px;
-  }
-
-  .brand-name {
-    font-size: 1.3rem;
-  }
-
-  .form-title {
-    font-size: 1.25rem;
-  }
-
-  .submit-btn {
-    height: 44px !important;
-    font-size: 0.95rem !important;
-  }
-
-  .shape-1,
-  .shape-2,
-  .shape-3,
-  .shape-4 {
-    filter: blur(60px);
-    opacity: 0.3;
-  }
-
-  .login-loading-content {
-    padding: 24px 32px;
-  }
-
-  .login-loading-text {
-    font-size: 1rem;
-  }
-
-  .login-loading-subtext {
-    font-size: 0.75rem;
-  }
+  .login-wrapper { padding: 12px; }
+  .form-panel { padding: 32px 24px; }
+  .brand-header { margin-bottom: 24px; }
+  .logo-image-hero { width: 90px; height: 90px; }
+  .brand-name { font-size: 1.3rem; }
+  .form-title { font-size: 1.25rem; }
+  .submit-btn { height: 44px !important; font-size: 0.95rem !important; }
+  .shape-1, .shape-2, .shape-3, .shape-4 { filter: blur(60px); opacity: 0.3; }
+  .login-loading-content { padding: 24px 32px; }
+  .login-loading-text { font-size: 1rem; }
+  .login-loading-subtext { font-size: 0.75rem; }
 }
 
-/* ============================================================
-   ACCESSIBILITÉ
-   ============================================================ */
+/* ACCESSIBILITÉ */
 .link-btn:focus-visible,
 .back-btn:focus-visible {
   outline: 2px solid #116bd1;
@@ -1076,13 +817,9 @@ const handleResetPassword = async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shape,
-  .visual-icon-wrap,
-  .login-card,
-  .login-loading-content {
+  .shape, .visual-icon-wrap, .login-card, .login-loading-content {
     animation: none !important;
   }
-
   .slide-fade-enter-active,
   .slide-fade-leave-active,
   .fade-enter-active,

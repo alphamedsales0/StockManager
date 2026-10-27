@@ -99,10 +99,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { usePermissionStore } from '@/stores/permission'
+import axios from 'axios'
+import { apiUrl } from '@/config/api'
 
 const router = useRouter()
+const permissionStore = usePermissionStore()
 
-// Dashboard-Daten
+// ============================================================
+// DASHBOARD-DATEN
+// ============================================================
 const dashboard = ref({
   totalProducts: 0,
   inStockCount: 0,
@@ -119,11 +125,15 @@ const dashboard = ref({
 
 const loading = ref(true)
 
-// Daten von der API laden
+// ============================================================
+// API
+// ============================================================
 const fetchDashboardData = async () => {
   try {
-    const response = await fetch('https://alpha-med-care.com/api/overviewcards.php')
-    const json = await response.json()
+    const response = await axios.get(apiUrl('/overviewcards.php'), {
+      withCredentials: true
+    })
+    const json = response.data
     if (json.success) {
       dashboard.value = json.data
     } else {
@@ -136,39 +146,49 @@ const fetchDashboardData = async () => {
   }
 }
 
-// --- Computed Properties für die Karten ---
+// ============================================================
+// COMPUTED — Werte
+// ============================================================
 const totalProducts = computed(() => dashboard.value.totalProducts)
 const inStockCount = computed(() => dashboard.value.inStockCount)
 const totalStockValue = computed(() => dashboard.value.totalStockValue)
 const averageProductValue = computed(() => dashboard.value.averageProductValue)
-
 const totalCustomers = computed(() => dashboard.value.totalCustomers)
 const activeCustomers = computed(() => dashboard.value.activeCustomers)
-
 const totalQuotes = computed(() => dashboard.value.totalQuotes)
 const pendingQuotes = computed(() => dashboard.value.pendingQuotes)
-
 const totalOrders = computed(() => dashboard.value.totalOrders)
 const pendingOrders = computed(() => dashboard.value.pendingOrders)
 const totalRevenue = computed(() => dashboard.value.totalRevenue)
 
 // Prozentwerte
 const inStockPercentage = computed(() =>
-  totalProducts.value > 0 ? Math.round((inStockCount.value / totalProducts.value) * 100) : 0
+  totalProducts.value > 0
+    ? Math.round((inStockCount.value / totalProducts.value) * 100)
+    : 0
 )
 const activeCustomerPercentage = computed(() =>
-  totalCustomers.value > 0 ? Math.round((activeCustomers.value / totalCustomers.value) * 100) : 0
+  totalCustomers.value > 0
+    ? Math.round((activeCustomers.value / totalCustomers.value) * 100)
+    : 0
 )
 const pendingQuotesPercentage = computed(() =>
-  totalQuotes.value > 0 ? Math.round((pendingQuotes.value / totalQuotes.value) * 100) : 0
+  totalQuotes.value > 0
+    ? Math.round((pendingQuotes.value / totalQuotes.value) * 100)
+    : 0
 )
 const pendingOrdersPercentage = computed(() =>
-  totalOrders.value > 0 ? Math.round((pendingOrders.value / totalOrders.value) * 100) : 0
+  totalOrders.value > 0
+    ? Math.round((pendingOrders.value / totalOrders.value) * 100)
+    : 0
 )
 
-// Karten-Daten
-const cardsData = computed(() => [
+// ============================================================
+// ✅ TOUTES LES CARTES (avec permission requise)
+// ============================================================
+const allCardsData = computed(() => [
   {
+    perm: 'products',
     title: 'Produkte',
     value: totalProducts.value,
     subtitle: `${inStockCount.value} auf Lager`,
@@ -190,6 +210,7 @@ const cardsData = computed(() => [
     progressValue: inStockPercentage.value
   },
   {
+    perm: 'customers',
     title: 'Kunden',
     value: totalCustomers.value,
     subtitle: `${activeCustomers.value} aktiv`,
@@ -211,6 +232,7 @@ const cardsData = computed(() => [
     progressValue: activeCustomerPercentage.value
   },
   {
+    perm: 'orders',
     title: 'Bestellungen',
     value: totalOrders.value,
     subtitle: `${pendingOrders.value} ausstehend`,
@@ -224,7 +246,7 @@ const cardsData = computed(() => [
     iconColor: '#FFD54F',
     iconBgColor: 'rgba(255, 213, 79, 0.25)',
     dividerColor: '#FFF3E080',
-    action: () => router.push('/orders'),
+    action: () => router.push('/quotes'),
     actionText: 'Bestellungen verwalten',
     progress: pendingOrdersPercentage.value,
     progressColor: '#FFD54F',
@@ -232,6 +254,7 @@ const cardsData = computed(() => [
     progressValue: pendingOrdersPercentage.value
   },
   {
+    perm: 'orders',
     title: 'Angebote',
     value: pendingQuotes.value,
     subtitle: `${totalQuotes.value} insgesamt`,
@@ -253,6 +276,7 @@ const cardsData = computed(() => [
     progressValue: pendingQuotesPercentage.value
   },
   {
+    perm: 'stats',
     title: 'Lagerwert',
     value: `${totalStockValue.value.toLocaleString()} €`,
     subtitle: `${Math.round(averageProductValue.value).toLocaleString()} € / Produkt`,
@@ -271,9 +295,21 @@ const cardsData = computed(() => [
     progress: undefined,
     progressLabel: '',
     progressValue: 0
-  },
+  }
 ])
 
+// ============================================================
+// ✅ CARTES FILTRÉES SELON PERMISSIONS
+// ============================================================
+const cardsData = computed(() => {
+  return allCardsData.value.filter(card => {
+    return permissionStore.can(card.perm)
+  })
+})
+
+// ============================================================
+// LIFECYCLE
+// ============================================================
 onMounted(() => {
   fetchDashboardData()
 })

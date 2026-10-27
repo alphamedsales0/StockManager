@@ -13,6 +13,27 @@ export const useAuthStore = defineStore('auth', () => {
   let initPromise = null
 
   // ============================================================
+  // RÔLES AUTORISÉS (tous en minuscules)
+  // ============================================================
+  const ALLOWED_ROLES = [
+    'admin',
+    'office',
+    'technician',
+    'manager',
+    'hr',
+    'finance',
+    'sales',
+    'warehouse',
+    'purchasing',
+    'support',
+    'teamlead',
+    'employee',
+    'accountant',
+    'developer',
+    'manu'
+  ]
+
+  // ============================================================
   // GETTERS
   // ============================================================
   const userName = computed(() => user.value?.name || '')
@@ -23,14 +44,30 @@ export const useAuthStore = defineStore('auth', () => {
   // ACTIONS
   // ============================================================
   function setUser(userData) {
-    // ❌ Bloque les rôles invalides (Gast, Guest, etc.)
-    if (userData && !['Admin', 'Office', 'Technician'].includes(userData.role)) {
-      console.warn(`Rôle refusé : ${userData.role}`)
+    if (!userData) {
       clearUser()
       return
     }
-    user.value = userData
-    isLoggedIn.value = !!userData
+
+    // ✅ Normalise le rôle en minuscule
+    const roleLower = String(userData.role || '').toLowerCase().trim()
+
+    // ✅ Vérifie que le rôle est autorisé (insensible à la casse)
+    if (!ALLOWED_ROLES.includes(roleLower)) {
+      console.warn(`⚠️ Rôle refusé : ${userData.role} (normalisé: ${roleLower})`)
+      console.warn('Rôles autorisés:', ALLOWED_ROLES)
+      clearUser()
+      return
+    }
+
+    // ✅ Stocke l'utilisateur avec le rôle en minuscule
+    user.value = {
+      ...userData,
+      role: roleLower
+    }
+    isLoggedIn.value = true
+
+    console.log('[auth] User set:', user.value)
   }
 
   function clearUser() {

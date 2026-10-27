@@ -53,9 +53,15 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-if (($_SESSION['user_role'] ?? '') !== 'Admin') {
+// ✅ APRÈS — insensible à la casse
+$userRole = strtolower($_SESSION['user_role'] ?? '');
+if ($userRole !== 'admin') {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Nur Admin erlaubt']);
+    echo json_encode([
+        'success' => false,
+        'error'   => 'Nur Admin erlaubt',
+        'current_role' => $userRole
+    ]);
     exit;
 }
 

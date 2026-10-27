@@ -14,55 +14,61 @@ export const usePermissionStore = defineStore('permission', () => {
   const showPermissionDialog = ref(false)
   const loading = ref(false)
   const permissionsLoaded = ref(false)
-  const permissions = ref([])   // ← chargées depuis la DB
+  const permissions = ref([])
   const roleOverride = ref(localStorage.getItem('userRole') || null)
 
   // ============================================================
   // GETTERS
   // ============================================================
-  const userRole = computed(() =>
-    authStore.user?.role || roleOverride.value || null
-  )
+  const userRole = computed(() => {
+    // ✅ Toujours en minuscule
+    const role =
+      authStore.user?.role ||
+      roleOverride.value ||
+      localStorage.getItem('userRole') ||
+      null
+
+    return role ? String(role).toLowerCase().trim() : null
+  })
 
   const allowedKeys = computed(() => permissions.value)
 
-  const isAdmin = computed(() => userRole.value === 'Admin')
-  const isOffice = computed(() => userRole.value === 'Office')
-  const isTechnician = computed(() => userRole.value === 'Technician')
+  // ✅ Comparaisons insensibles à la casse
+  const isAdmin = computed(() => userRole.value === 'admin')
+  const isOffice = computed(() => userRole.value === 'office')
+  const isTechnician = computed(() => userRole.value === 'technician')
   const isLoggedIn = computed(() => !!userRole.value)
 
   // ============================================================
   // ACTIONS
   // ============================================================
-
-  /**
-   * ✅ Vérifie si l'utilisateur a une permission
-   * Admin a TOUJOURS tout
-   */
   function can(key) {
-    if (userRole.value === 'Admin') return true
+    // ✅ Admin a TOUJOURS tous les droits
+    if (userRole.value === 'admin') return true
+
+    // ✅ Sinon, vérifie dans les permissions chargées
     return permissions.value.includes(key)
   }
 
-  /**
-   * ✅ Charge les permissions depuis l'API
-   */
   async function loadPermissions() {
     if (loading.value) return
 
     loading.value = true
     try {
+      console.log('[permissions] Chargement...')
+
       const res = await axios.get(apiUrl('/get_user_permissions.php'), {
         withCredentials: true
       })
+
+      console.log('[permissions] API response:', res.data)
 
       if (res.data?.success) {
         permissions.value = res.data.permissions || []
         permissionsLoaded.value = true
 
-        if (import.meta.env.DEV) {
-          console.log('[permissions] Loaded:', permissions.value)
-        }
+        console.log('[permissions] Loaded:', permissions.value.length, 'permissions')
+        console.log('[permissions] Liste:', permissions.value)
       } else {
         console.warn('[permissions] API error:', res.data?.error)
         permissions.value = []
@@ -75,9 +81,6 @@ export const usePermissionStore = defineStore('permission', () => {
     }
   }
 
-  /**
-   * ✅ Enregistre le rôle (appelé par Login)
-   */
   function setRole(role) {
     if (!role) {
       roleOverride.value = null
@@ -86,15 +89,16 @@ export const usePermissionStore = defineStore('permission', () => {
       permissionsLoaded.value = false
       return
     }
-    roleOverride.value = role
-    localStorage.setItem('userRole', role)
-    // Charge les permissions depuis la DB
-    loadPermissions()
+
+    // ✅ Toujours en minuscule
+    const roleLower = String(role).toLowerCase().trim()
+
+    roleOverride.value = roleLower
+    localStorage.setItem('userRole', roleLower)
+    // ⚠️ Ne PAS appeler loadPermissions ici
+    // C'est Login.vue qui doit le faire explicitement
   }
 
-  /**
-   * ✅ Vide le rôle
-   */
   function clearRole() {
     roleOverride.value = null
     permissions.value = []
@@ -111,7 +115,9 @@ export const usePermissionStore = defineStore('permission', () => {
   }
 
   function checkPermission(requiredRole, callback) {
-    if (userRole.value === requiredRole) {
+    // ✅ Comparaison insensible à la casse
+    const requiredLower = String(requiredRole).toLowerCase().trim()
+    if (userRole.value === requiredLower) {
       if (callback) callback()
       return true
     }

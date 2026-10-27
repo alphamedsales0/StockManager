@@ -1,6 +1,7 @@
 <template>
   <div class="d-flex align-center gap-1 flex-wrap action-buttons">
     <v-btn
+      v-if="canWriteProducts"
       color="primary"
       @click="$emit('new-product')"
       size="small"
@@ -13,6 +14,7 @@
     </v-btn>
 
     <v-btn
+      v-if="canExport"
       variant="outlined"
       @click="$emit('export-report')"
       size="small"
@@ -31,21 +33,15 @@
 
 <script setup>
 defineProps({
-  loading: {
-    type: Boolean,
-    default: false
-  }
+  loading: { type: Boolean, default: false },
+  canWriteProducts: { type: Boolean, default: false },
+  canExport: { type: Boolean, default: false }
 })
-
 defineEmits(['new-product', 'export-report', 'refresh'])
 </script>
 
 <style scoped>
-.gap-1 {
-  gap: 4px;
-}
-
-/* Boutons d'action */
+.gap-1 { gap: 4px; }
 .action-buttons .v-btn {
   min-width: 110px !important;
   height: 36px;
@@ -59,11 +55,6 @@ defineEmits(['new-product', 'export-report', 'refresh'])
   transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
-.action-buttons .v-btn--variant-outlined {
-  border: 1.5px solid rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Refresh icon */
 .refresh-icon {
   width: 36px;
   height: 36px;
@@ -79,9 +70,7 @@ defineEmits(['new-product', 'export-report', 'refresh'])
   background-color: rgba(0, 0, 0, 0.05);
   border-color: #616161;
 }
-.spinning {
-  animation: spin 1s linear infinite;
-}
+.spinning { animation: spin 1s linear infinite; }
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

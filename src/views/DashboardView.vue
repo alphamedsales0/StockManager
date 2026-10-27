@@ -1,7 +1,8 @@
 <template>
-  <!-- Dashboard (nur wenn eingeloggt) -->
-  <div v-if="authStore.isLoggedIn" class="dashboard-container">
+  <div class="dashboard-container">
     <v-container fluid class="pa-4">
+
+      <!-- HEADER -->
       <v-row class="mb-4">
         <v-col cols="12">
           <div class="d-flex justify-space-between align-center flex-wrap">
@@ -16,6 +17,8 @@
             </div>
             <QuickActions
               :loading="loading"
+              :can-write-products="permissionStore.can('products-write')"
+              :can-export="permissionStore.can('stats')"
               @new-product="addNewProduct"
               @export-report="exportReport"
               @refresh="refreshAll"
@@ -24,28 +27,70 @@
         </v-col>
       </v-row>
 
-      <OverviewCards />
-      <StatisticsCards />
+      <!-- OVERVIEW CARDS -->
+      <OverviewCards
+        v-if="permissionStore.can('dashboard')"
+        class="mb-4"
+      />
 
+      <!-- STATISTICS CARDS -->
+      <StatisticsCards
+        v-if="permissionStore.can('products') || permissionStore.can('stats')"
+        class="mb-4"
+      />
+
+      <!-- RECENT TICKETS + MONTHLY SALES -->
       <v-row>
-        <v-col cols="12" md="8" class="tall-card">
+        <v-col
+          v-if="permissionStore.can('tickets')"
+          cols="12"
+          :md="showMonthlySales ? 8 : 12"
+          class="tall-card"
+        >
           <RecentTickets />
         </v-col>
-        <v-col cols="12" md="4">
+
+        <v-col
+          v-if="showMonthlySales"
+          cols="12"
+          :md="permissionStore.can('tickets') ? 4 : 12"
+        >
           <MonthlySales />
         </v-col>
       </v-row>
+
+      <!-- FALLBACK -->
+      <v-row v-if="!hasAnyDashboardContent" justify="center" class="mt-8">
+        <v-col cols="12" md="6" class="text-center">
+          <v-icon size="80" color="grey-lighten-1" class="mb-3">
+            mdi-view-dashboard-outline
+          </v-icon>
+          <h2 class="text-h6 font-weight-medium mb-2">
+            Kein Zugriff auf Dashboard-Inhalte
+          </h2>
+          <p class="text-body-2 text-grey-darken-1 mb-4">
+            Sie haben keine Berechtigung, Dashboard-Inhalte anzuzeigen.
+          </p>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-arrow-right"
+            @click="goToFirstAccessible"
+          >
+            Zum ersten verfügbaren Bereich
+          </v-btn>
+        </v-col>
+      </v-row>
+
     </v-container>
   </div>
-
-  <!-- Login (wenn nicht eingeloggt) -->
-  <Login v-else />
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { usePermissionStore } from '../stores/permission'
 import { useProductStore } from '../stores/stock_manager_products'
 import { useCustomerStore } from '../stores/customers'
 import { useQuoteStore } from '../stores/quoteStore'
@@ -55,24 +100,38 @@ import StatisticsCards from '../components/dashboard/StatisticsCards.vue'
 import QuickActions from '../components/dashboard/QuickActions.vue'
 import RecentTickets from '../components/dashboard/RecentTickets.vue'
 import MonthlySales from '../components/dashboard/MonthlySales.vue'
-import Login from '../components/auth/Login.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const permissionStore = usePermissionStore()
 const productStore = useProductStore()
 const customerStore = useCustomerStore()
 const quoteStore = useQuoteStore()
 
 const loading = ref(false)
 
+const showMonthlySales = computed(() => {
+  return permissionStore.can('stats') || permissionStore.can('orders')
+})
+
+const hasAnyDashboardContent = computed(() => {
+  return (
+    permissionStore.can('dashboard') ||
+    permissionStore.can('tickets') ||
+    permissionStore.can('products') ||
+    permissionStore.can('stats') ||
+    permissionStore.can('orders')
+  )
+})
+
 const loadData = async () => {
   loading.value = true
   try {
-    await Promise.all([
-      productStore.fetchProducts(),
-      customerStore.fetchCustomers(),
-      quoteStore.fetchQuotes()
-    ])
+    const promises = []
+    if (permissionStore.can('products')) promises.push(productStore.fetchProducts())
+    if (permissionStore.can('customers')) promises.push(customerStore.fetchCustomers())
+    if (permissionStore.can('orders')) promises.push(quoteStore.fetchQuotes())
+    await Promise.all(promises)
   } catch (error) {
     console.error('Fehler beim Laden der Daten:', error)
   } finally {
@@ -81,14 +140,52 @@ const loadData = async () => {
 }
 
 const refreshAll = () => loadData()
-const addNewProduct = () => router.push('/products/add')
-const exportReport = () => console.log('Export')
+
+const addNewProduct = () => {
+  if (!permissionStore.can('products-write')) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  router.push('/products/add')
+}
+
+const exportReport = () => {
+  if (!permissionStore.can('stats')) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  console.log('Export')
+}
+
+const goToFirstAccessible = () => {
+  const priority = [
+    { path: '/', perm: 'dashboard' },
+    { path: '/tickets', perm: 'tickets' },
+    { path: '/products', perm: 'products' },
+    { path: '/customers', perm: 'customers' },
+    { path: '/employees', perm: 'employees' },
+    { path: '/quotes', perm: 'orders' },
+    { path: '/help', perm: 'help' },
+  ]
+  for (const item of priority) {
+    if (permissionStore.can(item.perm)) {
+      router.push(item.path)
+      return
+    }
+  }
+  router.push('/login')
+}
 
 onMounted(async () => {
   await authStore.initialize()
-  if (authStore.isLoggedIn) {
-    await loadData()
+  if (!authStore.isLoggedIn) {
+    router.push('/login')
+    return
   }
+  if (!permissionStore.permissionsLoaded) {
+    await permissionStore.loadPermissions()
+  }
+  await loadData()
 })
 </script>
 

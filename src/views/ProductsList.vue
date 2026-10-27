@@ -586,30 +586,46 @@
               </div>
             </td>
             <td class="text-right">
-              <div class="d-flex justify-end gap-1">
-                <v-btn
-                  v-if="permissionStore.can('products-write')"
-                  icon="mdi-pencil"
-                  size="x-small"
-                  variant="text"
-                  color="primary"
-                  @click.stop="editProduct(product.id)"
-                >
-                  <v-icon size="16">mdi-pencil</v-icon>
-                  <v-tooltip activator="parent" location="top">Bearbeiten</v-tooltip>
-                </v-btn>
-                <v-btn
-                  icon="mdi-eye"
-                  size="x-small"
-                  variant="text"
-                  color="grey"
-                  @click.stop="viewProduct(product.id)"
-                >
-                  <v-icon size="16">mdi-eye</v-icon>
-                  <v-tooltip activator="parent" location="top">Ansehen</v-tooltip>
-                </v-btn>
-              </div>
-            </td>
+  <div class="d-flex justify-end gap-1">
+    <!-- ✅ Éditer -->
+    <v-btn
+      v-if="permissionStore.can('products-write')"
+      icon="mdi-pencil"
+      size="x-small"
+      variant="text"
+      color="primary"
+      @click.stop="editProduct(product.id)"
+    >
+      <v-icon size="16">mdi-pencil</v-icon>
+      <v-tooltip activator="parent" location="top">Bearbeiten</v-tooltip>
+    </v-btn>
+
+    <!-- ✅ Supprimer -->
+    <v-btn
+      v-if="permissionStore.can('products-delete')"
+      icon="mdi-delete"
+      size="x-small"
+      variant="text"
+      color="error"
+      @click.stop="confirmDeleteProduct(product.id)"
+    >
+      <v-icon size="16">mdi-delete</v-icon>
+      <v-tooltip activator="parent" location="top">Löschen</v-tooltip>
+    </v-btn>
+
+    <!-- ✅ Voir (toujours) -->
+    <v-btn
+      icon="mdi-eye"
+      size="x-small"
+      variant="text"
+      color="grey"
+      @click.stop="viewProduct(product.id)"
+    >
+      <v-icon size="16">mdi-eye</v-icon>
+      <v-tooltip activator="parent" location="top">Ansehen</v-tooltip>
+    </v-btn>
+  </div>
+</td>
           </tr>
         </tbody>
       </v-table>
@@ -775,6 +791,26 @@ async function loadProducts() {
     loading.value = false
   }
 }
+
+
+const confirmDeleteProduct = (id) => {
+  if (!permissionStore.can('products-delete')) {
+    permissionStore.showAccessDenied()
+    return
+  }
+  // Appel à l'API de suppression (à adapter selon ton backend)
+  if (confirm('Produkt wirklich löschen?')) {
+    axios.post(apiUrl('/delete_product.php'), { product_id: id }, { withCredentials: true })
+      .then(() => {
+        snackbar.value = { show: true, text: '🗑️ Produkt gelöscht', color: 'success' }
+        loadProducts()
+      })
+      .catch(err => {
+        snackbar.value = { show: true, text: `❌ ${err.message}`, color: 'error' }
+      })
+  }
+}
+
 
 async function refreshProducts() {
   await loadProducts()

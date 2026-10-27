@@ -1,5 +1,6 @@
 // src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
+import axios from 'axios'
 import AllTickets from '../views/AllTickets.vue'
 import { usePermissionStore } from '../stores/permission'
 import { useAuthStore } from '../stores/auth'
@@ -15,6 +16,16 @@ const routes = [
     name: 'Login',
     component: () => import('../components/auth/Login.vue'),
     meta: { public: true }
+  },
+
+  // ============================================================
+  // ACCESS DENIED
+  // ============================================================
+  {
+    path: '/access-denied',
+    name: 'AccessDenied',
+    component: () => import('../views/AccessDeniedView.vue'),
+    meta: { requiresAuth: true }
   },
 
   // ============================================================
@@ -93,11 +104,11 @@ const routes = [
     component: () => import('../views/KundenView.vue'),
     meta: { requiresAuth: true }
   },
-  
+
   {
     path: '/customers/all',
     name: 'KundenAll',
-    component: () => import('../views/KundenAllView.vue'),   // ✅ NOUVELLE ROUTE
+    component: () => import('../views/KundenAllView.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -147,7 +158,6 @@ const routes = [
 
   // ============================================================
   // MITARBEITER
-  // ⚠️ ORDRE CRITIQUE : les routes spécifiques AVANT /employees/:uid
   // ============================================================
   {
     path: '/employees/add',
@@ -207,9 +217,9 @@ const router = createRouter({
 })
 
 // ============================================================
-// GUARD GLOBAL
+// GUARD GLOBAL — avec chargement automatique des permissions
 // ============================================================
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const permissionStore = usePermissionStore()
 
@@ -222,24 +232,46 @@ router.beforeEach((to, from, next) => {
     loggedIn: authStore.isLoggedIn
   })
 
-  // ✅ 1. Si déjà connecté et va sur /login → redirection auto
-  if (authStore.isLoggedIn && (to.name === 'Login' || to.path === '/login')) {
-    const landing = permissionStore.can('dashboard') ? '/' : '/tickets'
-    return next(landing)
-  }
-
-  // ✅ 2. Page login : accessible si pas connecté
-  if (to.meta?.public || to.name === 'Login') {
+  // ✅ 1. Route publique (login, access-denied)
+  if (to.meta?.public || to.name === 'Login' || to.name === 'AccessDenied') {
+    // Si déjà connecté et va sur /login → redirection auto
+    if (authStore.isLoggedIn && to.name === 'Login') {
+      if (!permissionStore.permissionsLoaded) {
+        await permissionStore.loadPermissions()
+      }
+      const landing = permissionStore.can('dashboard') ? '/' : '/tickets'
+      return next(landing)
+    }
     return next()
   }
 
-  // ✅ 3. Pas connecté → login
+  // ✅ 2. Restaurer la session si nécessaire
   if (!authStore.isLoggedIn) {
-    return next({ name: 'Login' })
+    try {
+      const res = await axios.get('/api/auth_stock.php?action=user', {
+        withCredentials: true
+      })
+      if (res.data?.success) {
+        authStore.setUser(res.data.user)
+        authStore.setLoggedIn(true)
+        permissionStore.setRole(res.data.user.role)
+        if (!permissionStore.permissionsLoaded) {
+          await permissionStore.loadPermissions()
+        }
+      } else {
+        return next({ name: 'Login' })
+      }
+    } catch {
+      return next({ name: 'Login' })
+    }
   }
 
-  // ✅ 4. Routes employés : pas de vérification de permission spécifique
-  //    (déjà couvertes par requiresAuth)
+  // ✅ 3. Charger les permissions si pas encore fait
+  if (!permissionStore.permissionsLoaded) {
+    await permissionStore.loadPermissions()
+  }
+
+  // ✅ 4. Routes employés : pas de vérification spécifique
   const skipPermissionCheck = [
     'EditEmployee',
     'EmployeeDetailView',
@@ -266,12 +298,27 @@ router.beforeEach((to, from, next) => {
   // ❌ Permission refusée
   permissionStore.showAccessDenied()
 
+  // Si navigation "from" existe → on reste sur la page actuelle
   if (from.path && from.path !== to.path) {
     return next(false)
   }
 
-  const fallback = permissionStore.can('dashboard') ? '/' : '/tickets'
-  return next(fallback)
+  // Sinon, redirige vers la première page accessible
+  const priority = [
+    { path: '/', perm: 'dashboard' },
+    { path: '/tickets', perm: 'tickets' },
+    { path: '/products', perm: 'products' },
+    { path: '/customers', perm: 'customers' },
+    { path: '/employees', perm: 'employees' },
+    { path: '/quotes', perm: 'orders' },
+    { path: '/help', perm: 'help' },
+  ]
+  for (const item of priority) {
+    if (permissionStore.can(item.perm)) {
+      return next(item.path)
+    }
+  }
+  return next({ name: 'Login' })
 })
 
 export default router

@@ -6,37 +6,38 @@
     :width="uiStore.rail ? 56 : 280"
   >
     <!-- ============================================================ -->
-    <!-- HEADER -->
+    <!-- HEADER FIXE (slot prepend) -->
     <!-- ============================================================ -->
-    <div class="sidebar-header" :class="{ 'rail-mode': uiStore.rail }">
-      <div
-        class="d-flex align-center"
-        :class="uiStore.rail ? 'justify-center' : 'justify-space-between'"
-      >
-        <div class="d-flex align-center">
-          <v-icon size="32" color="white">mdi-database</v-icon>
-          <span v-if="!uiStore.rail" class="text-h6 font-weight-bold text-white ml-2">
-            StockManager
-          </span>
-        </div>
-        <v-btn
-          v-if="!uiStore.rail"
-          variant="text"
-          icon="mdi-chevron-left"
-          size="small"
-          color="white"
-          @click.stop="uiStore.toggleRail"
+    <template #prepend>
+      <div class="sidebar-header" :class="{ 'rail-mode': uiStore.rail }">
+        <div
+          class="d-flex align-center"
+          :class="uiStore.rail ? 'justify-center' : 'justify-space-between'"
         >
-          <v-icon>mdi-chevron-left</v-icon>
-          <v-tooltip activator="parent" location="bottom">Einklappen</v-tooltip>
-        </v-btn>
+          <div class="d-flex align-center">
+            <v-icon size="32" color="white">mdi-database</v-icon>
+            <span v-if="!uiStore.rail" class="text-h6 font-weight-bold text-white ml-2">
+              StockManager
+            </span>
+          </div>
+          <v-btn
+            v-if="!uiStore.rail"
+            variant="text"
+            icon="mdi-chevron-left"
+            size="small"
+            color="white"
+            @click.stop="uiStore.toggleRail"
+          >
+            <v-icon>mdi-chevron-left</v-icon>
+            <v-tooltip activator="parent" location="bottom">Einklappen</v-tooltip>
+          </v-btn>
+        </div>
       </div>
-    </div>
-
-    <v-divider class="my-2 sidebar-divider" />
+      <v-divider class="sidebar-divider" />
+    </template>
 
     <!-- ============================================================ -->
-    <!-- MENU -->
+    <!-- MENU SCROLLABLE (slot par défaut) -->
     <!-- ============================================================ -->
     <v-list nav density="compact" class="pa-1">
 
@@ -252,56 +253,56 @@
     </v-list>
 
     <!-- ============================================================ -->
-    <!-- SPACER pour pousser le footer en bas -->
+    <!-- FOOTER FIXE (slot append) -->
     <!-- ============================================================ -->
-    <div class="spacer" />
+    <template #append>
+      <div class="sidebar-footer-fixed">
+        <v-divider class="sidebar-divider" />
 
-    <!-- ============================================================ -->
-    <!-- STATUT SERVEUR + VERSION -->
-    <!-- ============================================================ -->
-    <div v-if="!uiStore.rail" class="footer-info">
-      <div class="server-status" :class="serverStatus">
-        <span class="status-dot"></span>
-        <span>{{ serverStatus === 'online' ? 'Server online' : 'Hors ligne' }}</span>
-      </div>
-      <div class="app-version">
-        v{{ appVersion }} · {{ buildDate }}
-      </div>
-    </div>
-
-    <!-- ============================================================ -->
-    <!-- PROFIL UTILISATEUR + DÉCONNEXION -->
-    <!-- ============================================================ -->
-    <div class="user-section" :class="{ 'rail-mode': uiStore.rail }">
-      <v-divider class="mb-2 sidebar-divider" />
-
-      <div class="user-card" :class="{ 'rail-mode': uiStore.rail }">
-        <div class="user-avatar">
-          <v-icon size="20" color="white">mdi-account-circle</v-icon>
+        <!-- STATUT SERVEUR + VERSION -->
+        <div v-if="!uiStore.rail" class="footer-info">
+          <div class="server-status" :class="serverStatus">
+            <span class="status-dot"></span>
+            <span>{{ serverStatus === 'online' ? 'Server online' : 'Hors ligne' }}</span>
+          </div>
+          <div class="app-version">
+            v{{ appVersion }} · {{ buildDate }}
+          </div>
         </div>
-        <div v-if="!uiStore.rail" class="user-info">
-          <div class="user-name">{{ displayName }}</div>
-          <div class="user-role">{{ displayRole }}</div>
+
+        <!-- PROFIL UTILISATEUR -->
+        <div class="user-section" :class="{ 'rail-mode': uiStore.rail }">
+          <v-divider class="mb-2 sidebar-divider" />
+
+          <div class="user-card" :class="{ 'rail-mode': uiStore.rail }">
+            <div class="user-avatar">
+              <v-icon size="20" color="white">mdi-account-circle</v-icon>
+            </div>
+            <div v-if="!uiStore.rail" class="user-info">
+              <div class="user-name">{{ displayName }}</div>
+              <div class="user-role">{{ displayRole }}</div>
+            </div>
+            <v-btn
+              v-if="!uiStore.rail"
+              icon="mdi-logout"
+              size="small"
+              variant="text"
+              color="white"
+              class="ml-auto"
+              @click="handleLogout"
+            >
+              <v-icon size="18">mdi-logout</v-icon>
+              <v-tooltip activator="parent" location="top">Abmelden</v-tooltip>
+            </v-btn>
+          </div>
         </div>
-        <v-btn
-          v-if="!uiStore.rail"
-          icon="mdi-logout"
-          size="small"
-          variant="text"
-          color="white"
-          class="ml-auto"
-          @click="handleLogout"
-        >
-          <v-icon size="18">mdi-logout</v-icon>
-          <v-tooltip activator="parent" location="top">Abmelden</v-tooltip>
-        </v-btn>
       </div>
-    </div>
+    </template>
   </v-navigation-drawer>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import { useUiStore } from '../../stores/uiStore'
@@ -335,14 +336,54 @@ const displayName = computed(() => {
 })
 
 const displayRole = computed(() => {
-  const r = authStore.user?.role || ''
+  // ✅ Récupère le rôle depuis plusieurs sources (fallback)
+  const role =
+    authStore.user?.role ||
+    permissionStore.userRole ||
+    localStorage.getItem('userRole') ||
+    null
+
+  // ✅ Si connecté mais pas de rôle → '—'
+  if (!role) {
+    return authStore.isLoggedIn ? '—' : 'Gast'
+  }
+
+  // ✅ Normalise en minuscule
+  const r = String(role).toLowerCase().trim()
+
+  // ✅ Map des rôles → labels affichés
   const map = {
     admin: 'Administrator',
+    administrator: 'Administrator',
     office: 'Büro',
+    büro: 'Büro',
     technician: 'Techniker',
-    employee: 'Mitarbeiter'
+    techniker: 'Techniker',
+    employee: 'Mitarbeiter',
+    mitarbeiter: 'Mitarbeiter',
+    manager: 'Manager',
+    hr: 'Personal',
+    personal: 'Personal',
+    finance: 'Finanzen',
+    finanzen: 'Finanzen',
+    sales: 'Vertrieb',
+    vertrieb: 'Vertrieb',
+    warehouse: 'Lager',
+    lager: 'Lager',
+    purchasing: 'Einkauf',
+    einkauf: 'Einkauf',
+    support: 'Support',
+    teamlead: 'Teamleiter',
+    teamleiter: 'Teamleiter',
+    accountant: 'Buchhalter',
+    buchhalter: 'Buchhalter',
+    developer: 'Entwickler',
+    entwickler: 'Entwickler',
+    manu: 'Manu'
   }
-  return map[r] || r || '—'
+
+  // ✅ Retourne le label ou le rôle capitalisé
+  return map[r] || (r.charAt(0).toUpperCase() + r.slice(1))
 })
 
 // ============================================================
@@ -363,7 +404,7 @@ const loadTicketsCount = async () => {
 }
 
 // ============================================================
-// SERVER STATUS (ping)
+// SERVER STATUS (ping 30s)
 // ============================================================
 const serverStatus = ref('online')
 let serverInterval = null
@@ -437,7 +478,6 @@ const navigateTo = (tab) => {
   }
 
   const target = routes[tab] || '/'
-
   const publicTabs = ['tickets', 'help']
   if (publicTabs.includes(tab)) {
     router.push(target)
@@ -511,6 +551,20 @@ const handleKeydown = (e) => {
 }
 
 // ============================================================
+// AUTO-SCROLL VERS L'ITEM ACTIF
+// ============================================================
+watch(
+  () => route.path,
+  async () => {
+    await nextTick()
+    const activeItem = document.querySelector('.v-navigation-drawer__content .v-list-item--active')
+    if (activeItem) {
+      activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }
+)
+
+// ============================================================
 // LIFECYCLE
 // ============================================================
 onMounted(() => {
@@ -538,35 +592,37 @@ onUnmounted(() => {
   background: #0e1b2c !important;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3) !important;
-  display: flex;
-  flex-direction: column;
 }
 
+/* ============================================================
+   ✅ CONTENT SCROLLABLE (Vuetify gère ça automatiquement)
+   ============================================================ */
 .sidebar-blue :deep(.v-navigation-drawer__content) {
-  display: flex;
-  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .sidebar-blue :deep(.v-navigation-drawer__content)::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
+
 .sidebar-blue :deep(.v-navigation-drawer__content)::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
+
 .sidebar-blue :deep(.v-navigation-drawer__content)::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* ============================================================
-   HEADER
+   ✅ HEADER (dans slot prepend)
    ============================================================ */
 .sidebar-header {
   padding: 16px;
   background: #0e1925;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   flex-shrink: 0;
 }
 
@@ -623,12 +679,10 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* ✅ Hover */
 .sidebar-blue :deep(.v-list-item:hover) {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* ✅ Item actif */
 .sidebar-blue :deep(.v-list-item--active) {
   background: rgba(255, 255, 255, 0.16) !important;
   color: #ffffff !important;
@@ -724,19 +778,15 @@ onUnmounted(() => {
 }
 
 /* ============================================================
-   SPACER
+   ✅ FOOTER FIXE (dans slot append)
    ============================================================ */
-.spacer {
-  flex: 1;
-  min-height: 20px;
+.sidebar-footer-fixed {
+  background: #0e1b2c;
+  flex-shrink: 0;
 }
 
-/* ============================================================
-   FOOTER INFO
-   ============================================================ */
 .footer-info {
   padding: 8px 16px;
-  flex-shrink: 0;
 }
 
 .server-status {
@@ -781,7 +831,6 @@ onUnmounted(() => {
    ============================================================ */
 .user-section {
   padding: 4px 12px 12px;
-  flex-shrink: 0;
 }
 
 .user-card {

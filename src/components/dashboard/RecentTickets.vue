@@ -63,12 +63,10 @@ import { usePermissionStore } from '../../stores/permission'
 const router = useRouter()
 const permissionStore = usePermissionStore()
 
-// Refs
 const tickets = ref([])
 const loading = ref(true)
 const error = ref(null)
 
-// Farbzuordnung für Status
 const getStatusColor = (status) => {
   const colors = {
     'In Bearbeitung': 'warning',
@@ -82,7 +80,6 @@ const getStatusColor = (status) => {
   return colors[status] || 'grey'
 }
 
-// Lädt die 7 neuesten Tickets
 const loadTickets = async () => {
   loading.value = true
   error.value = null
@@ -92,7 +89,6 @@ const loadTickets = async () => {
       throw new Error(`HTTP Fehler: ${response.status}`)
     }
     const data = await response.json()
-    console.log('API response:', data)
     if (data.success) {
       tickets.value = data.tickets || []
     } else {
@@ -107,14 +103,12 @@ const loadTickets = async () => {
   }
 }
 
-// Navigiert zur Detailseite – nur mit Admin-Berechtigung
 const viewDetails = (ticket) => {
   permissionStore.checkPermission('Admin', () => {
     router.push(`/ticket/${ticket.id}?source=${ticket.source || 'form'}`)
   })
 }
 
-// Navigiert zur vollständigen Ticketübersicht (ungeschützt, da die Übersicht selbst prüft)
 const goToAllTickets = () => {
   router.push('/tickets')
 }

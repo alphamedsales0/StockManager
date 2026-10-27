@@ -1,38 +1,9 @@
 <?php
 // api/auth_stock.php
-
 error_log("==== auth_stock.php called ====");
 
 // ============================================================
-// SESSION — EN PREMIER (avant tout autre code)
-// ============================================================
-$isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-$host = $_SERVER['HTTP_HOST'] ?? '';
-$origin_check = $_SERVER['HTTP_ORIGIN'] ?? '';
-
-$isLocalhost = (
-    strpos($host, 'localhost') !== false ||
-    strpos($host, '127.0.0.1') !== false ||
-    strpos($origin_check, 'localhost') !== false ||
-    strpos($origin_check, '127.0.0.1') !== false
-);
-
-// ✅ FORCER le nom de session AVANT tout (contre session.auto_start)
-session_name('STOCKMANAGER');
-
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => $isLocalhost ? '' : '.alpha-med-care.com',
-    'secure'   => $isLocalhost ? false : $isSecure,
-    'httponly' => true,
-    'samesite' => $isLocalhost ? 'Lax' : ($isSecure ? 'None' : 'Lax')
-]);
-
-session_start();
-
-// ============================================================
-// CORS
+// CORS — compatible avec cookies cross-origin
 // ============================================================
 $allowed_origins = [
     'https://alpha-med-care.com',
@@ -65,6 +36,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ============================================================
+// SESSION — compatible localhost ET production
+// ============================================================
+$isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$origin_check = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+// ✅ Détection localhost (via Host OU Origin)
+$isLocalhost = (
+    strpos($host, 'localhost') !== false ||
+    strpos($host, '127.0.0.1') !== false ||
+    strpos($origin_check, 'localhost') !== false ||
+    strpos($origin_check, '127.0.0.1') !== false
+);
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => $isLocalhost ? '' : '.alpha-med-care.com',
+    'secure'   => $isLocalhost ? false : $isSecure,
+    'httponly' => true,
+    'samesite' => $isLocalhost ? 'Lax' : ($isSecure ? 'None' : 'Lax')
+]);
+
+session_name('STOCKMANAGER');
+session_start();
+
+// ============================================================
 // DATABASE
 // ============================================================
 require_once __DIR__ . '/database_connect.php';
@@ -75,9 +73,25 @@ if (!$pdo) {
 }
 
 // ============================================================
-// RÔLES AUTORISÉS (pas de Gast)
+// RÔLES AUTORISÉS (pas de Gast) — insensible à la casse
 // ============================================================
-const ALLOWED_ROLES = ['Admin', 'Office', 'Technician'];
+const ALLOWED_ROLES = [
+    'admin',
+    'office',
+    'technician',
+    'manager',
+    'hr',
+    'finance',
+    'sales',
+    'warehouse',
+    'purchasing',
+    'support',
+    'teamlead',
+    'employee',
+    'accountant',
+    'developer',
+    'manu'
+];
 
 // ============================================================
 // GÉNÉRATEUR D'UUID v4
@@ -130,7 +144,9 @@ try {
             throw new Exception('E-Mail oder Passwort falsch.');
         }
 
-        if (!in_array($user['role'], ALLOWED_ROLES, true)) {
+        // ✅ Vérification insensible à la casse
+        $userRoleLower = strtolower($user['role']);
+        if (!in_array($userRoleLower, ALLOWED_ROLES, true)) {
             error_log("Unauthorized role attempt: {$user['role']}");
             throw new Exception('Ungültige Rolle. Zugriff verweigert.');
         }
@@ -141,11 +157,12 @@ try {
         // ✅ Régénère l'ID de session (sécurité)
         session_regenerate_id(true);
 
+        // ✅ Stocker le rôle en minuscule pour cohérence
         $_SESSION['user_id']    = (int)$user['id'];
         $_SESSION['user_uid']   = $user['uid'];
         $_SESSION['user_name']  = $user['name'];
         $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_role']  = $user['role'];
+        $_SESSION['user_role']  = $userRoleLower;   // ⚠️ minuscule
 
         $response['success'] = true;
         $response['message'] = 'Login erfolgreich.';
@@ -155,7 +172,7 @@ try {
             'name'     => $user['name'],
             'username' => $user['username'],
             'email'    => $user['email'],
-            'role'     => $user['role']
+            'role'     => $userRoleLower   // ⚠️ minuscule pour cohérence
         ];
     }
 
@@ -180,7 +197,9 @@ try {
             throw new Exception('Benutzer nicht gefunden.');
         }
 
-        if (!in_array($user['role'], ALLOWED_ROLES, true)) {
+        // ✅ Vérification insensible à la casse
+        $userRoleLower = strtolower($user['role']);
+        if (!in_array($userRoleLower, ALLOWED_ROLES, true)) {
             session_destroy();
             throw new Exception('Ungültige Rolle.');
         }
@@ -192,7 +211,7 @@ try {
             'name'       => $user['name'],
             'username'   => $user['username'],
             'email'      => $user['email'],
-            'role'       => $user['role'],
+            'role'       => $userRoleLower,   // ⚠️ minuscule
             'last_login' => $user['last_login'],
             'created_at' => $user['created_at']
         ];
@@ -229,7 +248,7 @@ try {
         $username = trim($input['username'] ?? '');
         $email    = trim($input['email'] ?? '');
         $password = $input['password'] ?? '';
-        $role     = trim($input['role'] ?? 'Technician');
+        $role     = strtolower(trim($input['role'] ?? 'technician'));
 
         if (empty($name) || empty($username) || empty($email) || empty($password)) {
             throw new Exception('Name, Username, E-Mail und Passwort sind Pflichtfelder.');
@@ -237,6 +256,8 @@ try {
         if (strlen($password) < 8) {
             throw new Exception('Passwort muss mindestens 8 Zeichen lang sein.');
         }
+
+        // ✅ Vérification insensible à la casse
         if (!in_array($role, ALLOWED_ROLES, true)) {
             throw new Exception('Ungültige Rolle.');
         }

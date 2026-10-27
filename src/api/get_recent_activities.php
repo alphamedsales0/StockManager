@@ -1,6 +1,7 @@
 <?php
 // api/get_recent_activities.php
 // Version avec mix forcé : au moins 1 activité par type
+// ✅ Session compatible localhost ET production
 
 error_log("==== get_recent_activities.php called ====");
 
@@ -37,17 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // ============================================================
-// SESSION
+// SESSION — compatible localhost ET production
 // ============================================================
 $isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$origin_check = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+$isLocalhost = (
+    strpos($host, 'localhost') !== false ||
+    strpos($host, '127.0.0.1') !== false ||
+    strpos($origin_check, 'localhost') !== false ||
+    strpos($origin_check, '127.0.0.1') !== false
+);
 
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => '/',
-    'domain'   => '.alpha-med-care.com',
-    'secure'   => $isSecure,
+    'domain'   => $isLocalhost ? '' : '.alpha-med-care.com',
+    'secure'   => $isLocalhost ? false : $isSecure,
     'httponly' => true,
-    'samesite' => $isSecure ? 'None' : 'Lax'
+    'samesite' => $isLocalhost ? 'Lax' : ($isSecure ? 'None' : 'Lax')
 ]);
 
 session_name('STOCKMANAGER');
@@ -64,7 +74,10 @@ if (empty($_SESSION['user_id'])) {
         'debug' => [
             'session_id' => session_id(),
             'session_name' => session_name(),
-            'session_keys' => array_keys($_SESSION)
+            'session_keys' => array_keys($_SESSION),
+            'host' => $host,
+            'origin' => $origin_check,
+            'cookie' => $_COOKIE,
         ]
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -91,7 +104,7 @@ if (!$pdo) {
 }
 
 $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 10;
-$perTypeLimit = 5;   // ✅ on récupère 5 par table, on piochera intelligemment
+$perTypeLimit = 5;
 
 try {
     $bucket = [
@@ -131,7 +144,7 @@ try {
     }
 
     // ============================================================
-    // 2. Tickets (créés + résolus)
+    // 2. Tickets
     // ============================================================
     try {
         $stmt = $pdo->prepare("
@@ -244,21 +257,16 @@ try {
     }
 
     // ============================================================
-    // ✅ MIX FORCÉ : 1 activité par type d'abord
+    // MIX FORCÉ : 1 activité par type d'abord
     // ============================================================
     $mixed = [];
-
-    // 1. Pioche la plus récente de CHAQUE type
     foreach ($bucket as $type => $items) {
         if (!empty($items)) {
-            // Le premier de chaque bucket (déjà trié par date DESC)
             $mixed[] = $items[0];
-            // Retire du bucket
             array_shift($bucket[$type]);
         }
     }
 
-    // 2. Complète avec les restes, triés par date globale
     $remaining = [];
     foreach ($bucket as $type => $items) {
         foreach ($items as $item) {
@@ -267,12 +275,10 @@ try {
     }
     usort($remaining, fn($a, $b) => strtotime($b['time']) - strtotime($a['time']));
 
-    // 3. Fusionne jusqu'à atteindre $limit
     while (count($mixed) < $limit && !empty($remaining)) {
         $mixed[] = array_shift($remaining);
     }
 
-    // 4. Re-trie le résultat final par date DESC (le mix était groupé par type)
     usort($mixed, fn($a, $b) => strtotime($b['time']) - strtotime($a['time']));
 
     $activities = $mixed;

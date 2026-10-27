@@ -1,8 +1,9 @@
 // src/stores/permission.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import axios from 'axios'
 import { useAuthStore } from './auth'
-import { ROLE_PERMISSIONS, AVAILABLE_ROLES } from '../config/permissions'
+import { apiUrl } from '@/config/api'
 
 export const usePermissionStore = defineStore('permission', () => {
   const authStore = useAuthStore()
@@ -11,20 +12,19 @@ export const usePermissionStore = defineStore('permission', () => {
   // STATE
   // ============================================================
   const showPermissionDialog = ref(false)
-
-  // Rôle "override" (utile si l'auth store ne l'a pas encore)
+  const loading = ref(false)
+  const permissionsLoaded = ref(false)
+  const permissions = ref([])   // ← chargées depuis la DB
   const roleOverride = ref(localStorage.getItem('userRole') || null)
 
   // ============================================================
   // GETTERS
   // ============================================================
-  // ✅ Priorité : authStore.user.role → sinon roleOverride
-  const userRole = computed(() => authStore.user?.role || roleOverride.value || null)
+  const userRole = computed(() =>
+    authStore.user?.role || roleOverride.value || null
+  )
 
-  const allowedKeys = computed(() => {
-    if (!userRole.value) return []
-    return ROLE_PERMISSIONS[userRole.value] || []
-  })
+  const allowedKeys = computed(() => permissions.value)
 
   const isAdmin = computed(() => userRole.value === 'Admin')
   const isOffice = computed(() => userRole.value === 'Office')
@@ -35,48 +35,81 @@ export const usePermissionStore = defineStore('permission', () => {
   // ACTIONS
   // ============================================================
 
-  // ✅ Vérifie si le rôle autorise une clé
-  //    ⚠️ BONUS : Admin a TOUJOURS tous les droits, peu importe la clé
+  /**
+   * ✅ Vérifie si l'utilisateur a une permission
+   * Admin a TOUJOURS tout
+   */
   function can(key) {
-    // 🔒 Sécurité absolue : Admin retourne toujours true
     if (userRole.value === 'Admin') return true
-
-    // Sinon, on vérifie la matrice classique
-    return allowedKeys.value.includes(key)
+    return permissions.value.includes(key)
   }
 
-  // ✅ Enregistre le rôle (appelé par Login.vue)
+  /**
+   * ✅ Charge les permissions depuis l'API
+   */
+  async function loadPermissions() {
+    if (loading.value) return
+
+    loading.value = true
+    try {
+      const res = await axios.get(apiUrl('/get_user_permissions.php'), {
+        withCredentials: true
+      })
+
+      if (res.data?.success) {
+        permissions.value = res.data.permissions || []
+        permissionsLoaded.value = true
+
+        if (import.meta.env.DEV) {
+          console.log('[permissions] Loaded:', permissions.value)
+        }
+      } else {
+        console.warn('[permissions] API error:', res.data?.error)
+        permissions.value = []
+      }
+    } catch (err) {
+      console.error('[permissions] Load error:', err)
+      permissions.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * ✅ Enregistre le rôle (appelé par Login)
+   */
   function setRole(role) {
     if (!role) {
       roleOverride.value = null
       localStorage.removeItem('userRole')
-      return
-    }
-    if (!ROLE_PERMISSIONS[role]) {
-      console.warn(`Rôle inconnu : ${role}`)
+      permissions.value = []
+      permissionsLoaded.value = false
       return
     }
     roleOverride.value = role
     localStorage.setItem('userRole', role)
+    // Charge les permissions depuis la DB
+    loadPermissions()
   }
 
-  // ✅ Vide le rôle (appelé à la déconnexion)
+  /**
+   * ✅ Vide le rôle
+   */
   function clearRole() {
     roleOverride.value = null
+    permissions.value = []
+    permissionsLoaded.value = false
     localStorage.removeItem('userRole')
   }
 
-  // ✅ Affiche le dialog "Zugriff verweigert"
   function showAccessDenied() {
     showPermissionDialog.value = true
   }
 
-  // ✅ Ferme le dialog
   function closeDialog() {
     showPermissionDialog.value = false
   }
 
-  // ✅ Ancienne API (compat) : vérifie un rôle exact
   function checkPermission(requiredRole, callback) {
     if (userRole.value === requiredRole) {
       if (callback) callback()
@@ -89,6 +122,10 @@ export const usePermissionStore = defineStore('permission', () => {
   return {
     // state
     showPermissionDialog,
+    loading,
+    permissions,
+    permissionsLoaded,
+
     // getters
     userRole,
     allowedKeys,
@@ -96,14 +133,14 @@ export const usePermissionStore = defineStore('permission', () => {
     isOffice,
     isTechnician,
     isLoggedIn,
+
     // actions
     can,
+    loadPermissions,
     setRole,
     clearRole,
     showAccessDenied,
     closeDialog,
-    checkPermission,
-    // constantes
-    AVAILABLE_ROLES
+    checkPermission
   }
 })

@@ -3,6 +3,8 @@
 // Configuration centralisée de l'API et des URLs externes
 // ============================================================
 
+// ✅ En DEV : passe par le proxy Vite (/api → stckmng.alpha-med-care.com)
+// ✅ En PROD : même domaine (/api)
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -28,8 +30,8 @@ export function apiUrl(path) {
 
 export function imageUrl(path) {
   if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path                        // déjà absolue
-  const clean = String(path).replace(/^\/+/, '')                     // retire les / de tête
+  if (/^https?:\/\//i.test(path)) return path
+  const clean = String(path).replace(/^\/+/, '')
   return `${IMAGE_BASE_URL}/${clean}`
 }
 
@@ -40,7 +42,6 @@ export function uploadUrl(path) {
   return `${UPLOAD_BASE_URL}/${clean}`
 }
 
-// ✅ Helper utilitaire : transforme une URL (absolue ou relative) en chemin relatif
 export function toRelativePath(url) {
   if (!url) return ''
   if (!/^https?:\/\//i.test(url)) return url

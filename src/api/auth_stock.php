@@ -1,14 +1,43 @@
 <?php
 // api/auth_stock.php
+
 error_log("==== auth_stock.php called ====");
 
 // ============================================================
-// CORS — compatible avec cookies cross-origin
+// SESSION — EN PREMIER (avant tout autre code)
+// ============================================================
+$isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$origin_check = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+$isLocalhost = (
+    strpos($host, 'localhost') !== false ||
+    strpos($host, '127.0.0.1') !== false ||
+    strpos($origin_check, 'localhost') !== false ||
+    strpos($origin_check, '127.0.0.1') !== false
+);
+
+// ✅ FORCER le nom de session AVANT tout (contre session.auto_start)
+session_name('STOCKMANAGER');
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => $isLocalhost ? '' : '.alpha-med-care.com',
+    'secure'   => $isLocalhost ? false : $isSecure,
+    'httponly' => true,
+    'samesite' => $isLocalhost ? 'Lax' : ($isSecure ? 'None' : 'Lax')
+]);
+
+session_start();
+
+// ============================================================
+// CORS
 // ============================================================
 $allowed_origins = [
     'https://alpha-med-care.com',
     'https://www.alpha-med-care.com',
-    'https://stckmng.alpha-med-care.com',   // ✅ SOUS-DOMAINE FRONT
+    'https://stckmng.alpha-med-care.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
@@ -18,12 +47,10 @@ $allowed_origins = [
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 if (in_array($origin, $allowed_origins, true)) {
-    // ✅ Renvoyer l'origine EXACTE — pas '*'
     header("Access-Control-Allow-Origin: $origin");
     header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
 } else {
-    // Fallback (sans credentials) — utile si un client inconnu appelle l'API
     header('Access-Control-Allow-Origin: *');
 }
 
@@ -36,23 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit(0);
 }
-
-// ============================================================
-// SESSION — domain partagé entre sous-domaines
-// ============================================================
-$isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => '.alpha-med-care.com',           // ✅ couvre tous les sous-domaines
-    'secure'   => $isSecure,                       // true en HTTPS
-    'httponly' => true,
-    'samesite' => $isSecure ? 'None' : 'Lax'       // ✅ None obligatoire pour cross-site
-]);
-
-session_name('STOCKMANAGER');
-session_start();
 
 // ============================================================
 // DATABASE
@@ -127,6 +137,9 @@ try {
 
         $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
         $stmt->execute([$user['id']]);
+
+        // ✅ Régénère l'ID de session (sécurité)
+        session_regenerate_id(true);
 
         $_SESSION['user_id']    = (int)$user['id'];
         $_SESSION['user_uid']   = $user['uid'];
@@ -244,6 +257,8 @@ try {
         $stmt->execute([$uid, $name, $username, $email, $passwordHash, $role]);
 
         $newId = (int)$pdo->lastInsertId();
+
+        session_regenerate_id(true);
 
         $_SESSION['user_id']    = $newId;
         $_SESSION['user_uid']   = $uid;

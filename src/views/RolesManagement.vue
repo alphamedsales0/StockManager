@@ -1,6 +1,8 @@
 <template>
   <v-container>
-    <!-- === KARTE: HINZUFÜGEN === -->
+    <!-- ============================================================ -->
+    <!-- KARTE: HINZUFÜGEN -->
+    <!-- ============================================================ -->
     <v-card class="mb-6" elevation="3">
       <v-card-title class="bg-primary text-white py-3">
         <v-icon left color="white" class="mr-2">mdi-account-cog</v-icon>
@@ -51,7 +53,9 @@
       </v-card-text>
     </v-card>
 
-    <!-- === KARTE: VORHANDENE ROLLEN === -->
+    <!-- ============================================================ -->
+    <!-- KARTE: VORHANDENE ROLLEN -->
+    <!-- ============================================================ -->
     <v-card elevation="2">
       <!-- HEADER MIT SUCHE & SEITENANZAHL -->
       <v-card-title class="bg-grey-lighten-3 py-3">
@@ -94,7 +98,6 @@
         <v-progress-circular v-if="loadingRoles" indeterminate color="primary" class="d-block mx-auto my-4" />
         <v-alert v-if="error" type="error" dismissible class="mb-4">{{ error }}</v-alert>
 
-        <!-- ✅ Correction : striped et hover avec binding booléen -->
         <v-table
           v-else-if="!loadingRoles"
           :striped="true"
@@ -107,7 +110,7 @@
               <th class="text-uppercase text-caption font-weight-bold">Name</th>
               <th class="text-uppercase text-caption font-weight-bold">Anzeigename</th>
               <th class="text-uppercase text-caption font-weight-bold">Beschreibung</th>
-              <th class="text-uppercase text-caption font-weight-bold text-center" style="width: 150px;">Aktionen</th>
+              <th class="text-uppercase text-caption font-weight-bold text-center" style="width: 200px;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -116,6 +119,22 @@
               <td>{{ role.display_name }}</td>
               <td>{{ role.description || '-' }}</td>
               <td class="text-center">
+                <!-- ✅ Bouton Berechtigungen -->
+                <v-btn
+                  icon
+                  size="small"
+                  color="info"
+                  variant="tonal"
+                  class="mr-1"
+                  @click="openPermissions(role)"
+                >
+                  <v-icon>mdi-shield-key</v-icon>
+                  <v-tooltip activator="parent" location="top">
+                    Berechtigungen bearbeiten
+                  </v-tooltip>
+                </v-btn>
+
+                <!-- Bouton édition -->
                 <v-btn
                   icon="mdi-pencil"
                   size="small"
@@ -124,6 +143,8 @@
                   class="mr-1"
                   @click="openEditDialog(role)"
                 />
+
+                <!-- Bouton suppression -->
                 <v-btn
                   icon="mdi-delete"
                   size="small"
@@ -158,7 +179,9 @@
       </v-card-text>
     </v-card>
 
+    <!-- ============================================================ -->
     <!-- BEARBEITUNGSDIALOG -->
+    <!-- ============================================================ -->
     <v-dialog v-model="editDialog" max-width="500">
       <v-card>
         <v-card-title class="bg-primary text-white">
@@ -193,7 +216,9 @@
       </v-card>
     </v-dialog>
 
+    <!-- ============================================================ -->
     <!-- LÖSCHBESTÄTIGUNG -->
+    <!-- ============================================================ -->
     <v-dialog v-model="deleteDialog" max-width="400">
       <v-card>
         <v-card-title class="text-h6 bg-error text-white">
@@ -211,7 +236,20 @@
       </v-card>
     </v-dialog>
 
+    <!-- ============================================================ -->
+    <!-- ✅ DIALOG GESTION DES PERMISSIONS -->
+    <!-- ============================================================ -->
+    <RolePermissionsDialog
+      v-if="currentRoleForPermissions"
+      v-model="permissionsDialog"
+      :role-id="currentRoleForPermissions.id"
+      :role-name="currentRoleForPermissions.display_name"
+      @saved="onPermissionsSaved"
+    />
+
+    <!-- ============================================================ -->
     <!-- OVERLAYS -->
+    <!-- ============================================================ -->
     <v-overlay v-model="processing" class="align-center justify-center" persistent>
       <v-progress-circular indeterminate size="80" color="primary" width="6" />
       <div class="text-h6 mt-4 text-white">{{ processingText }}</div>
@@ -224,7 +262,9 @@
       </div>
     </v-overlay>
 
+    <!-- ============================================================ -->
     <!-- SNACKBAR -->
+    <!-- ============================================================ -->
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" location="top end">
       {{ snackbar.text }}
       <template v-slot:actions>
@@ -239,15 +279,20 @@ import { ref, onMounted, computed, watch } from 'vue'
 import axios from 'axios'
 import { useValidationRules } from '../composables/useValidationRules'
 import { apiUrl } from '@/config/api'
+import RolePermissionsDialog from '@/components/RolePermissionsDialog.vue'
 
 const rules = useValidationRules()
 
+// ============================================================
 // Daten
+// ============================================================
 const roles = ref([])
 const loadingRoles = ref(false)
 const error = ref(null)
 
+// ============================================================
 // Paginierung & Suche
+// ============================================================
 const currentPage = ref(1)
 const itemsPerPage = ref(5)
 const searchQuery = ref('')
@@ -261,7 +306,9 @@ const itemsPerPageOptions = [
   { title: 'Alle', value: -1 }
 ]
 
+// ============================================================
 // Neue Rolle
+// ============================================================
 const newRole = ref({
   name: '',
   display_name: '',
@@ -270,18 +317,41 @@ const newRole = ref({
 const submittingAdd = ref(false)
 const addForm = ref(null)
 
+// ============================================================
 // Bearbeitung
+// ============================================================
 const editDialog = ref(false)
 const editForm = ref(null)
 const editRole = ref({ id: 0, name: '', display_name: '', description: '' })
 const submittingUpdate = ref(false)
 
+// ============================================================
 // Löschen
+// ============================================================
 const deleteDialog = ref(false)
 const deleteRole = ref(null)
 const deleting = ref(false)
 
+// ============================================================
+// ✅ Gestion des permissions
+// ============================================================
+const permissionsDialog = ref(false)
+const currentRoleForPermissions = ref(null)
+
+const openPermissions = (role) => {
+  currentRoleForPermissions.value = role
+  permissionsDialog.value = true
+}
+
+const onPermissionsSaved = ({ roleId, count }) => {
+  const role = roles.value.find(r => r.id === roleId)
+  const roleName = role?.display_name || 'Rolle'
+  showSnackbar(`✅ ${count} Berechtigungen für "${roleName}" gespeichert`, 'success')
+}
+
+// ============================================================
 // Overlay und Snackbar
+// ============================================================
 const processing = ref(false)
 const processingText = ref('')
 const redirecting = ref(false)
@@ -295,7 +365,9 @@ const showSnackbar = (text, color = 'success') => {
   snackbar.value = { show: true, text, color }
 }
 
-// ----- Berechnete Werte für Filter & Paginierung -----
+// ============================================================
+// Berechnete Werte für Filter & Paginierung
+// ============================================================
 const filteredRoles = computed(() => {
   if (!searchQuery.value.trim()) {
     return roles.value
@@ -324,12 +396,16 @@ const paginatedRoles = computed(() => {
   return filteredRoles.value.slice(start, end)
 })
 
-// ----- Watch: Wenn Suche oder Seitenanzahl sich ändert, zurück auf Seite 1 -----
+// ============================================================
+// Watch: Zurück auf Seite 1 bei Suche/Seitenanzahl
+// ============================================================
 watch([searchQuery, itemsPerPage], () => {
   currentPage.value = 1
 })
 
-// ----- Rollen laden -----
+// ============================================================
+// Rollen laden
+// ============================================================
 const fetchRoles = async () => {
   loadingRoles.value = true
   error.value = null
@@ -350,7 +426,9 @@ const fetchRoles = async () => {
   }
 }
 
-// ----- Neue Rolle anlegen -----
+// ============================================================
+// Neue Rolle anlegen
+// ============================================================
 const addRole = async () => {
   if (!newRole.value.name || !newRole.value.display_name) {
     showSnackbar('❌ Bitte füllen Sie alle Pflichtfelder aus.', 'error')
@@ -390,20 +468,26 @@ const addRole = async () => {
   }
 }
 
-// ----- Bearbeitungsdialog öffnen -----
+// ============================================================
+// Bearbeitungsdialog öffnen
+// ============================================================
 const openEditDialog = (role) => {
   editRole.value = { ...role }
   editDialog.value = true
   editForm.value?.resetValidation()
 }
 
-// ----- Bearbeitungsdialog schließen (Abbrechen) -----
+// ============================================================
+// Bearbeitungsdialog schließen (Abbrechen)
+// ============================================================
 const closeEditDialog = () => {
   editDialog.value = false
   editForm.value?.reset()
 }
 
-// ----- Rolle aktualisieren -----
+// ============================================================
+// Rolle aktualisieren
+// ============================================================
 const updateRole = async () => {
   const { valid } = await editForm.value?.validate() || { valid: true }
   if (!valid) return
@@ -432,7 +516,9 @@ const updateRole = async () => {
   }
 }
 
-// ----- Löschbestätigung -----
+// ============================================================
+// Löschbestätigung
+// ============================================================
 const confirmDelete = (role) => {
   deleteRole.value = role
   deleteDialog.value = true
@@ -443,7 +529,9 @@ const closeDeleteDialog = () => {
   deleteRole.value = null
 }
 
-// ----- Rolle löschen -----
+// ============================================================
+// Rolle löschen
+// ============================================================
 const deleteRoleConfirm = async () => {
   if (!deleteRole.value) return
   deleting.value = true
@@ -470,5 +558,19 @@ const deleteRoleConfirm = async () => {
   }
 }
 
+// ============================================================
+// Lifecycle
+// ============================================================
 onMounted(fetchRoles)
 </script>
+
+<style scoped>
+/* Amélioration visuelle du bouton permissions */
+.v-btn.mr-1 {
+  transition: all 0.2s ease;
+}
+
+.v-btn.mr-1:hover {
+  transform: translateY(-1px);
+}
+</style>

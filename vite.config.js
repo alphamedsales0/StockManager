@@ -9,50 +9,41 @@ const apiTarget = 'https://stckmng.alpha-med-care.com'
 export default defineConfig({
   base: '/',
   plugins: [vue()],
-
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
+    alias: { '@': path.resolve(__dirname, './src') }
   },
-
   server: {
     host: 'localhost',
     port: 5173,
-
-    // ✅ Désactive le cache pour le HTML de l'app
-    headers: {
-      'Cache-Control': 'no-store'
-    },
-
+    headers: { 'Cache-Control': 'no-store' },
     proxy: {
       '/api': {
         target: apiTarget,
         changeOrigin: true,
         secure: true,
-        cookieDomainRewrite: 'localhost',
+        ws: false,
+        cookieDomainRewrite: {
+          '.alpha-med-care.com': 'localhost',
+          'stckmng.alpha-med-care.com': 'localhost',
+          'alpha-med-care.com': 'localhost'
+        },
         cookiePathRewrite: '/',
-
         configure(proxy) {
           proxy.on('proxyReq', (proxyReq, req) => {
-            console.log('[API PROXY] Anfrage:', req.url)
+            proxyReq.setHeader('Origin', apiTarget)
+            proxyReq.setHeader('Referer', apiTarget + '/')
+            console.log('[API PROXY] →', req.method, req.url)
           })
-
           proxy.on('proxyRes', (proxyRes, req) => {
-            console.log('[API PROXY] Antwort:', req.url)
-            console.log('[API PROXY] Status:', proxyRes.statusCode)
-            console.log(
-              '[API PROXY] Content-Type:',
-              proxyRes.headers['content-type']
-            )
+            console.log('[API PROXY] ←', req.url, '→', proxyRes.statusCode)
+            const setCookie = proxyRes.headers['set-cookie']
+            if (setCookie) console.log('[API PROXY] 🍪', JSON.stringify(setCookie))
           })
-
           proxy.on('error', (err, req) => {
-            console.error('[API PROXY] Fehler:', req.url, err.message)
+            console.error('[API PROXY] ❌', req.url, err.message)
           })
         }
       },
-
       '/uploads': {
         target: apiTarget,
         changeOrigin: true,
@@ -60,7 +51,6 @@ export default defineConfig({
       }
     }
   },
-
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

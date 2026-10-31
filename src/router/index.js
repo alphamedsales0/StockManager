@@ -18,6 +18,13 @@ const routes = [
     meta: { public: true }
   },
 
+  {
+  path: '/password-reset',
+  name: 'PasswordReset',
+  component: () => import('@/pages/PasswordResetPage.vue'),
+  meta: { public: true, layout: 'blank' }   // ← route publique
+},
+
   // ============================================================
   // ACCESS DENIED
   // ============================================================

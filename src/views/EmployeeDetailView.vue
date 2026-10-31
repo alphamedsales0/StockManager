@@ -54,46 +54,35 @@
             </div>
 
             <div class="hero-actions">
-  <v-btn
-    variant="text"
-    prepend-icon="mdi-arrow-left"
-    class="hero-back-btn"
-    @click="router.back()"
-  >
-    Zurück
-  </v-btn>
+              <v-btn
+                variant="text"
+                prepend-icon="mdi-arrow-left"
+                class="hero-back-btn"
+                @click="router.back()"
+              >
+                Zurück
+              </v-btn>
 
-  <v-btn
-    v-if="employee.email"
-    variant="tonal"
-    prepend-icon="mdi-email-outline"
-    class="hero-action-btn"
-    @click="mailEmployee"
-  >
-    E-Mail
-  </v-btn>
+              <v-btn
+                v-if="employee.email"
+                variant="tonal"
+                prepend-icon="mdi-email-outline"
+                class="hero-action-btn"
+                @click="mailEmployee"
+              >
+                E-Mail
+              </v-btn>
 
-  <v-btn
-  v-if="permissionStore.isAdmin"
-  variant="tonal"
-  color="error"
-  prepend-icon="mdi-delete-outline"
-  class="hero-action-btn"
-  @click="confirmDelete"
->
-  Löschen
-</v-btn>
-
-  <v-btn
-    size="large"
-    variant="flat"
-    prepend-icon="mdi-pencil-outline"
-    class="edit-button-hero"
-    @click="goToEdit"
-  >
-    Bearbeiten
-  </v-btn>
-</div>
+              <v-btn
+                size="large"
+                variant="flat"
+                prepend-icon="mdi-cog-outline"
+                class="edit-button-hero"
+                @click="activeTab = 'settings'"
+              >
+                Einstellungen
+              </v-btn>
+            </div>
           </div>
 
           <v-divider class="hero-divider" />
@@ -139,7 +128,7 @@
               </div>
             </v-col>
 
-            <!-- ✅ BLOC INFOS — ALIGNEMENT EN COLONNES -->
+            <!-- BLOC INFOS -->
             <v-col cols="12" md class="employee-info-column">
               <div class="employee-info-block">
 
@@ -165,18 +154,16 @@
 
                 <v-divider class="employee-divider" />
 
-                <!-- Ligne 2 : Vorname / Position / Benutzername -->
+                <!-- Ligne 2 -->
                 <div class="info-row">
                   <div class="info-col">
                     <div class="info-col-label">Vorname</div>
                     <div class="info-col-value">{{ employee.vorname || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Position</div>
                     <div class="info-col-value">{{ employee.position || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Benutzername</div>
                     <div class="info-col-value">{{ employee.username || '—' }}</div>
@@ -185,18 +172,16 @@
 
                 <v-divider class="employee-divider" />
 
-                <!-- Ligne 3 : Nachname / Vorname / Mitarbeiter-Nr. -->
+                <!-- Ligne 3 -->
                 <div class="info-row">
                   <div class="info-col">
                     <div class="info-col-label">Nachname</div>
                     <div class="info-col-value">{{ employee.nachname || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Vorname</div>
                     <div class="info-col-value">{{ employee.vorname || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Mitarbeiter-Nr.</div>
                     <div class="info-col-value info-col-mono">
@@ -207,18 +192,16 @@
 
                 <v-divider class="employee-divider" />
 
-                <!-- Ligne 4 : Position / Abteilung / Benutzername -->
+                <!-- Ligne 4 -->
                 <div class="info-row">
                   <div class="info-col">
                     <div class="info-col-label">Position</div>
                     <div class="info-col-value">{{ employee.position || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Abteilung</div>
                     <div class="info-col-value">{{ employee.abteilung || '—' }}</div>
                   </div>
-
                   <div class="info-col">
                     <div class="info-col-label">Benutzername</div>
                     <div class="info-col-value">{{ employee.username || '—' }}</div>
@@ -264,6 +247,7 @@
         <v-tab value="contact" prepend-icon="mdi-home-outline">Kontakt</v-tab>
         <v-tab value="finance" prepend-icon="mdi-bank-outline">Finanzen</v-tab>
         <v-tab value="career" prepend-icon="mdi-school-outline">Karriere</v-tab>
+        <v-tab value="settings" prepend-icon="mdi-cog-outline">Einstellungen</v-tab>
       </v-tabs>
 
       <!-- TAB CONTENT -->
@@ -557,6 +541,139 @@
           </v-row>
         </v-window-item>
 
+        <!-- EINSTELLUNGEN -->
+        <v-window-item value="settings">
+          <v-row class="ma-0 section-row">
+
+            <!-- SICHERHEIT -->
+            <v-col cols="12" md="6">
+              <v-card class="modern-card h-100">
+                <EmployeeSectionHeader
+                  icon="mdi-shield-lock-outline"
+                  color="grey"
+                  title="Sicherheit"
+                  subtitle="Zugangsdaten des Benutzerkontos"
+                />
+                <v-card-text class="pa-3">
+                  <div class="contact-fields">
+
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-account-outline</v-icon></div>
+                      <div class="contact-label">Benutzername</div>
+                      <div class="contact-value">{{ employee.username || '—' }}</div>
+                    </div>
+
+                    <v-divider class="item-divider" />
+
+                   <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-lock-outline</v-icon></div>
+                      <div class="contact-label">Passwort</div>
+                      <div class="contact-value password-masked d-flex align-center justify-space-between">
+                        <span>********</span>
+                        <v-btn
+                          v-if="employee.benutzer_id && canResetPassword"
+                          size="x-small"
+                          variant="tonal"
+                          prepend-icon="mdi-email-lock"
+                          class="ml-3"
+                          :loading="resetLoading"
+                          @click="requestPasswordReset"
+                        >
+                          Reset-Link senden
+                        </v-btn>
+                      </div>
+                    </div>
+
+                    <v-divider class="item-divider" />
+
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-email-outline</v-icon></div>
+                      <div class="contact-label">E-Mail</div>
+                      <div class="contact-value">{{ employee.email || '—' }}</div>
+                    </div>
+
+                    <v-divider class="item-divider" />
+
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-shield-account-outline</v-icon></div>
+                      <div class="contact-label">Rolle</div>
+                      <div class="contact-value">
+                        <v-chip size="x-small" variant="flat" class="chip-grey">
+                          {{ employee.role || '—' }}
+                        </v-chip>
+                      </div>
+                    </div>
+
+                    <v-divider class="item-divider" />
+
+                    <div class="contact-row">
+                      <div class="contact-icon"><v-icon size="16">mdi-check-circle-outline</v-icon></div>
+                      <div class="contact-label">Konto-Status</div>
+                      <div class="contact-value">
+                        <v-chip
+                          :color="employee.is_active ? 'success' : 'error'"
+                          variant="flat"
+                          size="x-small"
+                          class="status-chip"
+                        >
+                          <v-icon start size="12">
+                            {{ employee.is_active ? 'mdi-check-circle' : 'mdi-close-circle' }}
+                          </v-icon>
+                          {{ employee.is_active ? 'Aktiv' : 'Inaktiv' }}
+                        </v-chip>
+                      </div>
+                    </div>
+
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+            <!-- GEFAHRENZONE -->
+            <v-col cols="12" md="6">
+              <v-card class="modern-card h-100 danger-card">
+                <EmployeeSectionHeader
+                  icon="mdi-alert-outline"
+                  color="grey"
+                  title="Gefahrenzone"
+                  subtitle="Aktionen für diesen Mitarbeiter"
+                />
+                <v-card-text class="pa-4">
+                  <p class="text-body-2 text-medium-emphasis mb-4">
+                    Diese Aktionen betreffen die Stammdaten sowie das Benutzerkonto
+                    des Mitarbeiters. Bitte mit Vorsicht verwenden.
+                  </p>
+
+                  <div class="d-flex flex-column ga-3">
+                    <v-btn
+                      variant="flat"
+                      prepend-icon="mdi-pencil-outline"
+                      class="edit-button-hero"
+                      block
+                      @click="goToEdit"
+                    >
+                      Mitarbeiter bearbeiten
+                    </v-btn>
+
+                    <v-btn
+                      v-if="permissionStore.isAdmin"
+                      variant="tonal"
+                      color="error"
+                      prepend-icon="mdi-delete-outline"
+                      :loading="deleting"
+                      block
+                      @click="confirmDelete"
+                    >
+                      Mitarbeiter löschen
+                    </v-btn>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+
+          </v-row>
+        </v-window-item>
+
       </v-window>
 
       <!-- BOTTOM ACTION -->
@@ -565,27 +682,14 @@
           Zurück
         </v-btn>
 
-        <div class="d-flex ga-2 flex-wrap">
-         <v-btn
-  v-if="permissionStore.isAdmin"
-  variant="tonal"
-  color="error"
-  prepend-icon="mdi-delete-outline"
-  :loading="deleting"
-  @click="confirmDelete"
->
-  Mitarbeiter löschen
-</v-btn>
-
-          <v-btn
-            variant="flat"
-            prepend-icon="mdi-pencil-outline"
-            class="edit-button-hero"
-            @click="goToEdit"
-          >
-            Mitarbeiter bearbeiten
-          </v-btn>
-        </div>
+        <v-btn
+          variant="flat"
+          prepend-icon="mdi-cog-outline"
+          class="edit-button-hero"
+          @click="activeTab = 'settings'"
+        >
+          Einstellungen
+        </v-btn>
       </div>
 
       <!-- DELETE CONFIRM DIALOG -->
@@ -647,15 +751,22 @@
   </v-container>
 </template>
 
+
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmployeeSectionHeader from './EmployeeSectionHeader.vue'
 import { usePermissionStore } from '@/stores/permission'   // ✅ AJOUT
 
+
 const route = useRoute()
 const router = useRouter()
 const permissionStore = usePermissionStore()
+const resetLoading = ref(false)
+
+const canResetPassword = computed(() =>
+  ['admin', 'office'].includes(permissionStore.userRole?.toLowerCase())
+)
 
 const employee = ref(null)
 const loading = ref(true)
@@ -668,6 +779,27 @@ const activeTab = ref('personal')
 // Delete state
 const deleteDialog = ref(false)
 const deleting = ref(false)
+
+const requestPasswordReset = async () => {
+  resetLoading.value = true
+  try {
+    const res = await fetch('/api/employee_request_password_reset.php', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_user_id: employee.value.benutzer_id }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      // Toast succès
+      console.log(data.message)
+    } else {
+      console.error(data.message)
+    }
+  } finally {
+    resetLoading.value = false
+  }
+}
 
 
 
@@ -1569,6 +1701,25 @@ onMounted(loadEmployee)
   white-space: normal;
   word-break: break-all;
   font-variant-numeric: tabular-nums;
+}
+
+
+/*============================================================= 
+  PASSWORD FIELD
+=============================================================*/
+.password-masked {
+  letter-spacing: 0.15em;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--text-muted) !important;
+  font-size: 1rem;
+}
+
+.danger-card {
+  border-color: #fecaca !important;
+}
+
+.danger-card:hover {
+  border-color: #fca5a5 !important;
 }
 
 /* ============================================================

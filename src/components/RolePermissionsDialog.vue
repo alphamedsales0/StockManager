@@ -260,13 +260,6 @@ const loadData = async () => {
       { withCredentials: true }
     )
 
-    // ✅ LOG COMPLET pour voir ce que le serveur renvoie
-    console.log('🔍 [Dialog] Role ID:', props.roleId)
-    console.log('🔍 [Dialog] Role Name:', props.roleName)
-    console.log('🔍 [Dialog] Full response:', res.data)
-    console.log('🔍 [Dialog] success:', res.data?.success)
-    console.log('🔍 [Dialog] error:', res.data?.error)
-
     if (res.data?.success) {
       groupedPermissions.value = res.data.permissions || {}
       selectedIds.value = res.data.assigned_ids || []

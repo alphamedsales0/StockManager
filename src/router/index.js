@@ -19,11 +19,18 @@ const routes = [
   },
 
   {
-  path: '/password-reset',
-  name: 'PasswordReset',
-  component: () => import('@/pages/PasswordResetPage.vue'),
-  meta: { public: true, layout: 'blank' }   // ← route publique
-},
+    path: '/password-reset',
+    name: 'PasswordReset',
+    component: () => import('@/pages/PasswordResetPage.vue'),
+    meta: { public: true, layout: 'blank' }
+  },
+
+  {
+    path: '/audit-logs',
+    name: 'AuditLogs',
+    component: () => import('@/views/AuditLogsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
 
   // ============================================================
   // ACCESS DENIED
@@ -224,13 +231,12 @@ const router = createRouter({
 })
 
 // ============================================================
-// GUARD GLOBAL — avec chargement automatique des permissions
+// GUARD GLOBAL
 // ============================================================
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const permissionStore = usePermissionStore()
 
-  // ✅ Log de diagnostic
   console.log('[Router Guard]', {
     from: from.fullPath,
     to: to.fullPath,
@@ -239,9 +245,8 @@ router.beforeEach(async (to, from, next) => {
     loggedIn: authStore.isLoggedIn
   })
 
-  // ✅ 1. Route publique (login, access-denied)
+  // ✅ 1. Route publique
   if (to.meta?.public || to.name === 'Login' || to.name === 'AccessDenied') {
-    // Si déjà connecté et va sur /login → redirection auto
     if (authStore.isLoggedIn && to.name === 'Login') {
       if (!permissionStore.permissionsLoaded) {
         await permissionStore.loadPermissions()
@@ -278,7 +283,24 @@ router.beforeEach(async (to, from, next) => {
     await permissionStore.loadPermissions()
   }
 
-  // ✅ 4. Routes employés : pas de vérification spécifique
+  // ✅ 4. Route ADMIN uniquement (Audit-Logs)
+  if (to.meta?.requiresAdmin) {
+    const role = String(
+      authStore.user?.role ||
+      permissionStore.userRole ||
+      localStorage.getItem('userRole') ||
+      ''
+    ).toLowerCase().trim()
+
+    if (role !== 'admin') {
+      permissionStore.showAccessDenied?.()
+      return next(from.path && from.path !== to.path ? false : '/')
+    }
+    // ✅ Admin validé → on laisse passer SANS vérifier les permissions de route
+    return next()
+  }
+
+  // ✅ 5. Routes employés : pas de vérification spécifique
   const skipPermissionCheck = [
     'EditEmployee',
     'EmployeeDetailView',
@@ -288,7 +310,7 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-  // ✅ 5. Vérifier la permission selon la route
+  // ✅ 6. Vérifier la permission selon la route
   const key = getRouteKey(to.path)
   console.log('[Router Guard] permission check', {
     to: to.fullPath,
@@ -305,12 +327,10 @@ router.beforeEach(async (to, from, next) => {
   // ❌ Permission refusée
   permissionStore.showAccessDenied()
 
-  // Si navigation "from" existe → on reste sur la page actuelle
   if (from.path && from.path !== to.path) {
     return next(false)
   }
 
-  // Sinon, redirige vers la première page accessible
   const priority = [
     { path: '/', perm: 'dashboard' },
     { path: '/tickets', perm: 'tickets' },

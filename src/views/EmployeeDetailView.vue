@@ -545,13 +545,13 @@
         <v-window-item value="settings">
           <v-row class="ma-0 section-row">
 
-            <!-- SICHERHEIT -->
+            <!-- Zugangsdaten -->
             <v-col cols="12" md="6">
               <v-card class="modern-card h-100">
                 <EmployeeSectionHeader
                   icon="mdi-shield-lock-outline"
                   color="grey"
-                  title="Sicherheit"
+                  title="Zugangsdaten"
                   subtitle="Zugangsdaten des Benutzerkontos"
                 />
                 <v-card-text class="pa-3">
@@ -565,23 +565,10 @@
 
                     <v-divider class="item-divider" />
 
-                   <div class="contact-row">
+                    <div class="contact-row">
                       <div class="contact-icon"><v-icon size="16">mdi-lock-outline</v-icon></div>
                       <div class="contact-label">Passwort</div>
-                      <div class="contact-value password-masked d-flex align-center justify-space-between">
-                        <span>********</span>
-                        <v-btn
-                          v-if="employee.benutzer_id && canResetPassword"
-                          size="x-small"
-                          variant="tonal"
-                          prepend-icon="mdi-email-lock"
-                          class="ml-3"
-                          :loading="resetLoading"
-                          @click="requestPasswordReset"
-                        >
-                          Reset-Link senden
-                        </v-btn>
-                      </div>
+                      <div class="contact-value password-masked">********</div>
                     </div>
 
                     <v-divider class="item-divider" />
@@ -638,34 +625,79 @@
                   title="Gefahrenzone"
                   subtitle="Aktionen für diesen Mitarbeiter"
                 />
-                <v-card-text class="pa-4">
+                <v-card-text class="pa-3">
                   <p class="text-body-2 text-medium-emphasis mb-4">
                     Diese Aktionen betreffen die Stammdaten sowie das Benutzerkonto
                     des Mitarbeiters. Bitte mit Vorsicht verwenden.
                   </p>
 
-                  <div class="d-flex flex-column ga-3">
-                    <v-btn
-                      variant="flat"
-                      prepend-icon="mdi-pencil-outline"
-                      class="edit-button-hero"
-                      block
-                      @click="goToEdit"
-                    >
-                      Mitarbeiter bearbeiten
-                    </v-btn>
+                  <div class="contact-fields">
 
-                    <v-btn
-                      v-if="permissionStore.isAdmin"
-                      variant="tonal"
-                      color="error"
-                      prepend-icon="mdi-delete-outline"
-                      :loading="deleting"
-                      block
-                      @click="confirmDelete"
-                    >
-                      Mitarbeiter löschen
-                    </v-btn>
+                    <!-- Mitarbeiter bearbeiten -->
+                    <div class="contact-row action-row">
+                      <div class="contact-icon">
+                        <v-icon size="16">mdi-pencil-outline</v-icon>
+                      </div>
+                      <div class="contact-label">Mitarbeiter bearbeiten</div>
+                      <div class="contact-value">
+                        <v-btn
+                          size="small"
+                          variant="flat"
+                          prepend-icon="mdi-pencil-outline"
+                          class="edit-button-hero"
+                          @click="goToEdit"
+                        >
+                          Bearbeiten
+                        </v-btn>
+                      </div>
+                    </div>
+
+                    <v-divider class="item-divider" />
+
+                    <!-- Passwort zurücksetzen -->
+                    <div class="contact-row action-row">
+                      <div class="contact-icon">
+                        <v-icon size="16">mdi-lock-reset</v-icon>
+                      </div>
+                      <div class="contact-label">Passwort zurücksetzen</div>
+                      <div class="contact-value">
+                        <v-btn
+                          v-if="employee.benutzer_id && canResetPassword"
+                          size="small"
+                          variant="tonal"
+                          prepend-icon="mdi-email-lock"
+                          :loading="resetLoading"
+                          @click="resetDialog = true"
+                        >
+                          Reset-Link senden
+                        </v-btn>
+                        <span v-else class="text-medium-emphasis">—</span>
+                      </div>
+                    </div>
+
+                    <!-- Mitarbeiter löschen (admin) -->
+                    <template v-if="permissionStore.isAdmin">
+                      <v-divider class="item-divider" />
+                      <div class="contact-row action-row">
+                        <div class="contact-icon">
+                          <v-icon size="16" color="error">mdi-delete-outline</v-icon>
+                        </div>
+                        <div class="contact-label">Mitarbeiter löschen</div>
+                        <div class="contact-value">
+                          <v-btn
+                            size="small"
+                            variant="tonal"
+                            color="error"
+                            prepend-icon="mdi-delete-outline"
+                            :loading="deleting"
+                            @click="confirmDelete"
+                          >
+                            Löschen
+                          </v-btn>
+                        </div>
+                      </div>
+                    </template>
+
                   </div>
                 </v-card-text>
               </v-card>
@@ -691,6 +723,59 @@
           Einstellungen
         </v-btn>
       </div>
+
+      <!-- RESET PASSWORD CONFIRM DIALOG -->
+      <v-dialog v-model="resetDialog" max-width="480" persistent>
+        <v-card class="rounded-xl">
+          <v-card-title class="d-flex align-center pa-5">
+            <v-avatar color="primary" size="42" class="mr-3">
+              <v-icon>mdi-lock-reset</v-icon>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold">Passwort zurücksetzen?</div>
+              <div class="text-caption text-medium-emphasis">
+                Ein Reset-Link wird per E-Mail versendet.
+              </div>
+            </div>
+          </v-card-title>
+
+          <v-card-text class="pa-5 pt-2">
+            <p class="mb-2">
+              Soll ein Link zum Zurücksetzen des Passworts an folgenden Mitarbeiter gesendet werden?
+            </p>
+            <v-alert type="info" variant="tonal" density="compact" class="mb-2">
+              <div class="font-weight-bold">{{ fullName }}</div>
+              <div class="text-caption">
+                {{ employee?.email || 'Keine E-Mail hinterlegt' }}
+              </div>
+            </v-alert>
+            <p class="text-body-2 text-medium-emphasis">
+              Der Mitarbeiter erhält eine E-Mail mit einem Link, über den er
+              ein neues Passwort festlegen kann.
+            </p>
+          </v-card-text>
+
+          <v-card-actions class="pa-5 pt-0">
+            <v-spacer />
+            <v-btn
+              variant="text"
+              :disabled="resetLoading"
+              @click="resetDialog = false"
+            >
+              Abbrechen
+            </v-btn>
+            <v-btn
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-email-lock"
+              :loading="resetLoading"
+              @click="confirmPasswordReset"
+            >
+              Reset-Link senden
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
       <!-- DELETE CONFIRM DIALOG -->
       <v-dialog v-model="deleteDialog" max-width="480" persistent>
@@ -763,6 +848,7 @@ const route = useRoute()
 const router = useRouter()
 const permissionStore = usePermissionStore()
 const resetLoading = ref(false)
+const resetDialog = ref(false) 
 
 const canResetPassword = computed(() =>
   ['admin', 'office'].includes(permissionStore.userRole?.toLowerCase())
@@ -780,7 +866,11 @@ const activeTab = ref('personal')
 const deleteDialog = ref(false)
 const deleting = ref(false)
 
-const requestPasswordReset = async () => {
+
+
+
+// ✅ Remplacez requestPasswordReset par :
+const confirmPasswordReset = async () => {
   resetLoading.value = true
   try {
     const res = await fetch('/api/employee_request_password_reset.php', {
@@ -791,8 +881,8 @@ const requestPasswordReset = async () => {
     })
     const data = await res.json()
     if (data.success) {
-      // Toast succès
       console.log(data.message)
+      resetDialog.value = false
     } else {
       console.error(data.message)
     }
@@ -1966,6 +2056,48 @@ onMounted(loadEmployee)
   max-width: 620px;
   margin: 60px auto;
   border-radius: var(--radius-lg) !important;
+}
+
+/* ============================================================
+   ACTION ROW (GEFAHRENZONE)
+============================================================ */
+.action-row {
+  padding: 10px 8px;
+}
+
+.action-row .contact-label {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.action-row .contact-value {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.action-row .v-btn {
+  text-transform: none;
+  font-weight: 600;
+  border-radius: var(--radius-md) !important;
+}
+
+/* Responsive : bouton pleine largeur sur mobile */
+@media (max-width: 600px) {
+  .action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .action-row .contact-value {
+    justify-content: stretch;
+  }
+  .action-row .contact-value .v-btn {
+    width: 100%;
+  }
 }
 
 /* ============================================================

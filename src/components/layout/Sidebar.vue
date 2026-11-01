@@ -185,6 +185,18 @@
           :active="activeTab === 'add-employee'"
           @click="navigateTo('add-employee')"
         />
+      </v-list-group>
+
+      <!-- ORGANISATION (Rollen / Position / Abteilung) -->
+      <v-list-group
+        v-if="permissionStore.can('employees')"
+        value="organization"
+      >
+        <template #activator="{ props }">
+          <v-list-item v-bind="props" prepend-icon="mdi-cog-outline">
+            <v-list-item-title>Organisation</v-list-item-title>
+          </v-list-item>
+        </template>
         <v-list-item
           prepend-icon="mdi-account-cog"
           title="Rollen"
@@ -242,6 +254,21 @@
         :active="activeTab === 'stats'"
         @click="navigateTo('stats')"
       />
+
+      <!-- AUDIT-LOGS (admin uniquement) -->
+      <v-list-item
+        v-if="isAdmin"
+        prepend-icon="mdi-shield-search"
+        title="Audit-Logs"
+        :active="activeTab === 'audit-logs'"
+        @click="navigateTo('audit-logs')"
+      >
+        <template #append>
+          <v-icon v-if="!uiStore.rail" size="14" class="audit-badge-icon">
+            mdi-lock-outline
+          </v-icon>
+        </template>
+      </v-list-item>
 
       <!-- HILFE -->
       <v-list-item
@@ -324,6 +351,18 @@ const appVersion = '1.0.0'
 const buildDate = new Date().toLocaleDateString('de-DE')
 
 // ============================================================
+// ADMIN CHECK (pour Audit-Logs)
+// ============================================================
+const isAdmin = computed(() => {
+  const role =
+    authStore.user?.role ||
+    permissionStore.userRole ||
+    localStorage.getItem('userRole') ||
+    ''
+  return String(role).toLowerCase().trim() === 'admin'
+})
+
+// ============================================================
 // USER DISPLAY
 // ============================================================
 const displayName = computed(() => {
@@ -336,22 +375,18 @@ const displayName = computed(() => {
 })
 
 const displayRole = computed(() => {
-  // ✅ Récupère le rôle depuis plusieurs sources (fallback)
   const role =
     authStore.user?.role ||
     permissionStore.userRole ||
     localStorage.getItem('userRole') ||
     null
 
-  // ✅ Si connecté mais pas de rôle → '—'
   if (!role) {
     return authStore.isLoggedIn ? '—' : 'Gast'
   }
 
-  // ✅ Normalise en minuscule
   const r = String(role).toLowerCase().trim()
 
-  // ✅ Map des rôles → labels affichés
   const map = {
     admin: 'Administrator',
     administrator: 'Administrator',
@@ -382,7 +417,6 @@ const displayRole = computed(() => {
     manu: 'Manu'
   }
 
-  // ✅ Retourne le label ou le rôle capitalisé
   return map[r] || (r.charAt(0).toUpperCase() + r.slice(1))
 })
 
@@ -448,6 +482,7 @@ const activeTab = computed(() => {
   if (path === '/orders') return 'orders-list'
   if (path === '/orders/add') return 'add-order'
   if (path === '/stats') return 'stats'
+  if (path === '/audit-logs') return 'audit-logs'
   if (path === '/help') return 'help'
   return 'dashboard'
 })
@@ -474,6 +509,7 @@ const navigateTo = (tab) => {
     'orders-list': '/orders',
     'add-order': '/orders/add',
     stats: '/stats',
+    'audit-logs': '/audit-logs',
     help: '/help'
   }
 
@@ -506,6 +542,7 @@ const getParentKey = (tab) => {
   }
   if (tab === 'orders-list' || tab === 'add-order') return 'orders'
   if (tab === 'stats') return 'stats'
+  if (tab === 'audit-logs') return 'audit-logs'
   if (tab === 'help') return 'help'
   return tab
 }
@@ -540,7 +577,8 @@ const handleKeydown = (e) => {
       t: 'tickets',
       p: 'products-list',
       k: 'customers-list',
-      o: 'orders-list'
+      o: 'orders-list',
+      a: 'audit-logs'
     }
     const target = map[e.key.toLowerCase()]
     if (target) {

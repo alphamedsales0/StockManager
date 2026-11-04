@@ -193,9 +193,9 @@
                     block
                     rounded="sm"
                     :loading="resetPasswordLoading"
-                    :disabled="resetPasswordLoading || !resetPasswordForm.email"
+                    :disabled="resetPasswordLoading || !resetPasswordForm.email?.trim()"
                   >
-                    <span>Link senden</span>
+                    <span>{{ resetPasswordLoading ? 'Wird gesendet...' : 'Link senden' }}</span>
                   </v-btn>
 
                   <transition name="fade">
@@ -456,25 +456,89 @@ const forgotPassword = () => {
   showResetPassword.value = true
   loginError.value = ''
   loginSuccess.value = false
+  resetPasswordSuccess.value = false
+  resetPasswordForm.value.email = ''
 }
 
 const handleResetPassword = async () => {
-  if (!resetPasswordForm.value.email) {
+  // Réinitialise les états
+  resetPasswordSuccess.value = false
+
+  // Validation basique côté client
+  const email = resetPasswordForm.value.email?.trim()
+  if (!email) {
     notificationStore.showWarning('Bitte E-Mail eingeben')
     return
   }
+
+  // Validation format email
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    notificationStore.showWarning('Bitte eine gültige E-Mail eingeben')
+    return
+  }
+
   resetPasswordLoading.value = true
+
   try {
-    await withMinDuration(new Promise(r => setTimeout(r, 1500)), 1500)
-    resetPasswordSuccess.value = true
-    notificationStore.showSuccess('Link gesendet', 'Prüfen Sie Ihr Postfach.')
-    setTimeout(() => {
-      resetPasswordSuccess.value = false
-      resetPasswordForm.value.email = ''
-      showResetPassword.value = false
-    }, 5000)
+    // ✅ Vrai appel à l'API (même endpoint que EmployeeDetailView.vue)
+    const response = await fetch('/api/employee_request_password_reset.php', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email }),
+    })
+
+    // Lecture de la réponse JSON
+    const data = await response.json().catch(() => null)
+
+    // --- Gestion des erreurs HTTP ---
+    if (!response.ok) {
+      // 429 → rate limit dépassé (ne devrait pas arriver en mode public,
+      //         mais on gère par sécurité)
+      if (response.status === 429) {
+        notificationStore.showWarning(
+          'Zu viele Anfragen',
+          'Bitte versuchen Sie es später erneut.'
+        )
+        return
+      }
+
+      // Autres erreurs serveur
+      notificationStore.showError(
+        'Fehler',
+        data?.message || 'Die Anfrage konnte nicht verarbeitet werden.'
+      )
+      return
+    }
+
+    // --- Succès (le backend renvoie toujours success:true en mode public) ---
+    // ⚠️ Anti-énumération : on affiche le même message que l'email existe ou non
+    if (data?.success === true) {
+      resetPasswordSuccess.value = true
+      notificationStore.showSuccess(
+        'Link gesendet',
+        'Prüfen Sie Ihr Postfach (auch den Spam-Ordner).'
+      )
+
+      // Reset du formulaire après 5 secondes
+      setTimeout(() => {
+        resetPasswordSuccess.value = false
+        resetPasswordForm.value.email = ''
+        showResetPassword.value = false
+      }, 5000)
+    } else {
+      notificationStore.showError(
+        'Fehler',
+        data?.message || 'Unbekannter Fehler.'
+      )
+    }
   } catch (error) {
-    notificationStore.showError('Fehler', 'Bitte später erneut versuchen.')
+    // Erreur réseau / CORS / serveur down
+    console.error('[ForgotPassword]', error)
+    notificationStore.showError(
+      'Netzwerkfehler',
+      'Server nicht erreichbar. Bitte später erneut versuchen.'
+    )
   } finally {
     resetPasswordLoading.value = false
   }

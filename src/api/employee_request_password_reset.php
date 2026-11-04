@@ -1,9 +1,20 @@
 <?php
 // api/employee_request_password_reset.php
-// Déclenché par un admin/office → envoie un magic link à l'employé
-// ⚠️ Ne pas confondre avec les endpoints du site partagé
+// ============================================================
+// Deux modes :
+//   1) Admin/office (target_user_id) → reset pour un employé  [EmployeeDetailView.vue]
+//   2) Public (email)               → self-service reset       [Login.vue]
+// ⚠️ Anti-énumération d'emails en mode public
+// ⚠️ Rate limiting par IP et par email
+// ============================================================
 
 use PHPMailer\PHPMailer\PHPMailer;
+
+// ============================================================
+// CONFIG RATE LIMITING
+// ============================================================
+const RATE_LIMIT_PER_IP_PER_HOUR    = 5;   // max tentatives / IP / heure
+const RATE_LIMIT_PER_EMAIL_PER_HOUR = 3;   // max tentatives / email / heure
 
 // ============================================================
 // CORS — compatible avec cookies cross-origin
@@ -36,8 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // ============================================================
 // SESSION — identique à auth_stock.php (même cookie STOCKMANAGER)
 // ============================================================
-$isSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-$host = $_SERVER['HTTP_HOST'] ?? '';
+$isSecure     = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+$host         = $_SERVER['HTTP_HOST'] ?? '';
 $origin_check = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 $isLocalhost = (
@@ -69,54 +80,172 @@ if (!$pdo instanceof PDO) {
 }
 
 // ============================================================
-// AUTH
+// BODY — déterminer le mode AVANT tout contrôle d'auth
 // ============================================================
-if (empty($_SESSION['user_id'])) {
-    http_response_code(401);
-    exit(json_encode(['success' => false, 'message' => 'Nicht authentifiziert.']));
-}
-
-// ============================================================
-// RÔLE admin/office uniquement
-// ============================================================
-$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-$stmt->execute([(int)$_SESSION['user_id']]);
-$callerRole = strtolower($stmt->fetchColumn() ?: '');
-if (!in_array($callerRole, ['admin', 'office'], true)) {
-    http_response_code(403);
-    exit(json_encode(['success' => false, 'message' => 'Keine Berechtigung.']));
-}
-
-// ============================================================
-// BODY
-// ============================================================
-$input = json_decode(file_get_contents('php://input'), true) ?: [];
+$input        = json_decode(file_get_contents('php://input'), true) ?: [];
 $targetUserId = (int)($input['target_user_id'] ?? 0);
-if ($targetUserId <= 0) {
-    exit(json_encode(['success' => false, 'message' => 'target_user_id fehlt.']));
+$email        = trim((string)($input['email'] ?? ''));
+
+$isPublicMode = ($targetUserId <= 0 && $email !== '');
+
+// ============================================================
+// RATE LIMITING — helpers + vérification
+// ============================================================
+$ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+/**
+ * Vérifie si le quota est dépassé pour cette IP / cet email.
+ */
+$isRateLimited = function (PDO $pdo, string $ip, ?string $email) : bool {
+    // --- Par IP ---
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) FROM password_reset_attempts
+        WHERE ip = ? AND created_at > (NOW() - INTERVAL 1 HOUR)
+    ");
+    $stmt->execute([$ip]);
+    if ((int)$stmt->fetchColumn() >= RATE_LIMIT_PER_IP_PER_HOUR) {
+        return true;
+    }
+
+    // --- Par email (uniquement si email fourni) ---
+    if ($email !== null && $email !== '') {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM password_reset_attempts
+            WHERE email = ? AND created_at > (NOW() - INTERVAL 1 HOUR)
+        ");
+        $stmt->execute([$email]);
+        if ((int)$stmt->fetchColumn() >= RATE_LIMIT_PER_EMAIL_PER_HOUR) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+/**
+ * Enregistre une tentative (succès ou échec).
+ */
+$recordAttempt = function (PDO $pdo, string $ip, ?string $email, string $mode, bool $success) : void {
+    $pdo->prepare("
+        INSERT INTO password_reset_attempts (ip, email, mode, success, created_at)
+        VALUES (?, ?, ?, ?, NOW())
+    ")->execute([$ip, $email ?: null, $mode, $success ? 1 : 0]);
+};
+
+// --- Vérification du rate limit ---
+if ($isRateLimited($pdo, $ip, $isPublicMode ? $email : null)) {
+    // ⚠️ Anti-énumération : même réponse qu'un succès en mode public
+    if ($isPublicMode) {
+        $recordAttempt($pdo, $ip, $email, 'public', false);
+        exit(json_encode([
+            'success' => true,
+            'message' => 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+        ]));
+    }
+    // Mode admin : on peut révéler le rate limit (utilisateur authentifié)
+    $recordAttempt($pdo, $ip, null, 'admin', false);
+    http_response_code(429);
+    exit(json_encode([
+        'success' => false,
+        'message' => 'Zu viele Anfragen. Bitte in einer Stunde erneut versuchen.',
+    ]));
 }
 
 // ============================================================
-// EMPLOYÉ CIBLE
+// MODE ADMIN/OFFICE — contrôles d'authentification
 // ============================================================
-$stmt = $pdo->prepare("
-    SELECT u.id, u.email, u.username, u.is_active,
-           e.vorname, e.nachname
-    FROM users u
-    LEFT JOIN employees e ON e.benutzer_id = u.id
-    WHERE u.id = ? LIMIT 1
-");
-$stmt->execute([$targetUserId]);
-$target = $stmt->fetch(PDO::FETCH_ASSOC);
+$callerId = null;
 
-if (!$target) {
-    exit(json_encode(['success' => false, 'message' => 'Benutzer nicht gefunden.']));
+if (!$isPublicMode) {
+    // --- Mode admin : target_user_id obligatoire ---
+    if ($targetUserId <= 0) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        http_response_code(400);
+        exit(json_encode([
+            'success' => false,
+            'message' => 'target_user_id oder email erforderlich.'
+        ]));
+    }
+
+    // Auth requise
+    if (empty($_SESSION['user_id'])) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        http_response_code(401);
+        exit(json_encode(['success' => false, 'message' => 'Nicht authentifiziert.']));
+    }
+
+    // Rôle admin/office requis
+    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+    $stmt->execute([(int)$_SESSION['user_id']]);
+    $callerRole = strtolower($stmt->fetchColumn() ?: '');
+    if (!in_array($callerRole, ['admin', 'office'], true)) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        http_response_code(403);
+        exit(json_encode(['success' => false, 'message' => 'Keine Berechtigung.']));
+    }
+
+    $callerId = (int)$_SESSION['user_id'];
 }
-if (empty($target['is_active'])) {
-    exit(json_encode(['success' => false, 'message' => 'Benutzerkonto ist inaktiv.']));
-}
-if (!filter_var($target['email'], FILTER_VALIDATE_EMAIL)) {
-    exit(json_encode(['success' => false, 'message' => 'Benutzer hat keine gültige E-Mail.']));
+
+// ============================================================
+// RÉCUPÉRER L'UTILISATEUR CIBLE
+// ============================================================
+if ($isPublicMode) {
+    // --- Mode public : lookup par email ---
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Anti-énumération : ne pas révéler que l'email est invalide
+        $recordAttempt($pdo, $ip, $email, 'public', false);
+        exit(json_encode([
+            'success' => true,
+            'message' => 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+        ]));
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.email, u.username, u.is_active,
+               e.vorname, e.nachname
+        FROM users u
+        LEFT JOIN employees e ON e.benutzer_id = u.id
+        WHERE u.email = ? LIMIT 1
+    ");
+    $stmt->execute([$email]);
+    $target = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // --- Anti-énumération : succès même si user introuvable/inactif ---
+    if (!$target || empty($target['is_active'])) {
+        $recordAttempt($pdo, $ip, $email, 'public', false);
+        exit(json_encode([
+            'success' => true,
+            'message' => 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+        ]));
+    }
+
+    $targetUserId = (int)$target['id'];
+
+} else {
+    // --- Mode admin : lookup par target_user_id ---
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.email, u.username, u.is_active,
+               e.vorname, e.nachname
+        FROM users u
+        LEFT JOIN employees e ON e.benutzer_id = u.id
+        WHERE u.id = ? LIMIT 1
+    ");
+    $stmt->execute([$targetUserId]);
+    $target = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$target) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        exit(json_encode(['success' => false, 'message' => 'Benutzer nicht gefunden.']));
+    }
+    if (empty($target['is_active'])) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        exit(json_encode(['success' => false, 'message' => 'Benutzerkonto ist inaktiv.']));
+    }
+    if (!filter_var($target['email'], FILTER_VALIDATE_EMAIL)) {
+        $recordAttempt($pdo, $ip, null, 'admin', false);
+        exit(json_encode(['success' => false, 'message' => 'Benutzer hat keine gültige E-Mail.']));
+    }
 }
 
 // ============================================================
@@ -134,8 +263,10 @@ $pdo->prepare("
 $token     = bin2hex(random_bytes(32));
 $tokenHash = hash('sha256', $token);
 $expiresAt = (new DateTime('+30 minutes'))->format('Y-m-d H:i:s');
-$ip        = $_SERVER['REMOTE_ADDR'] ?? null;
 $ua        = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+
+// requested_by : admin/office en mode admin, NULL en mode public
+$requestedBy = $isPublicMode ? null : $callerId;
 
 $stmt = $pdo->prepare("
     INSERT INTO password_reset_tokens
@@ -145,7 +276,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([
     $targetUserId,
     $tokenHash,
-    (int)$_SESSION['user_id'],
+    $requestedBy,
     $ip,
     $ua,
     $expiresAt,
@@ -168,6 +299,7 @@ foreach ($possible_paths as $p) {
     }
 }
 if (!$phpmailer_base) {
+    $recordAttempt($pdo, $ip, $isPublicMode ? $email : null, $isPublicMode ? 'public' : 'admin', false);
     exit(json_encode(['success' => false, 'message' => 'PHPMailer introuvable.']));
 }
 require $phpmailer_base . 'Exception.php';
@@ -190,6 +322,7 @@ foreach ($config_paths as $p) {
     }
 }
 if (!$config_file) {
+    $recordAttempt($pdo, $ip, $isPublicMode ? $email : null, $isPublicMode ? 'public' : 'admin', false);
     exit(json_encode(['success' => false, 'message' => 'config.php fehlt.']));
 }
 $config = require $config_file;
@@ -219,8 +352,8 @@ try {
     $mail->isHTML(true);
     $mail->SMTPOptions = [
         'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
+            'verify_peer'       => false,
+            'verify_peer_name'  => false,
             'allow_self_signed' => true,
         ],
     ];
@@ -232,11 +365,16 @@ try {
     $safeName = htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');
     $safeLink = htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8');
 
+    // Texte adapté selon le mode
+    $introLine = $isPublicMode
+        ? "Sie haben eine Passwort-Zurücksetzung für Ihr Konto angefordert."
+        : "Ein Administrator hat eine Passwort-Zurücksetzung für Ihr Konto angefordert.";
+
     $mail->Body = "
     <html><body style='font-family:Arial,sans-serif;max-width:600px;margin:auto;'>
       <h2>Passwort zurücksetzen – alpha-med-care Stock-Manager</h2>
       <p>Hallo <strong>$safeName</strong>,</p>
-      <p>Ein Administrator hat eine Passwort-Zurücksetzung für Ihr Konto angefordert.</p>
+      <p>$introLine</p>
       <p>Klicken Sie auf den folgenden Link, um ein neues Passwort zu setzen :</p>
       <p style='text-align:center;margin:30px 0;'>
         <a href='$safeLink'
@@ -254,28 +392,52 @@ try {
       </p>
     </body></html>";
 
-    $mail->AltBody = "Hallo $fullName,\n\nPasswort zurücksetzen (alpha-med-care Stock-Manager):\n$resetLink\n\nGültig 30 Minuten.";
+    $mail->AltBody = "Hallo $fullName,\n\n$introLine\n\nPasswort zurücksetzen (alpha-med-care Stock-Manager):\n$resetLink\n\nGültig 30 Minuten.";
 
     $mail->send();
 
     // --- Audit log ---
     audit_log(
         $pdo,
-        (int)$_SESSION['user_id'],
+        $requestedBy ?? 0,
         'password_reset_requested',
         'user',
         $targetUserId,
         [
             'target_email' => $target['email'],
             'expires_at'   => $expiresAt,
+            'mode'         => $isPublicMode ? 'public' : 'admin',
         ]
     );
 
-    echo json_encode([
-        'success' => true,
-        'message' => 'E-Mail mit Zurücksetzungslink wurde an ' . $target['email'] . ' gesendet.',
-    ]);
+    // --- Enregistrer la tentative réussie ---
+    $recordAttempt($pdo, $ip, $isPublicMode ? $email : null, $isPublicMode ? 'public' : 'admin', true);
+
+    // --- Réponse ---
+    if ($isPublicMode) {
+        // Anti-énumération : message neutre
+        echo json_encode([
+            'success' => true,
+            'message' => 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+        ]);
+    } else {
+        echo json_encode([
+            'success' => true,
+            'message' => 'E-Mail mit Zurücksetzungslink wurde an ' . $target['email'] . ' gesendet.',
+        ]);
+    }
 } catch (Throwable $e) {
     error_log('[password_reset_request] ' . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'E-Mail konnte nicht gesendet werden.']);
+
+    $recordAttempt($pdo, $ip, $isPublicMode ? $email : null, $isPublicMode ? 'public' : 'admin', false);
+
+    if ($isPublicMode) {
+        // Anti-énumération : ne pas révéler l'échec SMTP
+        echo json_encode([
+            'success' => true,
+            'message' => 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'E-Mail konnte nicht gesendet werden.']);
+    }
 }

@@ -37,6 +37,7 @@ session_name('ALPHAMEDCARE');
 session_start();
 
 require_once 'database.php';
+$dbh = $pdo; // Utiliser la connexion PDO depuis database.php   
 
 $input = json_decode(file_get_contents('php://input'), true);
 $response = ['success' => false, 'message' => ''];

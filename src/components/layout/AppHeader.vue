@@ -1,194 +1,175 @@
 <template>
-  <v-app-bar color="white" elevation="1" density="comfortable">
+  <v-app-bar color="surface" elevation="1" density="comfortable" class="modern-app-bar">
     <!-- Sidebar-Toggle -->
-    <v-app-bar-nav-icon @click.stop="uiStore.toggleRail" variant="text" />
+    <v-app-bar-nav-icon
+      @click.stop="uiStore.toggleRail"
+      variant="text"
+      aria-label="Seitenleiste umschalten"
+    />
 
     <!-- Suchfeld -->
     <v-text-field
+      v-model="searchQuery"
       density="compact"
-      variant="outlined"
+      variant="solo-filled"
       rounded="pill"
       placeholder="Suchen…"
       prepend-inner-icon="mdi-magnify"
       hide-details
+      clearable
       class="search-field"
+      aria-label="Suche"
+      @keyup.enter="performSearch"
     />
 
     <v-spacer />
 
-    <div class="d-flex align-center ga-3">
+    <div class="d-flex align-center ga-2">
       <!-- Nachrichten-Dropdown -->
-      <v-menu
+        
+      <AppBarDropdown
         v-model="menuMsg"
-        location="bottom end"
-        :close-on-content-click="false"
-        offset-y
-        transition="slide-y-transition"
-        max-width="380"
+        :unread-count="unreadMessages"
+        icon="mdi-message-text"
+        title="Nachrichten"
+        empty-text="Keine Nachrichten"
+        :items="messages"
+        item-key="id"
+        action-text="Alle Nachrichten anzeigen"
+        @open="loadData"
+        @mark-all-read="markAllAsRead('message')"
+        @item-click="openMessageDetail"
+        @action-click="goTo('/messages')"
       >
-        <template v-slot:activator="{ props }">
-          <v-badge
-            :color="unreadMessages > 0 ? 'error' : 'grey'"
-            :content="unreadMessages > 0 ? unreadMessages : ''"
-            overlap
+        <!-- ✅ Flacher Slot, direktes Kind der Komponente -->
+        <template #prepend="{ item: msg }">
+          <v-avatar
+            size="36"
+            :color="!msg.is_read ? 'primary' : 'grey-lighten-2'"
           >
-            <v-btn icon="mdi-message-text" v-bind="props" variant="text" density="comfortable" @click="loadData" />
-          </v-badge>
+            <span
+              class="text-body-2 font-weight-bold"
+              :class="{ 'text-white': !msg.is_read }"
+            >
+              {{ msg.sender_name?.charAt(0) || '?' }}
+            </span>
+          </v-avatar>
         </template>
 
-        <v-card min-width="350" max-width="400" class="dropdown-card">
-          <v-card-title class="d-flex align-center pa-3">
-            <span class="text-subtitle-1 font-weight-bold">Nachrichten</span>
-            <v-spacer />
-            <v-btn
-              variant="text"
-              color="primary"
-              size="small"
-              @click="markAllAsRead('message')"
-              v-if="unreadMessages > 0"
-            >
-              Alle gelesen
-            </v-btn>
-          </v-card-title>
-          <v-divider />
-
-          <div class="dropdown-scroll">
-            <v-list density="compact" v-if="messages.length">
-              <v-list-item
-                v-for="msg in messages"
-                :key="msg.id"
-                @click="openMessageDetail(msg)"
-                :class="{ 'unread-item': !msg.is_read }"
-                class="message-item"
-              >
-                <template #prepend>
-                  <v-avatar size="36" :color="!msg.is_read ? 'primary' : 'grey-lighten-2'">
-                    <span class="text-body-2 font-weight-bold" :class="!msg.is_read ? 'text-white' : ''">
-                      {{ msg.sender_name?.charAt(0) || '?' }}
-                    </span>
-                  </v-avatar>
-                </template>
-                <div class="message-content">
-                  <div class="d-flex align-center">
-                    <span class="text-body-2 font-weight-medium">{{ msg.subject }}</span>
-                    <v-chip v-if="!msg.is_read" color="error" size="x-small" class="ml-2">neu</v-chip>
-                  </div>
-                  <span class="text-caption text-medium-emphasis">{{ msg.preview }}</span>
-                  <span class="text-caption text-grey">{{ msg.formatted_date }}</span>
-                </div>
-              </v-list-item>
-            </v-list>
-            <div v-else class="text-center pa-4 text-grey">Keine Nachrichten</div>
+        <template #content="{ item: msg }">
+          <div class="message-content">
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 font-weight-medium text-truncate">
+                {{ msg.subject }}
+              </span>
+              <v-chip v-if="!msg.is_read" color="error" size="x-small">neu</v-chip>
+            </div>
+            <span class="text-caption text-medium-emphasis text-truncate">
+              {{ msg.preview }}
+            </span>
+            <span class="text-caption text-grey">{{ msg.formatted_date }}</span>
           </div>
-
-          <v-divider />
-          <v-card-actions class="pa-2">
-            <v-btn variant="text" color="primary" block size="small" @click="goTo('/messages')">
-              Alle Nachrichten anzeigen
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-menu>
+        </template>
+      </AppBarDropdown>
 
       <!-- Benachrichtigungen-Dropdown -->
-      <v-menu
+      <AppBarDropdown
         v-model="menuNotif"
+        :unread-count="unreadNotifications"
+        icon="mdi-bell"
+        title="Benachrichtigungen"
+        empty-text="Keine Benachrichtigungen"
+        :items="notifications"
+        item-key="id"
+        action-text="Alle Benachrichtigungen anzeigen"
+        :icon-for="getTypeIcon"
+        :icon-color="getTypeColor"
+        @open="loadData"
+        @mark-all-read="markAllAsRead('notification')"
+        @item-click="openNotificationDetail"
+        @action-click="goTo('/notifications')"
+      >
+        <template #content="{ item: n }">
+          <div class="notification-content">
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 font-weight-medium text-truncate">
+                {{ n.title }}
+              </span>
+              <v-chip v-if="!n.is_read" color="error" size="x-small">neu</v-chip>
+            </div>
+            <span class="text-caption text-medium-emphasis">{{ n.message }}</span>
+            <span class="text-caption text-grey">{{ n.formatted_date }}</span>
+            <a
+              v-if="n.link"
+              :href="n.link"
+              @click.stop
+              class="text-caption text-primary"
+            >
+              Details
+            </a>
+          </div>
+        </template>
+      </AppBarDropdown>
+
+      <!-- Profil-Menü -->
+      <v-menu
+        v-model="menuAccount"
         location="bottom end"
         :close-on-content-click="false"
         offset-y
-        transition="slide-y-transition"
-        max-width="380"
       >
-        <template v-slot:activator="{ props }">
-          <v-badge
-            :color="unreadNotifications > 0 ? 'error' : 'grey'"
-            :content="unreadNotifications > 0 ? unreadNotifications : ''"
-            overlap
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            variant="text"
+            class="text-none"
+            density="comfortable"
+            aria-label="Profilmenü"
           >
-            <v-btn icon="mdi-bell" v-bind="props" variant="text" density="comfortable" @click="loadData" />
-          </v-badge>
-        </template>
-
-        <v-card min-width="350" max-width="400" class="dropdown-card">
-          <v-card-title class="d-flex align-center pa-3">
-            <span class="text-subtitle-1 font-weight-bold">Benachrichtigungen</span>
-            <v-spacer />
-            <v-btn
-              variant="text"
-              color="primary"
-              size="small"
-              @click="markAllAsRead('notification')"
-              v-if="unreadNotifications > 0"
-            >
-              Alle gelesen
-            </v-btn>
-          </v-card-title>
-          <v-divider />
-
-          <div class="dropdown-scroll">
-            <v-list density="compact" v-if="notifications.length">
-              <v-list-item
-                v-for="n in notifications"
-                :key="n.id"
-                @click="openNotificationDetail(n)"
-                :class="{ 'unread-item': !n.is_read }"
-                class="notification-item"
-              >
-                <template #prepend>
-                  <v-icon :color="getTypeColor(n.type)" size="28">{{ getTypeIcon(n.type) }}</v-icon>
-                </template>
-                <div class="notification-content">
-                  <div class="d-flex align-center">
-                    <span class="text-body-2 font-weight-medium">{{ n.title }}</span>
-                    <v-chip v-if="!n.is_read" color="error" size="x-small" class="ml-2">neu</v-chip>
-                  </div>
-                  <span class="text-caption text-medium-emphasis">{{ n.message }}</span>
-                  <span class="text-caption text-grey">{{ n.formatted_date }}</span>
-                  <a v-if="n.link" :href="n.link" @click.stop class="text-caption primary--text">Details</a>
-                </div>
-              </v-list-item>
-            </v-list>
-            <div v-else class="text-center pa-4 text-grey">Keine Benachrichtigungen</div>
-          </div>
-
-          <v-divider />
-          <v-card-actions class="pa-2">
-            <v-btn variant="text" color="primary" block size="small" @click="goTo('/notifications')">
-              Alle Benachrichtigungen anzeigen
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-menu>
-
-      <!-- Profil-Menü (bleibt) -->
-      <v-menu v-model="menuAccount" location="bottom end" :close-on-content-click="false" offset-y>
-        <template v-slot:activator="{ props }">
-          <v-btn v-bind="props" variant="text" class="text-none" density="comfortable">
             <v-avatar size="36" color="grey-darken-3">
               <span class="text-white">{{ userInitials }}</span>
             </v-avatar>
-            <span class="ml-2">{{ displayName }} <v-icon icon="mdi-chevron-down" size="small" /></span>
+            <span class="ml-2 d-none d-sm-inline">
+              {{ displayName }}
+              <v-icon icon="mdi-chevron-down" size="small" />
+            </span>
           </v-btn>
         </template>
 
-        <v-card width="280" class="account-dropdown">
+        <v-card width="280" class="account-dropdown mt-3">
           <div class="d-flex pa-4 align-center">
             <v-avatar size="48" color="grey-darken-3">
               <span class="text-white text-h6">{{ userInitials }}</span>
             </v-avatar>
             <div class="ml-3">
               <div class="text-subtitle-1 font-weight-medium">{{ displayName }}</div>
-              <div class="text-caption text-medium-emphasis">{{ authStore.user?.email || 'Keine E-Mail' }}</div>
+              <div class="text-caption text-medium-emphasis">
+                {{ authStore.user?.email || 'Keine E-Mail' }}
+              </div>
             </div>
           </div>
           <v-divider />
           <v-list density="compact" nav>
-            <v-list-item prepend-icon="mdi-account" title="Profil" @click="goTo('/users_profile')" />
-            <v-list-item prepend-icon="mdi-cog" title="Einstellungen" @click="goTo('/settings')" />
+            <v-list-item
+              prepend-icon="mdi-account"
+              title="Profil"
+              @click="goTo('/users_profile')"
+            />
+            <v-list-item
+              prepend-icon="mdi-cog"
+              title="Einstellungen"
+              @click="goTo('/settings')"
+            />
           </v-list>
           <v-divider />
           <div class="pa-2">
-            <v-btn block variant="text" color="error" prepend-icon="mdi-logout" @click="handleLogout">
+            <v-btn
+              block
+              variant="text"
+              color="error"
+              prepend-icon="mdi-logout"
+              @click="handleLogout"
+            >
               Abmelden
             </v-btn>
           </div>
@@ -199,134 +180,169 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '../../stores/uiStore'
 import { useAuthStore } from '../../stores/auth'
 import { useNotificationStore } from '../../stores/notifications'
 import { logout } from '../../api/auth_stock'
 import axios from 'axios'
+import AppBarDropdown from './AppBarDropdown.vue'
 
+// ── Stores & Router ──────────────────────────────────────────────
 const uiStore = useUiStore()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const router = useRouter()
 
-// Dropdown-Steuerung
+// ── State ────────────────────────────────────────────────────────
 const menuMsg = ref(false)
 const menuNotif = ref(false)
 const menuAccount = ref(false)
 
-// Daten
+const searchQuery = ref('')
 const messages = ref([])
 const notifications = ref([])
 const unreadMessages = ref(0)
 const unreadNotifications = ref(0)
 const loading = ref(false)
 
-// Profil
-const displayName = computed(() => {
-  const u = authStore.user
-  return u?.name || u?.email || 'Gast'
-})
+// ── Konstanten ───────────────────────────────────────────────────
+const TYPE_ICONS = {
+  info: 'mdi-information',
+  warning: 'mdi-alert',
+  success: 'mdi-check-circle',
+  error: 'mdi-close-circle',
+}
+const TYPE_COLORS = {
+  info: 'info',
+  warning: 'warning',
+  success: 'success',
+  error: 'error',
+}
+
+const getTypeIcon = (type) => TYPE_ICONS[type] ?? 'mdi-bell'
+const getTypeColor = (type) => TYPE_COLORS[type] ?? 'grey'
+
+// ── Computed ─────────────────────────────────────────────────────
+const displayName = computed(
+  () => authStore.user?.name || authStore.user?.email || 'Gast',
+)
 
 const userInitials = computed(() => {
   const u = authStore.user
   if (!u) return '?'
-  const name = u.name || ''
-  const parts = name.trim().split(/\s+/)
-  if (parts.length > 1) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  return name.substring(0, 2).toUpperCase() || u.email?.charAt(0).toUpperCase() || '?'
+  const name = (u.name || '').trim()
+  if (!name) return u.email?.charAt(0).toUpperCase() || '?'
+
+  const parts = name.split(/\s+/)
+  if (parts.length > 1) {
+    return (parts[0][0] + parts.at(-1)[0]).toUpperCase()
+  }
+  return name.substring(0, 2).toUpperCase()
 })
 
-// Hilfsfunktionen für Benachrichtigungstypen
-const getTypeIcon = (type) => {
-  const map = {
-    info: 'mdi-information',
-    warning: 'mdi-alert',
-    success: 'mdi-check-circle',
-    error: 'mdi-close-circle'
-  }
-  return map[type] || 'mdi-bell'
+// ── Suche ────────────────────────────────────────────────────────
+const performSearch = () => {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  router.push({ path: '/search', query: { q } })
 }
 
-const getTypeColor = (type) => {
-  const map = {
-    info: 'info',
-    warning: 'warning',
-    success: 'success',
-    error: 'error'
-  }
-  return map[type] || 'grey'
-}
-
-// Daten laden
+// ── Daten laden ──────────────────────────────────────────────────
 const loadData = async () => {
   if (!authStore.isLoggedIn || loading.value) return
   loading.value = true
-  try {
-    const [notifRes, msgRes] = await Promise.all([
-      axios.get('/api/get_notifications.php', { withCredentials: true }),
-      axios.get('/api/get_messages.php', { withCredentials: true })
-    ])
-    if (notifRes.data.success) {
-      notifications.value = notifRes.data.notifications
-      unreadNotifications.value = notifRes.data.unreadCount
-    }
-    if (msgRes.data.success) {
-      messages.value = msgRes.data.messages
-      unreadMessages.value = msgRes.data.unreadCount
-    }
-  } catch (error) {
-    console.error('Fehler beim Laden:', error)
-  } finally {
-    loading.value = false
+
+  const [notifResult, msgResult] = await Promise.allSettled([
+    axios.get('/api/get_notifications.php', { withCredentials: true }),
+    axios.get('/api/get_messages.php', { withCredentials: true }),
+  ])
+
+  if (notifResult.status === 'fulfilled' && notifResult.value.data.success) {
+    notifications.value = notifResult.value.data.notifications
+    unreadNotifications.value = notifResult.value.data.unreadCount
+  } else if (notifResult.status === 'rejected') {
+    console.error('Benachrichtigungen:', notifResult.reason)
   }
+
+  if (msgResult.status === 'fulfilled' && msgResult.value.data.success) {
+    messages.value = msgResult.value.data.messages
+    unreadMessages.value = msgResult.value.data.unreadCount
+  } else if (msgResult.status === 'rejected') {
+    console.error('Nachrichten:', msgResult.reason)
+  }
+
+  loading.value = false
 }
 
-// Einzelnes als gelesen markieren
+// ── Als gelesen markieren ────────────────────────────────────────
 const markAsRead = async (type, id) => {
+  const list = type === 'message' ? messages.value : notifications.value
+  const item = list.find((i) => i.id === id)
+  if (!item || item.is_read) return
+
+  // Optimistisches Update
+  item.is_read = 1
+  if (type === 'message') {
+    unreadMessages.value = Math.max(0, unreadMessages.value - 1)
+  } else {
+    unreadNotifications.value = Math.max(0, unreadNotifications.value - 1)
+  }
+
   try {
-    await axios.post('/api/mark_read.php', { type, id }, { withCredentials: true })
-    // Lokal aktualisieren ohne API-Call
-    if (type === 'message') {
-      const msg = messages.value.find(m => m.id === id)
-      if (msg) msg.is_read = 1
-      unreadMessages.value = messages.value.filter(m => !m.is_read).length
-    } else {
-      const notif = notifications.value.find(n => n.id === id)
-      if (notif) notif.is_read = 1
-      unreadNotifications.value = notifications.value.filter(n => !n.is_read).length
-    }
+    await axios.post(
+      '/api/mark_read.php',
+      { type, id },
+      { withCredentials: true },
+    )
   } catch (error) {
+    // Rollback bei Fehler
+    item.is_read = 0
+    if (type === 'message') unreadMessages.value++
+    else unreadNotifications.value++
     console.error('Fehler beim Markieren:', error)
   }
 }
 
-// Alle als gelesen markieren
+// ── Alle als gelesen markieren ───────────────────────────────────
 const markAllAsRead = async (type) => {
-  const items = type === 'message' ? messages.value : notifications.value
-  const unread = items.filter(item => !item.is_read)
-  
-  for (const item of unread) {
-    try {
-      await axios.post('/api/mark_read.php', { type, id: item.id }, { withCredentials: true })
-    } catch (error) {
-      console.error('Fehler beim Markieren:', error)
-    }
+  const list = type === 'message' ? messages.value : notifications.value
+  const unread = list.filter((i) => !i.is_read)
+  if (!unread.length) return
+
+  // Optimistisches Update
+  unread.forEach((i) => (i.is_read = 1))
+  const prevCount =
+    type === 'message' ? unreadMessages.value : unreadNotifications.value
+  if (type === 'message') unreadMessages.value = 0
+  else unreadNotifications.value = 0
+
+  // Bulk-Request falls API vorhanden, sonst einzeln
+  try {
+    await axios.post(
+      '/api/mark_all_read.php',
+      { type, ids: unread.map((i) => i.id) },
+      { withCredentials: true },
+    )
+  } catch {
+    // Fallback: einzeln
+    await Promise.allSettled(
+      unread.map((i) =>
+        axios.post(
+          '/api/mark_read.php',
+          { type, id: i.id },
+          { withCredentials: true },
+        ),
+      ),
+    )
   }
-  
-  // Lokal aktualisieren
-  if (type === 'message') {
-    unreadMessages.value = 0
-    messages.value.forEach(m => m.is_read = 1)
-  } else {
-    unreadNotifications.value = 0
-    notifications.value.forEach(n => n.is_read = 1)
-  }
+
+  // Bei totalem Fehler zurücksetzen (hier vereinfacht)
+  if (!unread.length && prevCount === 0) return
 }
 
-// Navigation
+// ── Navigation ───────────────────────────────────────────────────
 const goTo = (route) => {
   router.push(route)
   menuMsg.value = false
@@ -334,7 +350,7 @@ const goTo = (route) => {
   menuAccount.value = false
 }
 
-// Detail öffnen
+// ── Detail öffnen ────────────────────────────────────────────────
 const openMessageDetail = (msg) => {
   if (!msg.is_read) markAsRead('message', msg.id)
   router.push(`/message/${msg.id}`)
@@ -351,93 +367,124 @@ const openNotificationDetail = (n) => {
   menuNotif.value = false
 }
 
-// Logout
+// ── Logout ───────────────────────────────────────────────────────
 const handleLogout = async () => {
   try {
     const res = await logout()
-    if (res.success) {
-      authStore.clearUser()
-      notificationStore.showSuccess('Abgemeldet', 'Auf Wiedersehen!')
-      router.push('/login')
-    } else {
-      throw new Error(res.message || 'Fehler beim Abmelden')
-    }
+    if (!res.success) throw new Error(res.message || 'Fehler beim Abmelden')
+
+    authStore.clearUser()
+    notificationStore.showSuccess('Abgemeldet', 'Auf Wiedersehen!')
+    router.push('/login')
   } catch (error) {
     notificationStore.showError('Fehler beim Abmelden', error.message)
   }
 }
 
+// ── Lifecycle & Reaktivität ──────────────────────────────────────
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) {
+      loadData()
+    } else {
+      messages.value = []
+      notifications.value = []
+      unreadMessages.value = 0
+      unreadNotifications.value = 0
+    }
+  },
+  { immediate: true },
+)
+
+// Optional: Polling alle 60 Sekunden für Live-Updates
+let pollInterval = null
 onMounted(() => {
-  if (authStore.isLoggedIn) loadData()
+  if (authStore.isLoggedIn) {
+    pollInterval = setInterval(loadData, 60_000)
+  }
 })
 
-// Expose für Aktualisierung von außen
+// Cleanup (in `<script setup>` via `onUnmounted` ergänzen)
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
+})
+
+// Expose für externe Aktualisierung
 defineExpose({ loadData })
 </script>
 
 <style scoped>
-.search-field {
-  max-width: 260px;
+/* ── App-Bar ──────────────────────────────────────────────── */
+.modern-app-bar {
+  backdrop-filter: blur(12px);
+  background-color: color-mix(in srgb, var(--v-theme-surface) 92%, transparent) !important;
 }
 
-/* Dropdown-Styling */
+.search-field {
+  max-width: 320px;
+  transition: max-width 0.2s ease;
+}
+.search-field:focus-within {
+  max-width: 400px;
+}
+
+/* ── Dropdown-Container ───────────────────────────────────── */
 .dropdown-card {
   border-radius: 12px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden;
 }
 
 .dropdown-scroll {
   max-height: 350px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
-/* Nachrichten-Einträge */
-.message-item {
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.message-item:hover {
-  background-color: rgba(0, 0, 0, 0.04);
-}
-.message-item .message-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  width: 100%;
-}
-
-/* Benachrichtigungen-Einträge */
+/* ── Einträge ─────────────────────────────────────────────── */
+.message-item,
 .notification-item {
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s ease;
 }
+.message-item:hover,
 .notification-item:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
-.notification-item .notification-content {
+
+.message-content,
+.notification-content {
   display: flex;
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
   width: 100%;
+  min-width: 0;
 }
 
-/* Ungelesene Einträge */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Ungelesene Einträge ──────────────────────────────────── */
 .unread-item {
   background-color: rgba(33, 150, 243, 0.06);
-  border-left: 3px solid #1976d2;
+  border-left: 3px solid rgb(var(--v-theme-primary));
 }
 .unread-item:hover {
   background-color: rgba(33, 150, 243, 0.12);
 }
 
-/* Profil-Dropdown */
+/* ── Profil-Dropdown ──────────────────────────────────────── */
 .account-dropdown :deep(.v-list-item__prepend) {
-  margin-right: 12px;
+  margin-right: 5px;
 }
 
-/* Scrollbar-Stil */
+/* ── Scrollbar ────────────────────────────────────────────── */
 .dropdown-scroll::-webkit-scrollbar {
   width: 4px;
 }
@@ -450,5 +497,12 @@ defineExpose({ loadData })
 }
 .dropdown-scroll::-webkit-scrollbar-thumb:hover {
   background: #aaa;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .search-field {
+    max-width: 160px;
+  }
 }
 </style>

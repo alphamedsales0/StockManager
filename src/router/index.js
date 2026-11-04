@@ -6,6 +6,7 @@ import { usePermissionStore } from '../stores/permission'
 import { useAuthStore } from '../stores/auth'
 import { getRouteKey } from '../config/permissions'
 import ActivitiesView from '@/views/ActivitiesView.vue'
+import UserProfile from '@/views/UserProfile.vue'
 
 const routes = [
   // ============================================================
@@ -16,6 +17,13 @@ const routes = [
     name: 'Login',
     component: () => import('../components/auth/Login.vue'),
     meta: { public: true }
+  },
+
+  {
+    path: '/users_profile',
+    name: 'UserProfile',
+    component: UserProfile,
+    meta: { requiresAuth: true }
   },
 
   {
